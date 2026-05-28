@@ -13,6 +13,7 @@ each agent step, plus timing_summary.json per model and final_summary.json overa
 
 import json
 import logging
+import re
 import time
 from datetime import datetime
 from pathlib import Path
@@ -23,7 +24,7 @@ import ollama
 
 MODELS = ["qwen2.5:7b", "llama3:8b", "gemma2:9b"]
 TEMPERATURE = 0.1
-RESULTS_DIR = Path("benchmark_results")
+RESULTS_DIR = Path("benchmark_results_2")
 
 DATA_FILES = {
     "us": "us_recall.json",
@@ -31,34 +32,72 @@ DATA_FILES = {
     "uk": "uk_recall.json",
 }
 
+# Deterministic country of origin per source API (S2 repair). The source files report
+# distribution/sales geography rather than a true country of origin, so an LLM can only
+# guess; we derive it from the known data source instead.
+COUNTRY_BY_SOURCE = {
+    "us": "United States",
+    "france": "France",
+    "uk": "United Kingdom",
+}
+
 # ── System Prompts ─────────────────────────────────────────────────────────────
 
 AGENT1_SYSTEM = (
-    "You are a strict data translation API. You will receive a JSON object containing "
-    "international food recall data. Your task is to translate all string values into "
-    "professional English. You must preserve the exact JSON structure, nested objects, "
-    "and arrays. If the string is already in English, simply output the original string. "
-    "Do NOT translate URLs, dates, or boolean values. Return ONLY valid JSON. "
-    "Do not include markdown backticks or introductory text."
+    "You are a strict data translation agent. You will receive a JSON object containing "
+    "international food recall data. Translate ALL non-English text into professional English. "
+    "This applies to BOTH JSON keys and string values, including strings nested inside objects "
+    "and arrays. Follow these rules exactly:\n"
+    "1. TRANSLATE: all non-English keys, string values, and strings inside arrays.\n"
+    "2. DO NOT TRANSLATE: URLs, ISO dates, numeric strings, boolean strings, phone numbers, "
+    "email addresses, product codes, batch codes, and brand names.\n"
+    "3. DO NOT add, remove, reorder, or rename any JSON fields. Every field from the input "
+    "must appear in the output exactly once.\n"
+    "4. DO NOT repeat content. Each value must appear exactly once.\n"
+    "5. Return ONLY valid JSON. No markdown backticks, no commentary, no extra text.\n"
+    "6. If a string is already in English, copy it unchanged."
 )
 
 AGENT2_SYSTEM = (
     "You are a crisis communications specialist. Review the provided JSON containing "
-    "translated food recall data. Write a highly concise, strict 3-sentence summary. "
+    "translated food recall data. Write a summary that is EXACTLY three sentences. "
     "Sentence 1: State what the product is and where it is from. "
     "Sentence 2: State why it is being recalled and the health risk. "
-    "Sentence 3: State the required action for the consumer. "
-    "Output ONLY these 3 sentences as plain text."
+    "Sentence 3: State the required action for the consumer.\n"
+    "Strict output rules:\n"
+    "1. Output ONLY the three sentences as a single plain-text paragraph.\n"
+    "2. Do NOT add any preamble, heading, label, or closing remark "
+    "(for example, do not write 'Here is the summary:').\n"
+    "3. Produce exactly three sentences, each ending with a period. Do not merge two "
+    "sentences into one, and do not add a fourth.\n"
+    "4. Do NOT include phone numbers, emails, URLs, batch codes, or lot numbers.\n"
+    "5. Use the product's commercial name only; do not append the manufacturer or location "
+    "to the product name."
 )
 
 AGENT3_SYSTEM = (
     "You are a data structuring API. You will be provided with a 'Text Summary' and a "
-    "'Source JSON' object. Your task is to generate a new JSON object combining this data. "
-    "Extract the original URL from the Source JSON. Return ONLY valid JSON matching this "
-    "exact schema, with no markdown formatting or extra text: "
-    '{"product_name": "string", "summary": "[Insert the exact Text Summary provided]", '
-    '"hazard_type": "string", "consumer_action": "string", "country_of_origin": "string", '
-    '"original_link": "string"}'
+    "'Source JSON' object. Generate a new JSON object combining this data. "
+    "Return ONLY valid JSON matching this exact schema, with no markdown formatting or extra text:\n"
+    '{"product_name": "string", "summary": "string", "hazard_type": "string", '
+    '"consumer_action": "string", "country_of_origin": "string", "original_link": "string"}\n'
+    "Field rules:\n"
+    "1. product_name: the commercial product name only. Do NOT include the manufacturer, "
+    "location, batch number, or lot number.\n"
+    "2. summary: copy the provided Text Summary VERBATIM, character for character. Do not "
+    "rewrite, shorten, expand, or regenerate it.\n"
+    "3. hazard_type: a short noun phrase naming the hazard (for example 'Listeria "
+    "monocytogenes', 'Undeclared milk', 'Glass'). Do not include explanatory parentheticals "
+    "or the words 'presence of'. This field must never be empty.\n"
+    "4. consumer_action: a single plain-English sentence. If the source uses pipe ('|') "
+    "separated values, convert them into one natural sentence. Never output pipe characters.\n"
+    "5. country_of_origin: the country the product originates from or was issued by. Use a "
+    "single country name (for example 'France', 'United Kingdom', 'United States'). Do NOT "
+    "use distribution scope, sales regions, or sub-national areas. If it cannot be determined, "
+    "use 'Unknown'.\n"
+    "6. original_link: copy the canonical recall-notice URL from the Source JSON exactly as "
+    "written. Prefer the main recall/alert page over PDF or image links. Never invent or "
+    "translate a URL."
 )
 
 # ── Logging Setup ──────────────────────────────────────────────────────────────
@@ -96,12 +135,45 @@ def load_test_cases() -> list[dict]:
 
     return test_cases
 
+# ── Validation Helpers (measurement: S3 / S4 / S5) ─────────────────────────────
+
+_PREAMBLE_PATTERN = re.compile(
+    r"^\s*(here\s+(is|are)\b|sure\b|summary\s*:|below\s+is\b).*?(:|\n)",
+    re.IGNORECASE | re.DOTALL,
+)
+_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
+
+
+def evaluate_summary(text: str) -> dict:
+    """S4: detect a leading preamble and count sentences. Does not modify the text."""
+    first_line = text.strip().splitlines()[0] if text.strip() else ""
+    has_preamble = bool(_PREAMBLE_PATTERN.match(first_line)) or (
+        ":" in first_line and len(first_line) < 80 and not first_line.endswith(".")
+    )
+
+    body = text.strip()
+    sentences = [s for s in _SENTENCE_SPLIT.split(body) if s.strip()]
+    sentence_count = len(sentences)
+
+    return {
+        "has_preamble": has_preamble,
+        "sentence_count": sentence_count,
+        "three_sentences": sentence_count == 3,
+    }
+
+
+def url_in_source(url, raw_entry: dict) -> bool:
+    """S3: check whether a model-returned URL actually exists in the source entry."""
+    if not isinstance(url, str) or not url.strip():
+        return False
+    return url.strip() in json.dumps(raw_entry, ensure_ascii=False)
+
 # ── Agent Runners ──────────────────────────────────────────────────────────────
 
 def run_agent1(
     model: str, raw_entry: dict
 ) -> tuple[dict | None, float, str]:
-    """Translate all string values to professional English, return parsed dict."""
+    """Translate all keys and string values to professional English, return parsed dict."""
     start = time.perf_counter()
     response = ollama.chat(
         model=model,
@@ -109,7 +181,10 @@ def run_agent1(
             {"role": "system", "content": AGENT1_SYSTEM},
             {"role": "user", "content": json.dumps(raw_entry, ensure_ascii=False)},
         ],
-        options={"temperature": TEMPERATURE},
+        options={
+            "temperature": TEMPERATURE,
+            "repeat_penalty": 1.1
+        },
         format="json",
     )
     elapsed = time.perf_counter() - start
@@ -133,7 +208,9 @@ def run_agent2(model: str, agent1_output: dict) -> tuple[str, float]:
             {"role": "system", "content": AGENT2_SYSTEM},
             {"role": "user", "content": json.dumps(agent1_output, ensure_ascii=False)},
         ],
-        options={"temperature": TEMPERATURE},
+        options={
+            "temperature": TEMPERATURE
+        },
     )
     elapsed = time.perf_counter() - start
     return response["message"]["content"].strip(), elapsed
@@ -154,7 +231,9 @@ def run_agent3(
             {"role": "system", "content": AGENT3_SYSTEM},
             {"role": "user", "content": user_content},
         ],
-        options={"temperature": TEMPERATURE},
+        options={
+            "temperature": TEMPERATURE
+        },
         format="json",
     )
     elapsed = time.perf_counter() - start
@@ -236,6 +315,19 @@ def run_pipeline_for_case(
     timing["agent2_seconds"] = round(a2_time, 3)
     timing["agent2_status"] = "SUCCESS"
     save_agent_output(model_dir, case_id, 2, a2_result)
+
+    # S4 (measure): flag preamble + sentence-count compliance without altering output.
+    summary_eval = evaluate_summary(a2_result)
+    timing["agent2_has_preamble"] = summary_eval["has_preamble"]
+    timing["agent2_sentence_count"] = summary_eval["sentence_count"]
+    timing["agent2_three_sentences"] = summary_eval["three_sentences"]
+    if summary_eval["has_preamble"]:
+        log.warning(f"  [{case_id}] Preamble Warning - Agent 2")
+    if not summary_eval["three_sentences"]:
+        log.warning(
+            f"  [{case_id}] Sentence Count Warning - Agent 2 "
+            f"({summary_eval['sentence_count']} sentences)"
+        )
     log.info(f"  [{case_id}] Agent 2 done in {a2_time:.2f}s")
 
     log.info(f"  [{case_id}] Agent 3: Structuring Agent ...")
@@ -248,6 +340,32 @@ def run_pipeline_for_case(
         save_agent_output(model_dir, case_id, 3, a3_raw, is_failure=True, failure_msg=msg)
         timing["agent3_status"] = "FAILURE"
     else:
+        # Measurements taken from the model's raw output BEFORE any repair.
+        # S3 (measure): did the model return a real URL from the source?
+        timing["agent3_link_in_source"] = url_in_source(
+            a3_result.get("original_link"), raw_entry
+        )
+        # S5 (measure): did consumer_action leak pipe-delimited source formatting?
+        consumer_action = a3_result.get("consumer_action")
+        timing["agent3_consumer_action_has_pipe"] = (
+            isinstance(consumer_action, str) and "|" in consumer_action
+        )
+        # bonus measure: empty hazard_type.
+        hazard = a3_result.get("hazard_type")
+        timing["agent3_hazard_empty"] = not (isinstance(hazard, str) and hazard.strip())
+
+        if not timing["agent3_link_in_source"]:
+            log.warning(f"  [{case_id}] Link Not In Source Warning - Agent 3")
+        if timing["agent3_consumer_action_has_pipe"]:
+            log.warning(f"  [{case_id}] Pipe Format Warning - Agent 3")
+        if timing["agent3_hazard_empty"]:
+            log.warning(f"  [{case_id}] Empty hazard_type Warning - Agent 3")
+
+        # S1 (repair): force summary to the verbatim Agent 2 output.
+        a3_result["summary"] = a2_result
+        # S2 (repair): derive country_of_origin from the known data source.
+        a3_result["country_of_origin"] = COUNTRY_BY_SOURCE.get(source, "Unknown")
+
         save_agent_output(model_dir, case_id, 3, a3_result)
         timing["agent3_status"] = "SUCCESS"
         log.info(f"  [{case_id}] Agent 3 done in {a3_time:.2f}s")
@@ -266,6 +384,8 @@ def compute_model_stats(model: str, timings: list[dict]) -> dict:
     def safe_avg(values: list[float]) -> float:
         return round(sum(values) / len(values), 3) if values else 0.0
 
+    a2_ok = [t for t in timings if t.get("agent2_status") == "SUCCESS"]
+
     return {
         "model": model,
         "total_cases": total,
@@ -275,6 +395,13 @@ def compute_model_stats(model: str, timings: list[dict]) -> dict:
         "avg_agent2_seconds": safe_avg([t["agent2_seconds"] for t in a1_ok if "agent2_seconds" in t]),
         "avg_agent3_seconds": safe_avg([t["agent3_seconds"] for t in a3_ok if "agent3_seconds" in t]),
         "avg_total_pipeline_seconds": safe_avg([t["total_seconds"] for t in a3_ok if "total_seconds" in t]),
+        # Quality compliance (measured, not repaired):
+        "agent2_clean_summaries": f"{sum(1 for t in a2_ok if t.get('agent2_three_sentences') and not t.get('agent2_has_preamble'))}/{len(a2_ok)}",
+        "agent2_preamble_count": sum(1 for t in a2_ok if t.get("agent2_has_preamble")),
+        "agent2_wrong_sentence_count": sum(1 for t in a2_ok if not t.get("agent2_three_sentences")),
+        "agent3_valid_links": f"{sum(1 for t in a3_ok if t.get('agent3_link_in_source'))}/{len(a3_ok)}",
+        "agent3_pipe_leaks": sum(1 for t in a3_ok if t.get("agent3_consumer_action_has_pipe")),
+        "agent3_empty_hazard": sum(1 for t in a3_ok if t.get("agent3_hazard_empty")),
     }
 
 
@@ -286,6 +413,12 @@ def print_model_summary(stats: dict, log: logging.Logger) -> None:
     log.info(f"    Avg Agent 2 time:        {stats['avg_agent2_seconds']}s")
     log.info(f"    Avg Agent 3 time:        {stats['avg_agent3_seconds']}s")
     log.info(f"    Avg total pipeline:      {stats['avg_total_pipeline_seconds']}s")
+    log.info(f"    Agent 2 clean summaries: {stats['agent2_clean_summaries']} "
+             f"(preamble: {stats['agent2_preamble_count']}, "
+             f"wrong sentence count: {stats['agent2_wrong_sentence_count']})")
+    log.info(f"    Agent 3 valid links:     {stats['agent3_valid_links']} "
+             f"(pipe leaks: {stats['agent3_pipe_leaks']}, "
+             f"empty hazard: {stats['agent3_empty_hazard']})")
 
 # ── Entry Point ────────────────────────────────────────────────────────────────
 
