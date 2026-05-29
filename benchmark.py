@@ -22,9 +22,15 @@ import ollama
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 
-MODELS = ["qwen2.5:7b", "llama3:8b", "gemma2:9b"]
-TEMPERATURE = 0.1
-RESULTS_DIR = Path("benchmark_results_2")
+# MODELS = ["qwen2.5:7b", "llama3:8b", "gemma2:9b", "qwen2.5:14b"]
+MODELS = ["qwen2.5:7b", "qwen2.5:14b"]
+RESULTS_DIR = Path("benchmark_results_3")
+
+OLLAMA_OPTIONS = {
+    "temperature": 0.0,
+    "num_ctx": 4096,
+    "num_gpu": 99,  # force max layers on GPU
+}
 
 DATA_FILES = {
     "us": "us_recall.json",
@@ -45,17 +51,21 @@ COUNTRY_BY_SOURCE = {
 
 AGENT1_SYSTEM = (
     "You are a strict data translation agent. You will receive a JSON object containing "
-    "international food recall data. Translate ALL non-English text into professional English. "
-    "This applies to BOTH JSON keys and string values, including strings nested inside objects "
-    "and arrays. Follow these rules exactly:\n"
-    "1. TRANSLATE: all non-English keys, string values, and strings inside arrays.\n"
-    "2. DO NOT TRANSLATE: URLs, ISO dates, numeric strings, boolean strings, phone numbers, "
-    "email addresses, product codes, batch codes, and brand names.\n"
-    "3. DO NOT add, remove, reorder, or rename any JSON fields. Every field from the input "
-    "must appear in the output exactly once.\n"
-    "4. DO NOT repeat content. Each value must appear exactly once.\n"
-    "5. Return ONLY valid JSON. No markdown backticks, no commentary, no extra text.\n"
-    "6. If a string is already in English, copy it unchanged."
+    "international food recall data. Translate ALL non-English *string values* and strings inside arrays "
+    "into professional English. "
+    "This applies to string values only. JSON keys must remain EXACTLY as in the input.\n"
+    "Follow these rules exactly:\n"
+    "1. TRANSLATE only string values and strings inside arrays.\n"
+    "2. DO NOT TRANSLATE: JSON keys, URLs, ISO dates, numeric strings, boolean strings, "
+    "phone numbers, email addresses, product codes, batch codes, and brand names.\n"
+    "3. DO NOT add, remove, reorder, or rename any JSON fields or keys. The output must have "
+    "exactly the same keys and structure as the input.\n"
+    "4. Return ONLY valid JSON. No markdown, no commentary, no extra text.\n"
+    "5. If a string is already in English, copy it unchanged.\n"
+    "Example input:\n"
+    '{"categorie_produit": "lait et produits laitiers", "motif_rappel": "detection listeria"}\n'
+    "Correct output:\n"
+    '{"categorie_produit": "milk and dairy products", "motif_rappel": "Listeria detection"}\n\n'
 )
 
 AGENT2_SYSTEM = (
@@ -181,10 +191,7 @@ def run_agent1(
             {"role": "system", "content": AGENT1_SYSTEM},
             {"role": "user", "content": json.dumps(raw_entry, ensure_ascii=False)},
         ],
-        options={
-            "temperature": TEMPERATURE,
-            "repeat_penalty": 1.1
-        },
+        options=OLLAMA_OPTIONS,
         format="json",
     )
     elapsed = time.perf_counter() - start
@@ -208,9 +215,7 @@ def run_agent2(model: str, agent1_output: dict) -> tuple[str, float]:
             {"role": "system", "content": AGENT2_SYSTEM},
             {"role": "user", "content": json.dumps(agent1_output, ensure_ascii=False)},
         ],
-        options={
-            "temperature": TEMPERATURE
-        },
+        options=OLLAMA_OPTIONS,
     )
     elapsed = time.perf_counter() - start
     return response["message"]["content"].strip(), elapsed
@@ -231,9 +236,7 @@ def run_agent3(
             {"role": "system", "content": AGENT3_SYSTEM},
             {"role": "user", "content": user_content},
         ],
-        options={
-            "temperature": TEMPERATURE
-        },
+        options=OLLAMA_OPTIONS,
         format="json",
     )
     elapsed = time.perf_counter() - start

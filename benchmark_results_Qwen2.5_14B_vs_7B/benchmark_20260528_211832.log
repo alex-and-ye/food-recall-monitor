@@ -1,0 +1,180 @@
+2026-05-28 21:18:32,910 | INFO | Loaded 6 test cases  (US: 2, France: 2, UK: 2)
+2026-05-28 21:18:32,910 | INFO | 
+============================================================
+2026-05-28 21:18:32,910 | INFO | MODEL: qwen2.5:7b
+2026-05-28 21:18:32,910 | INFO | ============================================================
+2026-05-28 21:18:32,911 | INFO |   [us_00] Agent 1: JSON Translator ...
+2026-05-28 21:19:26,068 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:19:26,069 | INFO |   [us_00] Agent 1 done in 53.15s
+2026-05-28 21:19:26,069 | INFO |   [us_00] Agent 2: Summarizer ...
+2026-05-28 21:19:27,398 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:19:27,399 | WARNING |   [us_00] Sentence Count Warning - Agent 2 (2 sentences)
+2026-05-28 21:19:27,399 | INFO |   [us_00] Agent 2 done in 1.32s
+2026-05-28 21:19:27,399 | INFO |   [us_00] Agent 3: Structuring Agent ...
+2026-05-28 21:19:37,013 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:19:37,019 | INFO |   [us_00] Agent 3 done in 9.61s
+2026-05-28 21:19:37,019 | INFO |   [us_00] Total pipeline: 64.09s
+2026-05-28 21:19:37,019 | INFO |   [us_01] Agent 1: JSON Translator ...
+2026-05-28 21:20:19,176 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:20:19,177 | INFO |   [us_01] Agent 1 done in 42.15s
+2026-05-28 21:20:19,177 | INFO |   [us_01] Agent 2: Summarizer ...
+2026-05-28 21:20:20,382 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:20:20,383 | INFO |   [us_01] Agent 2 done in 1.21s
+2026-05-28 21:20:20,383 | INFO |   [us_01] Agent 3: Structuring Agent ...
+2026-05-28 21:20:27,175 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:20:27,176 | INFO |   [us_01] Agent 3 done in 6.79s
+2026-05-28 21:20:27,176 | INFO |   [us_01] Total pipeline: 50.15s
+2026-05-28 21:20:27,176 | INFO |   [france_00] Agent 1: JSON Translator ...
+2026-05-28 21:20:54,839 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:20:54,840 | INFO |   [france_00] Agent 1 done in 27.66s
+2026-05-28 21:20:54,840 | INFO |   [france_00] Agent 2: Summarizer ...
+2026-05-28 21:20:55,897 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:20:55,897 | WARNING |   [france_00] Sentence Count Warning - Agent 2 (2 sentences)
+2026-05-28 21:20:55,898 | INFO |   [france_00] Agent 2 done in 1.06s
+2026-05-28 21:20:55,898 | INFO |   [france_00] Agent 3: Structuring Agent ...
+2026-05-28 21:21:01,393 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:21:01,393 | INFO |   [france_00] Agent 3 done in 5.49s
+2026-05-28 21:21:01,394 | INFO |   [france_00] Total pipeline: 34.21s
+2026-05-28 21:21:01,394 | INFO |   [france_01] Agent 1: JSON Translator ...
+2026-05-28 21:21:28,041 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:21:28,042 | INFO |   [france_01] Agent 1 done in 26.64s
+2026-05-28 21:21:28,042 | INFO |   [france_01] Agent 2: Summarizer ...
+2026-05-28 21:21:29,642 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:21:29,643 | WARNING |   [france_01] Sentence Count Warning - Agent 2 (2 sentences)
+2026-05-28 21:21:29,643 | INFO |   [france_01] Agent 2 done in 1.60s
+2026-05-28 21:21:29,643 | INFO |   [france_01] Agent 3: Structuring Agent ...
+2026-05-28 21:21:36,116 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:21:36,116 | WARNING |   [france_01] Pipe Format Warning - Agent 3
+2026-05-28 21:21:36,117 | INFO |   [france_01] Agent 3 done in 6.47s
+2026-05-28 21:21:36,117 | INFO |   [france_01] Total pipeline: 34.72s
+2026-05-28 21:21:36,117 | INFO |   [uk_00] Agent 1: JSON Translator ...
+2026-05-28 21:22:12,506 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:22:12,507 | INFO |   [uk_00] Agent 1 done in 36.38s
+2026-05-28 21:22:12,507 | INFO |   [uk_00] Agent 2: Summarizer ...
+2026-05-28 21:22:13,344 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:22:13,345 | WARNING |   [uk_00] Sentence Count Warning - Agent 2 (2 sentences)
+2026-05-28 21:22:13,345 | INFO |   [uk_00] Agent 2 done in 0.84s
+2026-05-28 21:22:13,345 | INFO |   [uk_00] Agent 3: Structuring Agent ...
+2026-05-28 21:22:17,583 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:22:17,584 | INFO |   [uk_00] Agent 3 done in 4.24s
+2026-05-28 21:22:17,584 | INFO |   [uk_00] Total pipeline: 41.46s
+2026-05-28 21:22:17,584 | INFO |   [uk_01] Agent 1: JSON Translator ...
+2026-05-28 21:22:53,555 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:22:53,556 | INFO |   [uk_01] Agent 1 done in 35.97s
+2026-05-28 21:22:53,556 | INFO |   [uk_01] Agent 2: Summarizer ...
+2026-05-28 21:22:54,939 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:22:54,940 | INFO |   [uk_01] Agent 2 done in 1.38s
+2026-05-28 21:22:54,940 | INFO |   [uk_01] Agent 3: Structuring Agent ...
+2026-05-28 21:23:01,566 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:23:01,567 | INFO |   [uk_01] Agent 3 done in 6.62s
+2026-05-28 21:23:01,567 | INFO |   [uk_01] Total pipeline: 43.97s
+2026-05-28 21:23:01,568 | INFO | 
+  qwen2.5:7b:
+2026-05-28 21:23:01,568 | INFO |     Agent 1 success:         6/6
+2026-05-28 21:23:01,568 | INFO |     Full pipeline success:   6/6
+2026-05-28 21:23:01,568 | INFO |     Avg Agent 1 time:        36.992s
+2026-05-28 21:23:01,568 | INFO |     Avg Agent 2 time:        1.234s
+2026-05-28 21:23:01,568 | INFO |     Avg Agent 3 time:        6.539s
+2026-05-28 21:23:01,568 | INFO |     Avg total pipeline:      44.766s
+2026-05-28 21:23:01,568 | INFO |     Agent 2 clean summaries: 2/6 (preamble: 0, wrong sentence count: 4)
+2026-05-28 21:23:01,568 | INFO |     Agent 3 valid links:     6/6 (pipe leaks: 1, empty hazard: 0)
+2026-05-28 21:23:01,568 | INFO | 
+============================================================
+2026-05-28 21:23:01,568 | INFO | MODEL: qwen2.5:14b
+2026-05-28 21:23:01,568 | INFO | ============================================================
+2026-05-28 21:23:01,569 | INFO |   [us_00] Agent 1: JSON Translator ...
+2026-05-28 21:24:08,168 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:24:08,170 | INFO |   [us_00] Agent 1 done in 66.59s
+2026-05-28 21:24:08,170 | INFO |   [us_00] Agent 2: Summarizer ...
+2026-05-28 21:24:10,246 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:24:10,247 | INFO |   [us_00] Agent 2 done in 2.08s
+2026-05-28 21:24:10,247 | INFO |   [us_00] Agent 3: Structuring Agent ...
+2026-05-28 21:24:17,569 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:24:17,576 | INFO |   [us_00] Agent 3 done in 7.32s
+2026-05-28 21:24:17,576 | INFO |   [us_00] Total pipeline: 75.99s
+2026-05-28 21:24:17,576 | INFO |   [us_01] Agent 1: JSON Translator ...
+2026-05-28 21:25:12,515 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:25:12,516 | INFO |   [us_01] Agent 1 done in 54.93s
+2026-05-28 21:25:12,516 | INFO |   [us_01] Agent 2: Summarizer ...
+2026-05-28 21:25:14,543 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:25:14,543 | INFO |   [us_01] Agent 2 done in 2.03s
+2026-05-28 21:25:14,544 | INFO |   [us_01] Agent 3: Structuring Agent ...
+2026-05-28 21:25:21,747 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:25:21,748 | INFO |   [us_01] Agent 3 done in 7.20s
+2026-05-28 21:25:21,748 | INFO |   [us_01] Total pipeline: 64.16s
+2026-05-28 21:25:21,748 | INFO |   [france_00] Agent 1: JSON Translator ...
+2026-05-28 21:25:58,537 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:25:58,538 | INFO |   [france_00] Agent 1 done in 36.78s
+2026-05-28 21:25:58,538 | INFO |   [france_00] Agent 2: Summarizer ...
+2026-05-28 21:26:00,885 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:26:00,886 | INFO |   [france_00] Agent 2 done in 2.35s
+2026-05-28 21:26:00,886 | INFO |   [france_00] Agent 3: Structuring Agent ...
+2026-05-28 21:26:08,819 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:26:08,821 | INFO |   [france_00] Agent 3 done in 7.93s
+2026-05-28 21:26:08,821 | INFO |   [france_00] Total pipeline: 47.06s
+2026-05-28 21:26:08,821 | INFO |   [france_01] Agent 1: JSON Translator ...
+2026-05-28 21:26:44,718 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:26:44,718 | INFO |   [france_01] Agent 1 done in 35.89s
+2026-05-28 21:26:44,719 | INFO |   [france_01] Agent 2: Summarizer ...
+2026-05-28 21:26:46,876 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:26:46,877 | INFO |   [france_01] Agent 2 done in 2.16s
+2026-05-28 21:26:46,877 | INFO |   [france_01] Agent 3: Structuring Agent ...
+2026-05-28 21:26:54,019 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:26:54,021 | INFO |   [france_01] Agent 3 done in 7.14s
+2026-05-28 21:26:54,021 | INFO |   [france_01] Total pipeline: 45.19s
+2026-05-28 21:26:54,021 | INFO |   [uk_00] Agent 1: JSON Translator ...
+2026-05-28 21:27:40,085 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:27:40,086 | INFO |   [uk_00] Agent 1 done in 46.06s
+2026-05-28 21:27:40,086 | INFO |   [uk_00] Agent 2: Summarizer ...
+2026-05-28 21:27:42,077 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:27:42,078 | INFO |   [uk_00] Agent 2 done in 1.99s
+2026-05-28 21:27:42,078 | INFO |   [uk_00] Agent 3: Structuring Agent ...
+2026-05-28 21:27:48,577 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:27:48,578 | INFO |   [uk_00] Agent 3 done in 6.50s
+2026-05-28 21:27:48,578 | INFO |   [uk_00] Total pipeline: 54.55s
+2026-05-28 21:27:48,578 | INFO |   [uk_01] Agent 1: JSON Translator ...
+2026-05-28 21:28:34,108 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:28:34,109 | INFO |   [uk_01] Agent 1 done in 45.52s
+2026-05-28 21:28:34,110 | INFO |   [uk_01] Agent 2: Summarizer ...
+2026-05-28 21:28:36,166 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:28:36,167 | INFO |   [uk_01] Agent 2 done in 2.06s
+2026-05-28 21:28:36,167 | INFO |   [uk_01] Agent 3: Structuring Agent ...
+2026-05-28 21:28:43,494 | INFO | HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2026-05-28 21:28:43,500 | INFO |   [uk_01] Agent 3 done in 7.33s
+2026-05-28 21:28:43,500 | INFO |   [uk_01] Total pipeline: 54.91s
+2026-05-28 21:28:43,501 | INFO | 
+  qwen2.5:14b:
+2026-05-28 21:28:43,501 | INFO |     Agent 1 success:         6/6
+2026-05-28 21:28:43,501 | INFO |     Full pipeline success:   6/6
+2026-05-28 21:28:43,501 | INFO |     Avg Agent 1 time:        47.63s
+2026-05-28 21:28:43,501 | INFO |     Avg Agent 2 time:        2.109s
+2026-05-28 21:28:43,502 | INFO |     Avg Agent 3 time:        7.237s
+2026-05-28 21:28:43,502 | INFO |     Avg total pipeline:      56.976s
+2026-05-28 21:28:43,502 | INFO |     Agent 2 clean summaries: 6/6 (preamble: 0, wrong sentence count: 0)
+2026-05-28 21:28:43,502 | INFO |     Agent 3 valid links:     6/6 (pipe leaks: 0, empty hazard: 0)
+2026-05-28 21:28:43,502 | INFO | 
+============================================================
+2026-05-28 21:28:43,502 | INFO | BENCHMARK COMPLETE - FINAL SUMMARY
+2026-05-28 21:28:43,502 | INFO | ============================================================
+2026-05-28 21:28:43,502 | INFO | 
+  qwen2.5:7b:
+2026-05-28 21:28:43,502 | INFO |     Agent 1 success:         6/6
+2026-05-28 21:28:43,502 | INFO |     Full pipeline success:   6/6
+2026-05-28 21:28:43,502 | INFO |     Avg Agent 1 time:        36.992s
+2026-05-28 21:28:43,502 | INFO |     Avg Agent 2 time:        1.234s
+2026-05-28 21:28:43,502 | INFO |     Avg Agent 3 time:        6.539s
+2026-05-28 21:28:43,502 | INFO |     Avg total pipeline:      44.766s
+2026-05-28 21:28:43,502 | INFO |     Agent 2 clean summaries: 2/6 (preamble: 0, wrong sentence count: 4)
+2026-05-28 21:28:43,502 | INFO |     Agent 3 valid links:     6/6 (pipe leaks: 1, empty hazard: 0)
+2026-05-28 21:28:43,502 | INFO | 
+  qwen2.5:14b:
+2026-05-28 21:28:43,502 | INFO |     Agent 1 success:         6/6
+2026-05-28 21:28:43,502 | INFO |     Full pipeline success:   6/6
+2026-05-28 21:28:43,502 | INFO |     Avg Agent 1 time:        47.63s
+2026-05-28 21:28:43,502 | INFO |     Avg Agent 2 time:        2.109s
+2026-05-28 21:28:43,502 | INFO |     Avg Agent 3 time:        7.237s
+2026-05-28 21:28:43,502 | INFO |     Avg total pipeline:      56.976s
+2026-05-28 21:28:43,502 | INFO |     Agent 2 clean summaries: 6/6 (preamble: 0, wrong sentence count: 0)
+2026-05-28 21:28:43,502 | INFO |     Agent 3 valid links:     6/6 (pipe leaks: 0, empty hazard: 0)
+2026-05-28 21:28:43,503 | INFO | 
+Final summary saved to benchmark_results_3\final_summary.json
