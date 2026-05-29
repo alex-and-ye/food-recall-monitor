@@ -1,0 +1,131 @@
+================================================================================
+FOOD RECALL LLM BENCHMARK REPORT
+3-Agent Pipeline: Translate → Summarize → Structure
+6 test cases (2 US, 2 France, 2 UK) | temperature=0.0 | Q4_K_M quantization
+================================================================================
+
+MODELS EVALUATED
+  1. llama3:8b
+  2. qwen2.5:7b
+  3. gemma2:9b
+  4. qwen2.5:14b
+
+NOTE ON RUNS
+  - Runs 1-3 (llama3, qwen2.5:7b, gemma2:9b) used the original prompts.
+    Quality metrics (sentence count, link validity, pipe leaks) were added
+    mid-project; a re-run of qwen2.5:7b and gemma2:9b captured those scores.
+  - Run 4 (qwen2.5:14b vs qwen2.5:7b) used the final revised prompts and
+    num_ctx=4096, num_gpu=99. Both are compared directly in that run.
+
+--------------------------------------------------------------------------------
+1. TIMING (avg seconds per full pipeline, 6 cases)
+--------------------------------------------------------------------------------
+
+  llama3:8b        ~40s    Agent1: 28s  Agent2: 1.4s  Agent3: 9s
+  qwen2.5:7b       ~50s    Agent1: 37s  Agent2: 1.3s  Agent3: 12s
+  qwen2.5:14b      ~57s    Agent1: 48s  Agent2: 2.1s  Agent3: 7s
+  gemma2:9b        ~76s    Agent1: 59s  Agent2: 1.6s  Agent3: 15s
+
+  Observations:
+  - Agent 1 (JSON translation) dominates pipeline time for all models,
+    accounting for 70-80% of total latency due to large US HTML fields.
+  - llama3:8b is the fastest overall. gemma2:9b is the slowest by a wide
+    margin (~2x llama3).
+  - The 14B model is only 14% slower than the 7B on total pipeline time,
+    making the quality-per-second tradeoff favourable.
+
+--------------------------------------------------------------------------------
+2. PIPELINE RELIABILITY (Agent 1 and full pipeline success, 6 cases)
+--------------------------------------------------------------------------------
+
+  llama3:8b        Agent1: 5/6    Full pipeline: 5/6   (1 JSON parse failure)
+  qwen2.5:7b       Agent1: 6/6    Full pipeline: 6/6
+  qwen2.5:14b      Agent1: 6/6    Full pipeline: 6/6
+  gemma2:9b        Agent1: 6/6    Full pipeline: 6/6
+
+  llama3:8b is the only model that produced a JSON parse failure on Agent 1.
+
+--------------------------------------------------------------------------------
+3. OUTPUT QUALITY (measured on revised-prompt runs)
+--------------------------------------------------------------------------------
+
+                          Agent2 clean    Wrong      Valid     Pipe
+  Model                   summaries    sent.count    links    leaks
+  -----------------------------------------------------------------------
+  llama3:8b               5/5*          0           3/5       0
+  qwen2.5:7b (run 2)      4/6           2           6/6       1
+  qwen2.5:7b (run 3)      2/6           4           6/6       1
+  qwen2.5:14b             6/6           0           6/6       0
+  gemma2:9b               6/6           0           6/6       0
+
+  * Measured on 5 successful cases only.
+
+  Key findings by model:
+
+  llama3:8b
+  - Fastest but least reliable; 1 Agent 1 failure.
+  - Fabricated recall URLs in Agent 3 (translated Spanish URL paths to English),
+    causing 2/5 invalid links — a critical data integrity issue.
+  - Preamble injection ("Here is the summary:") fixed by prompt revision.
+  - Agent 3 rewrote summaries instead of copying verbatim (pre-revision).
+
+  qwen2.5:7b
+  - 100% pipeline reliability, all links valid.
+  - Sentence count compliance poor on the original prompts (4 failures/6).
+    Improved but not eliminated with revised prompts.
+  - 1 pipe-delimited consumer_action leak (France data) in both runs.
+  - Keys not translated on French data (by design after prompt revision).
+
+  gemma2:9b
+  - Perfect quality scores on all automated metrics.
+  - Slowest model (~76s avg), 90% slower than llama3.
+  - Manual review showed no structural issues in Agent 3 output.
+  - Highest-fidelity distributor name translation (proper-cased French names).
+
+  qwen2.5:14b
+  - Perfect automated scores: 6/6 summaries, 0 pipe leaks, 0 empty hazards.
+  - Fastest Agent 3 of the group (7.2s avg).
+  - One critical manual finding: us_01 hazard_type incorrectly set to
+    "Undeclared milk" (correct: undeclared fish/anchovies allergen). This
+    passed all automated validators — a semantic accuracy gap.
+  - HTML entities (&quot;, &amp;) not decoded in Agent 1 output.
+  - Agent 2 for france_00 added unsolicited medical advice in Sentence 3.
+
+--------------------------------------------------------------------------------
+4. AGENT 1 TRANSLATION QUALITY (manual review)
+--------------------------------------------------------------------------------
+
+  llama3:8b    - Translated URL paths (fabricated non-existent URLs). Poor.
+  qwen2.5:7b   - Mixed: some Spanish phrases left untranslated in values.
+                 Inconsistent. Sentence repetition in long HTML fields.
+  gemma2:9b    - Best key-value translation quality. Proper-cased names,
+                 cleanest distributor/region handling.
+  qwen2.5:14b  - Good value translation. Keys retained (by design).
+                 HTML entities leaked through. Dates correctly preserved.
+
+--------------------------------------------------------------------------------
+5. CONCLUSIONS
+--------------------------------------------------------------------------------
+
+  BEST OVERALL ACCURACY:   gemma2:9b
+    Perfect automated scores, cleanest manual output, no critical errors.
+    Cost: it is the slowest model (~76s/case) and slowest on any hardware.
+
+  BEST SPEED/QUALITY:      qwen2.5:14b
+    Perfect automated scores, only ~14% slower than qwen2.5:7b, and far
+    more reliable formatting than 7B. One semantic hallucination found
+    (wrong allergen type) that automated validators did not catch.
+    Recommended for production use if latency is acceptable.
+
+  DO NOT USE FOR THIS TASK: llama3:8b
+    Fastest clock time, but fabricates URLs, rewrites summaries, and
+    produced a pipeline failure. Speed is meaningless when the output
+    cannot be trusted.
+
+  AUTOMATION GAP:
+    Current quality metrics (sentence count, pipe detection, link-in-source)
+    catch formatting violations but miss semantic errors like wrong hazard
+    type. A ground-truth validation step is needed to reliably score accuracy
+    in a food safety context.
+
+================================================================================
