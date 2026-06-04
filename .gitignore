@@ -1,5 +1,7 @@
+# environment
+.env
 .venv/
+
+# Python cache files
 __pycache__/
 *.pyc
-.env
-.DS_Store

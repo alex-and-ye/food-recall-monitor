@@ -6,10 +6,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-
-class RecallAlert(BaseModel):
+class FoodRecallAlert(BaseModel):
     """Food recall alert suitable for storage and retrieval in ChromaDB"""
-
     alert_id: str
     product_name: str
     product_category: str
@@ -58,7 +56,7 @@ class RecallAlert(BaseModel):
         }
 
     @classmethod
-    def from_chroma(cls, metadata: dict[str, Any]) -> RecallAlert:
+    def from_chroma(cls, metadata: dict[str, Any]) -> FoodRecallAlert:
         """Reconstruct a recall alert from Chroma metadata."""
         regions_raw = metadata.get("affected_regions", "[]")
         if isinstance(regions_raw, list):
