@@ -1,7 +1,0 @@
-# environment
-.env
-.venv/
-
-# Python cache files
-__pycache__/
-*.pyc
