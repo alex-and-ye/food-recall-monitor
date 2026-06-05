@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, status
-from backend.server.dependencies import get_db
+
+from server.dependencies import get_db
 
 router = APIRouter(prefix="/api/pipeline", tags=["pipeline"])
 

@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.server.routes import alerts, pipeline
+
+from server.routes import alerts, pipeline
 
 app = FastAPI(
     title="Food Recall Monitor API",
