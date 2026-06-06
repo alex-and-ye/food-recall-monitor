@@ -4,7 +4,7 @@ from server.dependencies import get_db
 
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
-@router.get("", response_model=dict, status_code=status.HTTP_200_OK)
+@router.get("/", response_model=dict, status_code=status.HTTP_200_OK)
 async def get_alerts(db=Depends(get_db)) -> dict:
     try:
         # TODO: Implement logic to fetch food recall alerts from the database
