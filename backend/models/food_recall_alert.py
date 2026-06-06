@@ -3,11 +3,13 @@ from __future__ import annotations
 import json
 from datetime import date
 from typing import Any
-
 from pydantic import BaseModel, Field
 
 class FoodRecallAlert(BaseModel):
-    """Food recall alert suitable for storage and retrieval in ChromaDB"""
+    """
+    Represents a food recall alert with detailed information about the recalled product, 
+    reason for recall, and consumer actions.
+    """
     alert_id: str
     product_name: str
     product_category: str
@@ -20,11 +22,16 @@ class FoodRecallAlert(BaseModel):
     source_url: str
     affected_regions: list[str] = Field(default_factory=list)
 
-    def to_chroma_id(self) -> str:
+    def get_id(self) -> str:
+        """
+        Retrieves the unique identifier for the food recall alert database record.
+        """
         return self.alert_id
 
-    def to_chroma_document(self) -> str:
-        """Text embedded for semantic search."""
+    def to_document(self) -> str:
+        """
+        Converts the food recall alert into a text suitable for semantic search embedding.
+        """
         regions = ", ".join(self.affected_regions) if self.affected_regions else "unspecified"
         return "\n".join(
             [
@@ -39,8 +46,10 @@ class FoodRecallAlert(BaseModel):
             ]
         )
 
-    def to_chroma_metadata(self) -> dict[str, str | int | float | bool]:
-        """Flatten to Chroma-compatible metadata values (str, int, float, bool only)."""
+    def to_metadata(self) -> dict[str, str | int | float | bool]:
+        """
+        Flattens the food recall alert into a generic database-compatible metadata values (str, int, float, bool only).
+        """
         return {
             "alert_id": self.alert_id,
             "product_name": self.product_name,
@@ -56,8 +65,10 @@ class FoodRecallAlert(BaseModel):
         }
 
     @classmethod
-    def from_chroma(cls, metadata: dict[str, Any]) -> FoodRecallAlert:
-        """Reconstruct a recall alert from Chroma metadata."""
+    def from_metadata(cls, metadata: dict[str, Any]) -> FoodRecallAlert:
+        """
+        Reconstructs a FoodRecallAlert instance from database metadata values.
+        """
         regions_raw = metadata.get("affected_regions", "[]")
         if isinstance(regions_raw, list):
             affected_regions = regions_raw
