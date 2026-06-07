@@ -1,11 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-
-from server.dependencies import get_db
+from fastapi import APIRouter, HTTPException, status
 
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
 @router.get("/", response_model=dict, status_code=status.HTTP_200_OK)
-async def get_alerts(db=Depends(get_db)) -> dict:
+async def get_alerts() -> dict:
     try:
         # TODO: Implement logic to fetch food recall alerts from the database
 
@@ -18,7 +16,7 @@ async def get_alerts(db=Depends(get_db)) -> dict:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @router.get("/stats", response_model=dict, status_code=status.HTTP_200_OK)
-async def get_alert_stats(db=Depends(get_db)) -> dict:
+async def get_alert_stats() -> dict:
     try:
         # TODO: Implement logic to fetch alerts from the database and calculate statistics
         

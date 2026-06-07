@@ -1,11 +1,9 @@
-from fastapi import APIRouter, HTTPException, Depends, status
-
-from server.dependencies import get_db
+from fastapi import APIRouter, HTTPException, status
 
 router = APIRouter(prefix="/api/pipeline", tags=["pipeline"])
 
 @router.post("/run", response_model=dict, status_code=status.HTTP_200_OK)
-async def run_pipeline(db=Depends(get_db)) -> dict:
+async def run_pipeline() -> dict:
     try:
         # TODO: Trigger the AI Agents Pipeline here
 
