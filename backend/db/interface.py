@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List
-from models.food_recall_alert import FoodRecallAlert
+from backend.models.recall_alert import FoodRecallAlert
 
 class FoodRecallAlertsDBInterface(ABC):
     @abstractmethod
