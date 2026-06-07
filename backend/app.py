@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from api import alerts_api, pipeline_api
 
 app = FastAPI(

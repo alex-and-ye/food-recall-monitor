@@ -1,16 +1,17 @@
-import os
+from typing import List, cast
+
 import chromadb
 from chromadb.api.types import Metadata
-from typing import List, cast
-from .interface import FoodRecallAlertsDBInterface
+
+from db.interface import FoodRecallAlertsDBInterface
 from models.recall_alert import FoodRecallAlert
 
 class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
-    def __init__(self):
-        db_path = os.path.join(os.path.dirname(__file__), "..", ".chroma_data")
-        self.client = chromadb.PersistentClient(path=db_path)
+    COLLECTION_NAME = "food_recall_alerts_collection"
 
-        self.collection = self.client.get_or_create_collection(name="food_recall_alerts_collection")
+    def __init__(self, db_path: str) -> None:
+        self.client = chromadb.PersistentClient(path=db_path)
+        self.collection = self.client.get_or_create_collection(name=FoodRecallAlertsChromaClient.COLLECTION_NAME)
 
     def save_alerts(self, alerts: List[FoodRecallAlert]) -> int:
         if not alerts:
