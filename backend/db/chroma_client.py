@@ -3,7 +3,7 @@ import chromadb
 from chromadb.api.types import Metadata
 from typing import List, cast
 from db.interface import FoodRecallAlertsDBInterface
-from backend.models.recall_alert import FoodRecallAlert
+from models.recall_alert import FoodRecallAlert
 
 class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
     def __init__(self):
