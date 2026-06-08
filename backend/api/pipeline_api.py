@@ -1,17 +1,20 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi import status, HTTPException
+
+from services.pipeline_service import PipelineService
+from config import get_pipeline_service
 
 router = APIRouter(prefix="/api/pipeline", tags=["pipeline"])
 
 @router.post("/run", response_model=dict, status_code=status.HTTP_200_OK)
-async def run_pipeline() -> dict:
+async def run_pipeline(pipeline_service: PipelineService = Depends(get_pipeline_service)) -> dict:
     try:
-        # TODO: Trigger the AI Agents Pipeline here
-
-        # TODO: Save the AI Agents Pipeline results to the database (DB must avoid saving duplicate results)
+        count = await pipeline_service.run_pipeline()
 
         return {
+            "status": "success",
             "message": "AI Agents Pipeline executed successfully",
+            "new_alerts_count": count
         }
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

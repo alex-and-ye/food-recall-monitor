@@ -1,30 +1,23 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi import status, HTTPException
+
+from services.alerts_service import AlertsService
+from config import get_alerts_service
 
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
 @router.get("/", response_model=dict, status_code=status.HTTP_200_OK)
-async def get_alerts() -> dict:
+async def get_alerts(alerts_service: AlertsService = Depends(get_alerts_service)) -> dict:
     try:
-        # TODO: Implement logic to fetch food recall alerts from the database
-
-        # TODO: Implement logic to convert database FoodRecallAlert models to dictionaries for the response
-
         return {
-            "alerts": [],
+            "alerts": alerts_service.get_alerts()
         }
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @router.get("/stats", response_model=dict, status_code=status.HTTP_200_OK)
-async def get_alert_stats() -> dict:
+async def get_alert_stats(alerts_service: AlertsService = Depends(get_alerts_service)) -> dict:
     try:
-        # TODO: Implement logic to fetch alerts from the database and calculate statistics
-        
-        # TODO: Brainstorm what statistics would be useful to return based on the alerts data
-        
-        return {
-            "total_alerts": 0,
-        }
+        return alerts_service.get_alert_stats()
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
