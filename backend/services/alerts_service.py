@@ -4,7 +4,7 @@ from db.interface import FoodRecallAlertsDBInterface
 from models.recall_alert import FoodRecallAlert
 
 class AlertsService:
-    def __init__(self, db: FoodRecallAlertsDBInterface):
+    def __init__(self, db: FoodRecallAlertsDBInterface) -> None:
         self.db = db
 
     def get_alerts(self) -> List[FoodRecallAlert]:
