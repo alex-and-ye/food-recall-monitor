@@ -1,16 +1,21 @@
 from __future__ import annotations
 
 import json
-from typing import Any
 
 from langgraph.graph import END, START, StateGraph
 
+from agents.converters import structured_json_to_alert_create
 from agents.fetchers import fetch_sources_sequentially
 from agents.llm import chat_json, chat_text
 from agents.prompts import AGENT1_SYSTEM, AGENT2_SYSTEM, AGENT3_SYSTEM
-from agents.source_types import SourceRecord
 from agents.state import PipelineRecordState
+from agents.validators import (
+    validate_structured_json,
+    validate_summary,
+    validate_translated_structure,
+)
 from models.pipeline_options import PipelineRunOptions
+from models.recall_alert import FoodRecallAlertCreate
 
 
 def create_pipeline_graph():
@@ -18,30 +23,30 @@ def create_pipeline_graph():
     graph.add_node("translate_values", translate_values_node)
     graph.add_node("summarize", summarize_node)
     graph.add_node("structure", structure_node)
-    graph.add_node("repair_protected_fields", repair_protected_fields_node)
+    graph.add_node("repair_and_convert", repair_and_convert_node)
 
     graph.add_edge(START, "translate_values")
     graph.add_edge("translate_values", "summarize")
     graph.add_edge("summarize", "structure")
-    graph.add_edge("structure", "repair_protected_fields")
-    graph.add_edge("repair_protected_fields", END)
+    graph.add_edge("structure", "repair_and_convert")
+    graph.add_edge("repair_and_convert", END)
 
     return graph.compile()
 
 
-async def run_pipeline(options: PipelineRunOptions) -> list[dict[str, Any]]:
+async def run_pipeline(options: PipelineRunOptions) -> list[FoodRecallAlertCreate]:
     graph = create_pipeline_graph()
     source_records = await fetch_sources_sequentially(
         options.sources,
         limit=options.limit,
     )
 
-    structured_records: list[dict[str, Any]] = []
+    alerts: list[FoodRecallAlertCreate] = []
     for record in source_records:
         result = await graph.ainvoke({"record": record})
-        structured_records.append(result["structured_json"])
+        alerts.append(result["alert"])
 
-    return structured_records
+    return alerts
 
 
 def translate_values_node(state: PipelineRecordState) -> PipelineRecordState:
@@ -50,6 +55,7 @@ def translate_values_node(state: PipelineRecordState) -> PipelineRecordState:
         system_prompt=AGENT1_SYSTEM,
         user_prompt=json.dumps(record.working_json, ensure_ascii=False),
     )
+    validate_translated_structure(record.working_json, translated_json)
     return {"translated_json": translated_json}
 
 
@@ -63,6 +69,7 @@ def summarize_node(state: PipelineRecordState) -> PipelineRecordState:
         ensure_ascii=False,
     )
     summary = chat_text(system_prompt=AGENT2_SYSTEM, user_prompt=user_prompt)
+    validate_summary(summary)
     return {"summary": summary}
 
 
@@ -80,10 +87,11 @@ def structure_node(state: PipelineRecordState) -> PipelineRecordState:
         system_prompt=AGENT3_SYSTEM,
         user_prompt=user_prompt,
     )
+    validate_structured_json(structured_json)
     return {"structured_json": structured_json}
 
 
-def repair_protected_fields_node(state: PipelineRecordState) -> PipelineRecordState:
+def repair_and_convert_node(state: PipelineRecordState) -> PipelineRecordState:
     record = state["record"]
     structured_json = dict(state["structured_json"])
     protected_fields = record.protected_fields
@@ -93,4 +101,5 @@ def repair_protected_fields_node(state: PipelineRecordState) -> PipelineRecordSt
     structured_json["source_url"] = protected_fields.source_url
     structured_json["summary"] = state["summary"]
 
-    return {"structured_json": structured_json}
+    alert = structured_json_to_alert_create(structured_json)
+    return {"structured_json": structured_json, "alert": alert}
