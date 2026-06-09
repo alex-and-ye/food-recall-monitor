@@ -1,0 +1,82 @@
+{
+  "@id": "http://data.food.gov.uk/food-alerts/id/FSA-AA-27-2026",
+  "notation": "FSA-AA-27-2026",
+  "title": "Sunrise International Foods Ltd recalls Shama Falooda Almond flavour drink because of undeclared milk",
+  "description": "Sunrise International Foods Ltd is recalling Shama Falooda Almond flavour drink because it contains milk which is not mentioned on the label.",
+  "created": "2026-05-22",
+  "modified": "2026-05-22T15:30:08.699Z",
+  "type": [
+    "http://data.food.gov.uk/food-alerts/def/AA",
+    "http://data.food.gov.uk/food-alerts/def/Alert"
+  ],
+  "reportingBusiness": {
+    "commonName": "Sunrise International Foods Ltd"
+  },
+  "SMStext": "Sunrise International Foods Ltd recalls Shama Falooda Almond flavour drink because of undeclared milk https://bit.ly/4dUJygF",
+  "twitterText": "Sunrise International Foods Ltd recalls Shama Falooda Almond flavour drink because of undeclared milk https://www.food.gov.uk/news-alerts/alert/fsa-aa-27-2026",
+  "alertURL": "https://www.food.gov.uk/news-alerts/alert/fsa-aa-27-2026",
+  "shortURL": "https://bit.ly/4dUJygF",
+  "actionTaken": "Sunrise International Foods Ltd is recalling the above product from customers and has been advised to contact the relevant allergy support organisations, which will tell their members about the recall. The company has also issued a point-of-sale notice to its customers. These notices explain to customers why the product is being recalled and tell them what to do if they have bought the product. Please see the attached notice.",
+  "consumerAdvice": "If you have bought the above product and have an allergy to milk, do not drink it. Instead, please return it to the store where it was bought from for a full refund. No receipt is required. For further information call 07908 096126 or e-mail m.ali@shamauk.com.",
+  "relatedMedia": [
+    {
+      "@id": "https://s3-eu-west-1.amazonaws.com/fsa-alerts-files/production/FSA-AA-27-2026/FSA-AA-27-2026-POSN.pdf",
+      "title": "Customer notice: Shama Falooda Almond flavour drink"
+    }
+  ],
+  "problem": [
+    {
+      "@id": "http://data.food.gov.uk/food-alerts/id/FSA-AA-27-2026/problem/0",
+      "riskStatement": "Milk\nThis product contains milk making it a possible health risk for anyone with an allergy to milk or intolerance to milk or milk constituents.",
+      "allergen": {
+        "@id": "http://data.food.gov.uk/codes/alerts/def/allergen/milk",
+        "label": "Milk",
+        "notation": "milk",
+        "riskStatement": "This product contains Milk making it a possible health risk for anyone with an allergy or intolerance to milk or milk constituents",
+        "type": [
+          "http://data.food.gov.uk/food-alerts/def/Allergen",
+          "http://www.w3.org/2004/02/skos/core#Concept"
+        ],
+        "prefLabel": "Milk",
+        "topConceptOf": "http://data.food.gov.uk/codes/alerts/def/allergen",
+        "inScheme": "http://data.food.gov.uk/codes/alerts/def/allergen",
+        "description": "Milk is a common ingredient in butter, cheese, cream, milk powders and yoghurt. It can also be found in foods brushed or glazed with milk, and in powdered soups and sauces",
+        "relatedFoodTypes": "http://data.food.gov.uk/codes/foodtype/id/A0BXZ"
+      }
+    }
+  ],
+  "productDetails": [
+    {
+      "@id": "http://data.food.gov.uk/food-alerts/id/FSA-AA-27-2026/productDetails/0",
+      "productName": "Shama Falooda Almond flavour drink",
+      "packSizeDescription": "290 ml",
+      "batchDescription": [
+        {
+          "@id": "http://data.food.gov.uk/food-alerts/id/FSA-AA-27-2026/productDetails/0/batch/0",
+          "bestBeforeDescription": "All date codes",
+          "batchCode": "All batches"
+        }
+      ]
+    }
+  ],
+  "status": {
+    "@id": "http://data.food.gov.uk/codes/alerts/def/status/published",
+    "label": "Published"
+  },
+  "country": [
+    {
+      "@id": "http://data.food.gov.uk/codes/geographies/countries/GB-ENG",
+      "label": [
+        "England",
+        "England"
+      ],
+      "type": [
+        "http://www.w3.org/2004/02/skos/core#Concept"
+      ],
+      "seeAlso": "http://statistics.data.gov.uk/id/statistical-geography/E92000001",
+      "description": "England (GB-ENG) - United Kingdom Country: England",
+      "broader": "http://data.food.gov.uk/codes/geographies/countries/other",
+      "inScheme": "http://data.food.gov.uk/codes/geographies/countries"
+    }
+  ]
+}
