@@ -1,0 +1,32 @@
+[
+  {
+    "model": "qwen2.5:7b",
+    "total_cases": 6,
+    "agent1_success_rate": "6/6",
+    "full_pipeline_success_rate": "6/6",
+    "avg_agent1_seconds": 42.775,
+    "avg_agent2_seconds": 1.287,
+    "avg_agent3_seconds": 6.995,
+    "avg_total_pipeline_seconds": 51.057
+  },
+  {
+    "model": "llama3:8b",
+    "total_cases": 6,
+    "agent1_success_rate": "6/6",
+    "full_pipeline_success_rate": "6/6",
+    "avg_agent1_seconds": 33.868,
+    "avg_agent2_seconds": 1.389,
+    "avg_agent3_seconds": 5.135,
+    "avg_total_pipeline_seconds": 40.392
+  },
+  {
+    "model": "gemma2:9b",
+    "total_cases": 6,
+    "agent1_success_rate": "6/6",
+    "full_pipeline_success_rate": "6/6",
+    "avg_agent1_seconds": 60.178,
+    "avg_agent2_seconds": 3.43,
+    "avg_agent3_seconds": 8.539,
+    "avg_total_pipeline_seconds": 72.147
+  }
+]

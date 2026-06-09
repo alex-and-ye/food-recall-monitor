@@ -1,0 +1,43 @@
+{
+  "date_publication": "2026-05-28T16:19:30+00:00",
+  "numero_fiche": "2026-05-0207",
+  "numero_version": 1,
+  "nature_juridique_rappel": "voluntary (without prefectural decree)",
+  "categorie_produit": "alimentation",
+  "sous_categorie_produit": "milk and dairy products",
+  "marque_produit": "la houssaye",
+  "modeles_ou_references": "lhous pt l eveque aop cru 400",
+  "identification_produits": [
+    "2610098",
+    "date de durabilité minimale",
+    "2026-06-27"
+  ],
+  "conditionnements": "by pack of 6 cheeses¤by pack of 12 cheeses",
+  "date_debut_commercialisation": "2026-05-13",
+  "date_date_fin_commercialisation": "2026-06-27",
+  "temperature_conservation": "product to be stored in the refrigerator",
+  "marque_salubrite": "fr14 - 081-001 ue",
+  "informations_complementaires": null,
+  "zone_geographique_de_vente": "entire France",
+  "distributeurs": "la fromagee jy bordier¤team ouest distralis¤ugalait paris¤la degusterie sas¤bacbam¤desailly¤maitres laitiers distribution¤la ferme de la brie",
+  "motif_rappel": "Detection of Listeria monocytogenes on the Pont l'Evêque du Lot 2610098",
+  "risques_encourus": "Listeria monocytogenes (agent responsible for listeriosis)",
+  "preconisations_sanitaires": "People who have consumed the mentioned products and present fever, isolated or accompanied by headaches and muscle aches are invited to consult their doctor and report this consumption. Severe forms with neurological complications and maternal or fetal damage in pregnant women may also occur. Pregnant women, immunocompromised individuals, and older people should be particularly attentive to these symptoms. Listeriosis is a serious disease that can have an incubation period of up to eight weeks.",
+  "description_complementaire_risque": "Listeriosis: vomiting, diarrhea or constipation, headaches, fever, or meningitis or septicemia.",
+  "conduites_a_tenir_par_le_consommateur": "Do not consume|Do not use the product|Report the product to the point of sale|Contact the point of sale|Destroy the product",
+  "numero_contact": "0231206400",
+  "modalites_de_compensation": "Refund|Exchange",
+  "date_de_fin_de_la_procedure_de_rappel": "2026-06-27",
+  "informations_complementaires_publiques": null,
+  "liens_vers_les_images": [
+    "https://rappel.conso.gouv.fr/image/164f149b-cdcd-4a69-8d4a-2db5faf7d99a.jpg",
+    "https://rappel.conso.gouv.fr/image/471256be-cc79-4af8-8ab3-133b5b0083c5.jpg"
+  ],
+  "lien_vers_la_liste_des_produits": null,
+  "lien_vers_la_liste_des_distributeurs": null,
+  "lien_vers_affichette_pdf": "https://rappel.conso.gouv.fr/affichettepdf/22397/interne",
+  "lien_vers_la_fiche_rappel": "https://rappel.conso.gouv.fr/fiche-rappel/22397/interne",
+  "rappel_guid": "2152ec05-30d8-4778-9646-a3182780dbc4",
+  "libelle": "pt l eveque aop cru 400g",
+  "id": 22397
+}

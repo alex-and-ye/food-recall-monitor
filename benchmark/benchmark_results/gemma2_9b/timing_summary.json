@@ -1,0 +1,68 @@
+[
+  {
+    "case_id": "us_00",
+    "source": "us",
+    "agent1_seconds": 79.128,
+    "agent1_status": "SUCCESS",
+    "agent2_seconds": 12.086,
+    "agent2_status": "SUCCESS",
+    "agent3_seconds": 8.222,
+    "agent3_status": "SUCCESS",
+    "total_seconds": 99.437
+  },
+  {
+    "case_id": "us_01",
+    "source": "us",
+    "agent1_seconds": 70.739,
+    "agent1_status": "SUCCESS",
+    "agent2_seconds": 1.597,
+    "agent2_status": "SUCCESS",
+    "agent3_seconds": 8.558,
+    "agent3_status": "SUCCESS",
+    "total_seconds": 80.894
+  },
+  {
+    "case_id": "france_00",
+    "source": "france",
+    "agent1_seconds": 45.394,
+    "agent1_status": "SUCCESS",
+    "agent2_seconds": 2.18,
+    "agent2_status": "SUCCESS",
+    "agent3_seconds": 10.662,
+    "agent3_status": "SUCCESS",
+    "total_seconds": 58.236
+  },
+  {
+    "case_id": "france_01",
+    "source": "france",
+    "agent1_seconds": 43.032,
+    "agent1_status": "SUCCESS",
+    "agent2_seconds": 1.637,
+    "agent2_status": "SUCCESS",
+    "agent3_seconds": 8.549,
+    "agent3_status": "SUCCESS",
+    "total_seconds": 53.218
+  },
+  {
+    "case_id": "uk_00",
+    "source": "uk",
+    "agent1_seconds": 62.787,
+    "agent1_status": "SUCCESS",
+    "agent2_seconds": 1.377,
+    "agent2_status": "SUCCESS",
+    "agent3_seconds": 6.784,
+    "agent3_status": "SUCCESS",
+    "total_seconds": 70.948
+  },
+  {
+    "case_id": "uk_01",
+    "source": "uk",
+    "agent1_seconds": 59.99,
+    "agent1_status": "SUCCESS",
+    "agent2_seconds": 1.702,
+    "agent2_status": "SUCCESS",
+    "agent3_seconds": 8.46,
+    "agent3_status": "SUCCESS",
+    "total_seconds": 70.152
+  }
+]

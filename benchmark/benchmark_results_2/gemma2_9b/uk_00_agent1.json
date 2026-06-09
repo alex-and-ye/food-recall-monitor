@@ -1,0 +1,95 @@
+{
+  "@id": "http://data.food.gov.uk/food-alerts/id/FSA-PRIN-25-2026",
+  "notation": "FSA-PRIN-25-2026",
+  "title": "Morrisons recalls Morrisons Savers Cashews because of the possible presence of glass",
+  "description": "Morrisons is recalling Morrisons Savers Cashews because the product may contain glass.",
+  "created": "2026-05-26",
+  "modified": "2026-05-26T17:11:12.534Z",
+  "type": [
+    "http://data.food.gov.uk/food-alerts/def/Alert",
+    "http://data.food.gov.uk/food-alerts/def/PRIN"
+  ],
+  "reportingBusiness": {
+    "commonName": "Morrisons"
+  },
+  "SMStext": "Morrisons recalls Morrisons Savers Cashews because of the possible presence of glass https://bit.ly/4dGFu3L",
+  "twitterText": "Morrisons recalls Morrisons Savers Cashews because of the possible presence of glass #FoodAlert https://www.food.gov.uk/news-alerts/alert/fsa-prin-25-2026",
+  "shortTitle": "Morrisons recalls Morrisons Savers Cashews",
+  "alertURL": "https://www.food.gov.uk/news-alerts/alert/fsa-prin-25-2026",
+  "shortURL": "https://bit.ly/4dGFu3L",
+  "actionTaken": "Morrisons is recalling the above product. Point of sale notices will be displayed in all retail stores that are selling it. These notices explain to customers why the product is being recalled and tell them what to do if they have bought it. Please see the attached notice.",
+  "consumerAdvice": "If you have bought the above product do not consume it. Instead, return it to the nearest store for a full refund.",
+  "relatedMedia": [
+    {
+      "@id": "https://s3-eu-west-1.amazonaws.com/fsa-alerts-files/production/FSA-PRIN-25-2026/FSA-25-2026-Morrisons-recalls-Savers-Cashews.pdf",
+      "title": "Customer notice: Morrisons recalls Morrisons Savers Cashews "
+    }
+  ],
+  "problem": [
+    {
+      "@id": "http://data.food.gov.uk/food-alerts/id/FSA-PRIN-25-2026/problem/0",
+      "riskStatement": "The possible presence of glass in the product which makes it unsafe to eat."
+    }
+  ],
+  "productDetails": [
+    {
+      "@id": "http://data.food.gov.uk/food-alerts/id/FSA-PRIN-25-2026/productDetails/0",
+      "productName": "Morrisons Savers Cashews",
+      "packSizeDescription": "125g",
+      "batchDescription": [
+        {
+          "@id": "http://data.food.gov.uk/food-alerts/id/FSA-PRIN-25-2026/productDetails/0/batch/0",
+          "bestBeforeDescription": "9 August 2026, 6 September 2026, 26 September 2026, 28 September 2026, 9 October 2026"
+        }
+      ]
+    }
+  ],
+  "status": {
+    "@id": "http://data.food.gov.uk/codes/alerts/def/status/published",
+    "label": "Published"
+  },
+  "country": [
+    {
+      "@id": "http://data.food.gov.uk/codes/geographies/countries/GB-ENG",
+      "label": [
+        "England",
+        "England"
+      ],
+      "type": [
+        "http://www.w3.org/2004/02/skos/core#Concept"
+      ],
+      "seeAlso": "http://statistics.data.gov.uk/id/statistical-geography/E92000001",
+      "description": "England (GB-ENG) - Unitied Kingdom Country: England",
+      "broader": "http://data.food.gov.uk/codes/geographies/countries/other",
+      "inScheme": "http://data.food.gov.uk/codes/geographies/countries"
+    },
+    {
+      "@id": "http://data.food.gov.uk/codes/geographies/countries/GB-SCT",
+      "label": [
+        "Scotland",
+        "Scotland"
+      ],
+      "type": [
+        "http://www.w3.org/2004/02/skos/core#Concept"
+      ],
+      "seeAlso": "http://statistics.data.gov.uk/id/statistical-geography/S92000003",
+      "description": "Scotland (GB-SCT) - Unitied Kingdom Country: Scotland",
+      "broader": "http://data.food.gov.uk/codes/geographies/countries/other",
+      "inScheme": "http://data.food.gov.uk/codes/geographies/countries"
+    },
+    {
+      "@id": "http://data.food.gov.uk/codes/geographies/countries/GB-WLS",
+      "label": [
+        "Wales",
+        "Wales"
+      ],
+      "type": [
+        "http://www.w3.org/2004/02/skos/core#Concept"
+      ],
+      "seeAlso": "http://statistics.data.gov.uk/id/statistical-geography/W92000004",
+      "description": "Wales (GB-WLS) - Unitied Kingdom Country: Wales",
+      "broader": "http://data.food.gov.uk/codes/geographies/countries/other",
+      "inScheme": "http://data.food.gov.uk/codes/geographies/countries"
+    }
+  ]
+}
