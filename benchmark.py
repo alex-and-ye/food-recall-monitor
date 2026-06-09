@@ -22,9 +22,26 @@ import ollama
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 
-# MODELS = ["qwen2.5:7b", "llama3:8b", "gemma2:9b", "qwen2.5:14b"]
-MODELS = ["qwen2.5:7b", "qwen2.5:14b"]
-RESULTS_DIR = Path("benchmark_results_3")
+DEFAULT_QUANTIZATION = "q4_K_M"
+
+# Base model IDs (family:parameters). Full Ollama tags are built with DEFAULT_QUANTIZATION.
+MODEL_BASES = [
+    "qwen2.5:7b",
+    "llama3:8b",
+    "gemma2:9b",
+    "qwen2.5:14b",
+]
+
+
+def resolve_ollama_model(base: str, quant: str = DEFAULT_QUANTIZATION) -> str:
+    """Return Ollama model tag with explicit quantization (e.g. qwen2.5:7b-instruct-q4_K_M)."""
+    if quant.lower() in base.lower():
+        return base
+    return f"{base}-instruct-{quant}"
+
+
+MODELS = [resolve_ollama_model(m) for m in MODEL_BASES]
+RESULTS_DIR = Path("benchmark_results")
 
 OLLAMA_OPTIONS = {
     "temperature": 0.0,
@@ -32,10 +49,12 @@ OLLAMA_OPTIONS = {
     "num_gpu": 99,  # force max layers on GPU
 }
 
+DATA_DIR = Path("recall_data")
+
 DATA_FILES = {
-    "us": "us_recall.json",
-    "france": "france_recall.json",
-    "uk": "uk_recall.json",
+    "us": DATA_DIR / "us_recall.json",
+    "france": DATA_DIR / "france_recall.json",
+    "uk": DATA_DIR / "uk_recall.json",
 }
 
 # Deterministic country of origin per source API (S2 repair). The source files report
@@ -353,7 +372,7 @@ def run_pipeline_for_case(
         timing["agent3_consumer_action_has_pipe"] = (
             isinstance(consumer_action, str) and "|" in consumer_action
         )
-        # bonus measure: empty hazard_type.
+        # additional measure: empty hazard_type.
         hazard = a3_result.get("hazard_type")
         timing["agent3_hazard_empty"] = not (isinstance(hazard, str) and hazard.strip())
 
@@ -434,6 +453,9 @@ def run_benchmark() -> None:
         f"Loaded {len(test_cases)} test cases  "
         f"(US: {source_counts['us']}, France: {source_counts['france']}, UK: {source_counts['uk']})"
     )
+    log.info(f"Quantization: {DEFAULT_QUANTIZATION}")
+    for base, tag in zip(MODEL_BASES, MODELS, strict=True):
+        log.info(f"  {base} -> {tag}")
 
     all_stats: list[dict] = []
 
@@ -442,7 +464,7 @@ def run_benchmark() -> None:
         log.info(f"MODEL: {model}")
         log.info(f"{'=' * 60}")
 
-        model_slug = model.replace(":", "_").replace(".", "_")
+        model_slug = model.replace(":", "_").replace(".", "_").replace("-", "_")
         model_dir = RESULTS_DIR / model_slug
         model_dir.mkdir(exist_ok=True)
 
