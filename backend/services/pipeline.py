@@ -1,7 +1,7 @@
 from datetime import date
 
 from db.interface import FoodRecallAlertsDBInterface
-from models.recall_alert import FoodRecallAlert
+from models.food_recall_alert import FoodRecallAlert
 
 class PipelineService:
     def __init__(self, db: FoodRecallAlertsDBInterface) -> None:

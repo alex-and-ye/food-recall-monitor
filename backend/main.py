@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api import alerts_api, pipeline_api
+from routes.alerts import router as alerts_router
+from routes.pipeline import router as pipeline_router
 
 app = FastAPI(
     title="Food Recall Monitor API",
@@ -16,8 +17,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(alerts_api.router)
-app.include_router(pipeline_api.router)
+app.include_router(alerts_router)
+app.include_router(pipeline_router)
 
 @app.get("/")
 async def root():

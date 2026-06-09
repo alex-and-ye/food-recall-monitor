@@ -4,7 +4,7 @@ import chromadb
 from chromadb.api.types import Metadata
 
 from db.interface import FoodRecallAlertsDBInterface
-from models.recall_alert import FoodRecallAlert
+from models.food_recall_alert import FoodRecallAlert
 
 class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
     COLLECTION_NAME = "food_recall_alerts_collection"
@@ -12,6 +12,22 @@ class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
     def __init__(self, db_path: str) -> None:
         self.client = chromadb.PersistentClient(path=db_path)
         self.collection = self.client.get_or_create_collection(name=FoodRecallAlertsChromaClient.COLLECTION_NAME)
+
+    def get_alerts(self) -> List[FoodRecallAlert]:
+        results = self.collection.get(include=["metadatas"])
+        metadatas = results.get("metadatas")
+        if not metadatas:
+            return []
+        
+        parsed_alerts = []
+        for metadata in metadatas:
+            if metadata is not None:
+                safe_metadata = dict(metadata)
+                parsed_alerts.append(FoodRecallAlert.from_metadata(safe_metadata))
+                
+        parsed_alerts.sort(key=lambda x: x.recall_date, reverse=True)
+        
+        return parsed_alerts
 
     def save_alerts(self, alerts: List[FoodRecallAlert]) -> int:
         if not alerts:
@@ -37,19 +53,3 @@ class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
         )
 
         return len(new_alerts)
-
-    def get_alerts(self) -> List[FoodRecallAlert]:
-        results = self.collection.get(include=["metadatas"])
-        metadatas = results.get("metadatas")
-        if not metadatas:
-            return []
-        
-        parsed_alerts = []
-        for metadata in metadatas:
-            if metadata is not None:
-                safe_metadata = dict(metadata)
-                parsed_alerts.append(FoodRecallAlert.from_metadata(safe_metadata))
-                
-        parsed_alerts.sort(key=lambda x: x.recall_date, reverse=True)
-        
-        return parsed_alerts

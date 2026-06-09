@@ -1,7 +1,7 @@
 from typing import List, Dict, Any
 
 from db.interface import FoodRecallAlertsDBInterface
-from models.recall_alert import FoodRecallAlert
+from models.food_recall_alert import FoodRecallAlert
 
 class AlertsService:
     def __init__(self, db: FoodRecallAlertsDBInterface) -> None:

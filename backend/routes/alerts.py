@@ -1,8 +1,7 @@
-from fastapi import APIRouter, Depends
-from fastapi import status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException
 
-from services.alerts_service import AlertsService
-from config import get_alerts_service
+from services.alerts import AlertsService
+from dependencies import get_alerts_service
 
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
