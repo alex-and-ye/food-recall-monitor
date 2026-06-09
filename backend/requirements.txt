@@ -38,6 +38,7 @@ Jinja2==3.1.6
 jsonschema==4.26.0
 jsonschema-specifications==2025.9.1
 kubernetes==36.0.2
+langgraph==1.2.4
 markdown-it-py==4.2.0
 MarkupSafe==3.0.3
 mdurl==0.1.2
@@ -45,6 +46,7 @@ mmh3==5.2.1
 multidict==6.7.1
 numpy==2.4.6
 oauthlib==3.3.1
+ollama==0.6.2
 onnxruntime==1.26.0
 opentelemetry-api==1.42.1
 opentelemetry-exporter-otlp-proto-common==1.42.1
