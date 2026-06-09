@@ -6,8 +6,9 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-class FoodRecallAlert(BaseModel):
-    alert_id: str
+class FoodRecallAlertCreate(BaseModel):
+    """Recall alert produced by the pipeline before database persistence."""
+
     product_name: str
     product_category: str
     recall_reason: str
@@ -18,9 +19,6 @@ class FoodRecallAlert(BaseModel):
     consumer_action: str
     source_url: str
     affected_regions: list[str] = Field(default_factory=list)
-
-    def get_id(self) -> str:
-        return self.alert_id
 
     def to_document(self) -> str:
         regions = ", ".join(self.affected_regions) if self.affected_regions else "unspecified"
@@ -36,6 +34,15 @@ class FoodRecallAlert(BaseModel):
                 f"Affected regions: {regions}",
             ]
         )
+
+
+class FoodRecallAlert(FoodRecallAlertCreate):
+    """Recall alert after the database assigns a stable identifier."""
+
+    alert_id: str
+
+    def get_id(self) -> str:
+        return self.alert_id
 
     def to_metadata(self) -> dict[str, str | int | float | bool]:
         return {
