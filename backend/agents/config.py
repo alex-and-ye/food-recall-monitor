@@ -1,7 +1,7 @@
 from models.pipeline_options import RecallSource
 
 
-DEFAULT_MODEL = "qwen2.5:14b-instruct-q4_K_M"
+DEFAULT_MODEL = "qwen2.5:14b"
 
 OLLAMA_OPTIONS = {
     "temperature": 0.0,

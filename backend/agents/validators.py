@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from typing import Any
 
 
@@ -17,13 +16,6 @@ REQUIRED_STRUCTURED_FIELDS = {
     "affected_regions",
 }
 
-_PREAMBLE_PATTERN = re.compile(
-    r"^\s*(here\s+(is|are)\b|sure\b|summary\s*:|below\s+is\b).*?(:|\n)",
-    re.IGNORECASE | re.DOTALL,
-)
-_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
-
-
 class AgentValidationError(ValueError):
     pass
 
@@ -37,14 +29,6 @@ def validate_summary(summary: str) -> None:
     text = summary.strip()
     if not text:
         raise AgentValidationError("Agent 2 returned an empty summary")
-
-    first_line = text.splitlines()[0]
-    if _PREAMBLE_PATTERN.match(first_line):
-        raise AgentValidationError("Agent 2 returned a summary preamble")
-
-    sentences = [sentence for sentence in _SENTENCE_SPLIT.split(text) if sentence.strip()]
-    if len(sentences) != 3:
-        raise AgentValidationError("Agent 2 summary must contain exactly three sentences")
 
 
 def validate_structured_json(structured_json: dict[str, Any]) -> None:
