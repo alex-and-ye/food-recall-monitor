@@ -5,8 +5,6 @@ import re
 from datetime import date, datetime
 from typing import Any
 
-from agents.source_types import ProtectedFields
-
 
 _HTML_TAG_PATTERN = re.compile(r"<[^>]+>")
 _WHITESPACE_PATTERN = re.compile(r"\s+")
@@ -56,22 +54,3 @@ def parse_source_date(value: Any) -> date:
     except ValueError:
         return date.fromisoformat(normalized[:10])
 
-
-def build_protected_fields(
-    *,
-    product_name: str,
-    recall_date: Any,
-    source_url: str,
-) -> ProtectedFields:
-    clean_product_name = clean_text(product_name)
-    clean_source_url = source_url.strip()
-    if not clean_product_name:
-        raise ValueError("Missing product_name")
-    if not clean_source_url:
-        raise ValueError("Missing source_url")
-
-    return ProtectedFields(
-        product_name=clean_product_name,
-        recall_date=parse_source_date(recall_date),
-        source_url=clean_source_url,
-    )

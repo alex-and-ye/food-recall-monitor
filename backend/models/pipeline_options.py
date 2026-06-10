@@ -1,20 +1,25 @@
-from enum import Enum
-
-from pydantic import BaseModel, Field
-
-
-class RecallSource(str, Enum):
-    FRANCE = "france"
-    UK = "uk"
-    US = "us"
+from pydantic import BaseModel, Field, field_validator
 
 
 class PipelineRunOptions(BaseModel):
-    sources: list[RecallSource] = Field(
-        default_factory=lambda: [
-            RecallSource.FRANCE,
-            RecallSource.UK,
-            RecallSource.US,
-        ]
-    )
+    sources: list[str] = Field(default_factory=lambda: list(_source_names()))
     limit: int = Field(default=10, ge=1, le=100)
+
+    @field_validator("sources")
+    @classmethod
+    def validate_sources(cls, sources: list[str]) -> list[str]:
+        configured_sources = set(_source_names())
+        unknown_sources = sorted(set(sources).difference(configured_sources))
+        if unknown_sources:
+            raise ValueError(
+                "Unknown source(s): "
+                f"{', '.join(unknown_sources)}. "
+                f"Configured sources: {', '.join(sorted(configured_sources))}"
+            )
+        return sources
+
+
+def _source_names() -> list[str]:
+    from agents.config import DEFAULT_SOURCE_NAMES
+
+    return DEFAULT_SOURCE_NAMES

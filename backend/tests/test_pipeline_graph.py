@@ -1,15 +1,14 @@
 import unittest
-from datetime import date
 from unittest.mock import AsyncMock, patch
 
 from agents.graph import repair_and_convert_node, run_pipeline, structure_node
-from agents.source_types import ProtectedFields, SourceRecord
+from agents.source_types import SourceRecord
 from models.food_recall_alert import FoodRecallAlertCreate
-from models.pipeline_options import PipelineRunOptions, RecallSource
+from models.pipeline_options import PipelineRunOptions
 
 
 class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
-    def test_repair_and_convert_overwrites_protected_fields(self) -> None:
+    def test_repair_and_convert_restores_protected_values_from_original_json(self) -> None:
         source_record = _source_record()
         state = {
             "record": source_record,
@@ -42,7 +41,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_run_pipeline_with_mocked_fetch_and_agents(self) -> None:
         source_record = _source_record()
-        options = PipelineRunOptions(sources=[RecallSource.UK], limit=1)
+        options = PipelineRunOptions(sources=["uk"], limit=1)
 
         with (
             patch("agents.graph.fetch_sources_sequentially", new=AsyncMock(return_value=[source_record])),
@@ -79,7 +78,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_run_pipeline_allows_non_three_sentence_summary(self) -> None:
         source_record = _source_record()
-        options = PipelineRunOptions(sources=[RecallSource.UK], limit=1)
+        options = PipelineRunOptions(sources=["uk"], limit=1)
 
         with (
             patch("agents.graph.fetch_sources_sequentially", new=AsyncMock(return_value=[source_record])),
@@ -165,17 +164,21 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
 
 def _source_record() -> SourceRecord:
     return SourceRecord(
-        source=RecallSource.UK,
-        raw_record={"id": "raw"},
-        protected_fields=ProtectedFields(
-            product_name="Original Product",
-            recall_date=date(2026, 6, 9),
-            source_url="https://source.example.com",
-        ),
+        source="uk",
+        raw_record={
+            "productDetails": [{"productName": "Original Product"}],
+            "created": "2026-06-09",
+            "alertURL": "https://source.example.com",
+        },
         working_json={
             "source": "uk",
-            "recall_reason": "Possible contamination",
-            "consumer_action": "Do not consume it.",
+            "record": {
+                "productDetails": [{"productName": "Original Product"}],
+                "created": "2026-06-09",
+                "alertURL": "https://source.example.com",
+                "recall_reason": "Possible contamination",
+                "consumer_action": "Do not consume it.",
+            },
         },
     )
 
