@@ -127,6 +127,7 @@ def _fallback_structured_json(state: PipelineRecordState) -> dict[str, object]:
     record = state["record"]
 
     return {
+        "api_source": record.source,
         "product_name": _best_original_value("product_name", "", record.raw_record),
         "product_category": "Other",
         "recall_reason": "Recall reason unavailable",
@@ -142,7 +143,14 @@ def _fallback_structured_json(state: PipelineRecordState) -> dict[str, object]:
 
 def repair_and_convert_node(state: PipelineRecordState) -> PipelineRecordState:
     record = state["record"]
-    structured_json = dict(state["structured_json"])
+    structured_json = {
+        "api_source": record.source,
+        **{
+            key: value
+            for key, value in dict(state["structured_json"]).items()
+            if key != "api_source"
+        },
+    }
 
     structured_json["product_name"] = _best_original_value(
         "product_name",

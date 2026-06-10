@@ -16,6 +16,7 @@ class ChromaClientDedupeTests(unittest.TestCase):
         self.assertEqual(inserted_count, 1)
         self.assertEqual(len(client.collection.added["ids"]), 1)
         self.assertTrue(client.collection.added["ids"][0])
+        self.assertEqual(client.collection.added["metadatas"][0]["api_source"], "test-source")
         self.assertEqual(client.collection.added["metadatas"][0]["product_name"], "Sample Product")
         self.assertIn("dedupe_key", client.collection.added["metadatas"][0])
 
@@ -66,6 +67,7 @@ class FakeCollection:
 
 def _alert(source_url: str = "https://example.com/recall") -> FoodRecallAlertCreate:
     return FoodRecallAlertCreate(
+        api_source="test-source",
         product_name="Sample Product",
         product_category="Produce",
         recall_reason="Possible contamination",

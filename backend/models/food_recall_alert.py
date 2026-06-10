@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 class FoodRecallAlertCreate(BaseModel):
     """Recall alert produced by the pipeline before database persistence."""
 
+    api_source: str
     product_name: str
     product_category: str
     recall_reason: str
@@ -24,6 +25,7 @@ class FoodRecallAlertCreate(BaseModel):
         regions = ", ".join(self.affected_regions) if self.affected_regions else "unspecified"
         return "\n".join(
             [
+                f"API source: {self.api_source}",
                 f"Product: {self.product_name}",
                 f"Category: {self.product_category}",
                 f"Summary: {self.summary}",
@@ -47,6 +49,7 @@ class FoodRecallAlert(FoodRecallAlertCreate):
     def to_metadata(self) -> dict[str, str | int | float | bool]:
         return {
             "alert_id": self.alert_id,
+            "api_source": self.api_source,
             "product_name": self.product_name,
             "product_category": self.product_category,
             "recall_reason": self.recall_reason,
@@ -77,6 +80,7 @@ class FoodRecallAlert(FoodRecallAlertCreate):
 
         return cls(
             alert_id=str(metadata["alert_id"]),
+            api_source=str(metadata.get("api_source", "unknown")),
             product_name=str(metadata["product_name"]),
             product_category=str(metadata["product_category"]),
             recall_reason=str(metadata["recall_reason"]),

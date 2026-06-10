@@ -67,6 +67,4 @@ Rules:
 10. affected_regions should be a list of regions, countries, provinces, or markets explicitly present in the source. Use an empty list if unavailable.
 11. Do not add alert_id. The database assigns alert_id later.
 12. Return JSON only. No markdown, comments, or explanation.
-
-The pipeline verifies product_name, recall_date, and source_url against the Original Source JSON after you respond. If you translate, invent, or alter those protected values, they will be replaced with values from the original record.
 """

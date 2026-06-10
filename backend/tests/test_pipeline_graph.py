@@ -33,6 +33,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
 
         alert = result["alert"]
         self.assertIsInstance(alert, FoodRecallAlertCreate)
+        self.assertEqual(alert.api_source, "uk")
         self.assertEqual(alert.product_name, "Original Product")
         self.assertEqual(alert.recall_date.isoformat(), "2026-06-09")
         self.assertEqual(alert.source_url, "https://source.example.com")
@@ -77,6 +78,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(len(result.alerts), 1)
         self.assertIsInstance(result.alerts[0], FoodRecallAlertCreate)
+        self.assertEqual(result.alerts[0].api_source, "uk")
         self.assertEqual(result.alerts[0].product_name, "Original Product")
         self.assertEqual(result.alerts[0].recall_date.isoformat(), "2026-06-09")
         self.assertEqual(result.alerts[0].source_url, "https://source.example.com")
@@ -113,6 +115,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
             result = await run_pipeline(options)
 
         self.assertEqual(len(result.alerts), 1)
+        self.assertEqual(result.alerts[0].api_source, "uk")
         self.assertEqual(result.alerts[0].summary, "Short summary.")
 
     def test_structure_node_retries_invalid_agent3_schema(self) -> None:
@@ -179,6 +182,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
             result = structure_node(state)
 
         structured_json = result["structured_json"]
+        self.assertEqual(structured_json["api_source"], "uk")
         self.assertEqual(structured_json["product_name"], "Original Product")
         self.assertEqual(structured_json["recall_date"], "2026-06-09")
         self.assertEqual(structured_json["source_url"], "https://source.example.com")
