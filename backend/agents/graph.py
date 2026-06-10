@@ -6,6 +6,7 @@ from typing import Any
 from langgraph.graph import END, START, StateGraph
 
 from agents.converters import structured_json_to_alert_create
+from agents.errors import SourceFetchError
 from agents.fetchers import fetch_sources_sequentially
 from agents.llm import AgentOutputError, chat_json, chat_text
 from agents.normalizers.protected_fields import clean_text, parse_source_date
@@ -19,6 +20,7 @@ from agents.validators import (
 )
 from models.food_recall_alert import FoodRecallAlertCreate
 from models.pipeline_options import PipelineRunOptions
+from models.pipeline_result import AgentPipelineResult
 
 AGENT3_MAX_ATTEMPTS = 2
 
@@ -39,22 +41,29 @@ def create_pipeline_graph():
     return graph.compile()
 
 
-async def run_pipeline(options: PipelineRunOptions) -> list[FoodRecallAlertCreate]:
+async def run_pipeline(options: PipelineRunOptions) -> AgentPipelineResult:
     graph = create_pipeline_graph()
-    source_records = await fetch_sources_sequentially(
+    fetch_result = await fetch_sources_sequentially(
         options.sources,
         limit=options.limit,
     )
 
+    if not fetch_result.records and fetch_result.failures:
+        raise SourceFetchError(fetch_result.failures)
+
     alerts: list[FoodRecallAlertCreate] = []
-    for record in source_records:
+    for record in fetch_result.records:
         try:
             result = await graph.ainvoke({"record": record})
         except (AgentOutputError, AgentValidationError, ValueError):
             continue
         alerts.append(result["alert"])
 
-    return alerts
+    return AgentPipelineResult(
+        alerts=alerts,
+        records_fetched=len(fetch_result.records),
+        source_failures=fetch_result.failures,
+    )
 
 
 def translate_values_node(state: PipelineRecordState) -> PipelineRecordState:

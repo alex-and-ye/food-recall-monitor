@@ -2,7 +2,9 @@ import json
 import unittest
 from pathlib import Path
 
+from agents.config import API_SOURCES
 from agents.fetchers import parse_source_payload
+from agents.fetchers.base import _headers_for_source
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -10,6 +12,13 @@ RECALL_DATA_DIR = REPO_ROOT / "benchmark" / "recall_data"
 
 
 class FetcherParsingTests(unittest.TestCase):
+    def test_us_source_headers_include_referer_and_origin(self) -> None:
+        headers = _headers_for_source("us")
+        source_headers = API_SOURCES["us"]["headers"]
+
+        self.assertEqual(headers["Referer"], source_headers["Referer"])
+        self.assertEqual(headers["Origin"], source_headers["Origin"])
+
     def test_france_parser_infers_records_and_preserves_raw_json(self) -> None:
         payload = _load_json("france_recall.json")
 

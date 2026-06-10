@@ -1,10 +1,12 @@
 import unittest
 from unittest.mock import AsyncMock, patch
 
+from agents.errors import SourceFetchError
 from agents.graph import repair_and_convert_node, run_pipeline, structure_node
 from agents.source_types import SourceRecord
 from models.food_recall_alert import FoodRecallAlertCreate
 from models.pipeline_options import PipelineRunOptions
+from models.pipeline_result import FetchSourcesResult
 
 
 class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
@@ -44,7 +46,10 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
         options = PipelineRunOptions(sources=["uk"], limit=1)
 
         with (
-            patch("agents.graph.fetch_sources_sequentially", new=AsyncMock(return_value=[source_record])),
+            patch(
+                "agents.graph.fetch_sources_sequentially",
+                new=AsyncMock(return_value=FetchSourcesResult(records=[source_record])),
+            ),
             patch(
                 "agents.graph.chat_json",
                 side_effect=[
@@ -68,20 +73,23 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
                 return_value="This product was recalled. It may be unsafe. Consumers should not eat it.",
             ),
         ):
-            alerts = await run_pipeline(options)
+            result = await run_pipeline(options)
 
-        self.assertEqual(len(alerts), 1)
-        self.assertIsInstance(alerts[0], FoodRecallAlertCreate)
-        self.assertEqual(alerts[0].product_name, "Original Product")
-        self.assertEqual(alerts[0].recall_date.isoformat(), "2026-06-09")
-        self.assertEqual(alerts[0].source_url, "https://source.example.com")
+        self.assertEqual(len(result.alerts), 1)
+        self.assertIsInstance(result.alerts[0], FoodRecallAlertCreate)
+        self.assertEqual(result.alerts[0].product_name, "Original Product")
+        self.assertEqual(result.alerts[0].recall_date.isoformat(), "2026-06-09")
+        self.assertEqual(result.alerts[0].source_url, "https://source.example.com")
 
     async def test_run_pipeline_allows_non_three_sentence_summary(self) -> None:
         source_record = _source_record()
         options = PipelineRunOptions(sources=["uk"], limit=1)
 
         with (
-            patch("agents.graph.fetch_sources_sequentially", new=AsyncMock(return_value=[source_record])),
+            patch(
+                "agents.graph.fetch_sources_sequentially",
+                new=AsyncMock(return_value=FetchSourcesResult(records=[source_record])),
+            ),
             patch(
                 "agents.graph.chat_json",
                 side_effect=[
@@ -102,10 +110,10 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
             ),
             patch("agents.graph.chat_text", return_value="Short summary."),
         ):
-            alerts = await run_pipeline(options)
+            result = await run_pipeline(options)
 
-        self.assertEqual(len(alerts), 1)
-        self.assertEqual(alerts[0].summary, "Short summary.")
+        self.assertEqual(len(result.alerts), 1)
+        self.assertEqual(result.alerts[0].summary, "Short summary.")
 
     def test_structure_node_retries_invalid_agent3_schema(self) -> None:
         source_record = _source_record()
@@ -137,6 +145,21 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(chat_json.call_count, 2)
         self.assertEqual(result["structured_json"]["product_category"], "Produce")
+
+    async def test_run_pipeline_raises_when_all_sources_fail_to_fetch(self) -> None:
+        options = PipelineRunOptions(sources=["us"], limit=1)
+
+        with patch(
+            "agents.graph.fetch_sources_sequentially",
+            new=AsyncMock(
+                return_value=FetchSourcesResult(
+                    records=[],
+                    failures={"us": "Client error '403 Forbidden'"},
+                )
+            ),
+        ):
+            with self.assertRaises(SourceFetchError):
+                await run_pipeline(options)
 
     def test_structure_node_falls_back_after_agent3_retry_failure(self) -> None:
         source_record = _source_record()
