@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, patch
 
 from agents.graph import repair_and_convert_node, run_pipeline
 from agents.source_types import ProtectedFields, SourceRecord
+from models.food_recall_alert import FoodRecallAlertCreate
 from models.pipeline_options import PipelineRunOptions, RecallSource
-from models.recall_alert import FoodRecallAlertCreate
 
 
 class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):

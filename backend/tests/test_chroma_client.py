@@ -2,7 +2,7 @@ import unittest
 from datetime import date
 
 from db.chroma_client import FoodRecallAlertsChromaClient
-from models.recall_alert import FoodRecallAlertCreate
+from models.food_recall_alert import FoodRecallAlertCreate
 
 
 class ChromaClientDedupeTests(unittest.TestCase):

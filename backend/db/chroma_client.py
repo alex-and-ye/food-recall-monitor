@@ -3,10 +3,10 @@ from typing import List, cast
 from uuid import uuid4
 
 import chromadb
-from chromadb.api.types import Metadata
+from chromadb.api.types import Metadata, Where
 
 from db.interface import FoodRecallAlertsDBInterface
-from models.recall_alert import FoodRecallAlert, FoodRecallAlertCreate
+from models.food_recall_alert import FoodRecallAlert, FoodRecallAlertCreate
 
 class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
     COLLECTION_NAME = "food_recall_alerts_collection"
@@ -59,7 +59,7 @@ class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
             return set()
 
         records = self.collection.get(
-            where={"dedupe_key": {"$in": dedupe_keys}},
+            where=cast(Where, {"dedupe_key": {"$in": dedupe_keys}}),
             include=["metadatas"],
         )
         metadatas = records.get("metadatas") or []

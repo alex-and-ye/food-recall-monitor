@@ -4,13 +4,13 @@ from fastapi import Depends
 
 from db.interface import FoodRecallAlertsDBInterface
 from db.chroma_client import FoodRecallAlertsChromaClient
-from services.alerts_service import AlertsService
-from services.pipeline_service import PipelineService
+from services.alerts import AlertsService
+from services.pipeline import PipelineService
 
-_db_client = FoodRecallAlertsChromaClient(os.path.join(os.getcwd(), "data", "chroma_db"))
+_chroma_client: FoodRecallAlertsDBInterface = FoodRecallAlertsChromaClient(os.path.join(os.getcwd(), "data", "chroma_db"))
 
 def get_db() -> FoodRecallAlertsDBInterface:
-    return _db_client
+    return _chroma_client
 
 def get_alerts_service(db: FoodRecallAlertsDBInterface = Depends(get_db)) -> AlertsService:
     return AlertsService(db)

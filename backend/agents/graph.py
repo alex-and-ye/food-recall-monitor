@@ -14,8 +14,8 @@ from agents.validators import (
     validate_summary,
     validate_translated_structure,
 )
+from models.food_recall_alert import FoodRecallAlertCreate
 from models.pipeline_options import PipelineRunOptions
-from models.recall_alert import FoodRecallAlertCreate
 
 
 def create_pipeline_graph():

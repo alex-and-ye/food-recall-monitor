@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List
 
-from models.recall_alert import FoodRecallAlert, FoodRecallAlertCreate
+from models.food_recall_alert import FoodRecallAlert, FoodRecallAlertCreate
 
 class FoodRecallAlertsDBInterface(ABC):
     @abstractmethod

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, TypedDict
 
 from agents.source_types import SourceRecord
-from models.recall_alert import FoodRecallAlertCreate
+from models.food_recall_alert import FoodRecallAlertCreate
 
 
 class PipelineRecordState(TypedDict, total=False):

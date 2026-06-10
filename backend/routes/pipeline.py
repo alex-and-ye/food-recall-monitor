@@ -1,9 +1,8 @@
-from fastapi import APIRouter, Depends
-from fastapi import status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException
 
 from models.pipeline_options import PipelineRunOptions
-from services.pipeline_service import PipelineService
-from config import get_pipeline_service
+from services.pipeline import PipelineService
+from dependencies import get_pipeline_service
 
 router = APIRouter(prefix="/api/pipeline", tags=["pipeline"])
 
