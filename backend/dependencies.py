@@ -7,7 +7,7 @@ from db.chroma_client import FoodRecallAlertsChromaClient
 from services.alerts import AlertsService
 from services.pipeline import PipelineService
 
-_chroma_client: FoodRecallAlertsDBInterface = FoodRecallAlertsChromaClient(os.path.join(os.getcwd(), "data", "chroma_db"))
+_chroma_client: FoodRecallAlertsDBInterface = FoodRecallAlertsChromaClient()
 
 def get_db() -> FoodRecallAlertsDBInterface:
     return _chroma_client
