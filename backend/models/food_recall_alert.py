@@ -6,8 +6,10 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-class FoodRecallAlert(BaseModel):
-    alert_id: str
+class FoodRecallAlertCreate(BaseModel):
+    """Recall alert produced by the pipeline before database persistence."""
+
+    api_source: str
     product_name: str
     product_category: str
     recall_reason: str
@@ -19,13 +21,11 @@ class FoodRecallAlert(BaseModel):
     source_url: str
     affected_regions: list[str] = Field(default_factory=list)
 
-    def get_id(self) -> str:
-        return self.alert_id
-
     def to_document(self) -> str:
         regions = ", ".join(self.affected_regions) if self.affected_regions else "unspecified"
         return "\n".join(
             [
+                f"API source: {self.api_source}",
                 f"Product: {self.product_name}",
                 f"Category: {self.product_category}",
                 f"Summary: {self.summary}",
@@ -37,9 +37,19 @@ class FoodRecallAlert(BaseModel):
             ]
         )
 
+
+class FoodRecallAlert(FoodRecallAlertCreate):
+    """Recall alert after the database assigns a stable identifier."""
+
+    alert_id: str
+
+    def get_id(self) -> str:
+        return self.alert_id
+
     def to_metadata(self) -> dict[str, str | int | float | bool]:
         return {
             "alert_id": self.alert_id,
+            "api_source": self.api_source,
             "product_name": self.product_name,
             "product_category": self.product_category,
             "recall_reason": self.recall_reason,
@@ -70,6 +80,7 @@ class FoodRecallAlert(BaseModel):
 
         return cls(
             alert_id=str(metadata["alert_id"]),
+            api_source=str(metadata.get("api_source", "unknown")),
             product_name=str(metadata["product_name"]),
             product_category=str(metadata["product_category"]),
             recall_reason=str(metadata["recall_reason"]),
