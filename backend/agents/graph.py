@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
 
 from langgraph.graph import END, START, StateGraph
@@ -10,20 +11,26 @@ from agents.errors import SourceFetchError
 from agents.fetchers import fetch_sources_sequentially
 from agents.llm import AgentOutputError, chat_json, chat_text
 from agents.normalizers.protected_fields import clean_text, parse_source_date
-from agents.prompts import AGENT1_SYSTEM, AGENT2_SYSTEM, AGENT3_SYSTEM
-from agents.state import PipelineRecordState
+from agents.prompts import (
+    STRUCTURING_SYSTEM_PROMPT,
+    SUMMARIZATION_SYSTEM_PROMPT,
+    TRANSLATION_SYSTEM_PROMPT,
+)
 from agents.validators import (
     AgentValidationError,
     validate_structured_json,
     validate_summary,
     validate_translated_structure,
 )
+from agents.config import TRANSLATION_MODEL
 from models.food_recall_alert import FoodRecallAlertCreate
 from models.pipeline_options import PipelineRunOptions
 from models.pipeline_result import AgentPipelineResult
+from models.pipeline_state import PipelineRecordState
 
-AGENT3_MAX_ATTEMPTS = 2
+LOGGER = logging.getLogger(__name__)
 
+STRUCTURING_AGENT_MAX_ATTEMPTS: int = 2
 
 def create_pipeline_graph():
     graph = StateGraph(PipelineRecordState)
@@ -40,7 +47,6 @@ def create_pipeline_graph():
 
     return graph.compile()
 
-
 async def run_pipeline(options: PipelineRunOptions) -> AgentPipelineResult:
     graph = create_pipeline_graph()
     fetch_result = await fetch_sources_sequentially(
@@ -55,7 +61,12 @@ async def run_pipeline(options: PipelineRunOptions) -> AgentPipelineResult:
     for record in fetch_result.records:
         try:
             result = await graph.ainvoke({"record": record})
-        except (AgentOutputError, AgentValidationError, ValueError):
+        except (AgentOutputError, AgentValidationError, ValueError) as exc:
+            LOGGER.warning(
+                "Skipping record from %s after pipeline failure: %s",
+                record.source,
+                exc,
+            )
             continue
         alerts.append(result["alert"])
 
@@ -65,20 +76,24 @@ async def run_pipeline(options: PipelineRunOptions) -> AgentPipelineResult:
         source_failures=fetch_result.failures,
     )
 
-
 def translate_values_node(state: PipelineRecordState) -> PipelineRecordState:
     record = state["record"]
     try:
         translated_json = chat_json(
-            system_prompt=AGENT1_SYSTEM,
+            system_prompt=TRANSLATION_SYSTEM_PROMPT,
             user_prompt=json.dumps(record.working_json, ensure_ascii=False),
+            model=TRANSLATION_MODEL,
         )
         validate_translated_structure(record.working_json, translated_json)
-    except (AgentOutputError, AgentValidationError):
+    except (AgentOutputError, AgentValidationError) as exc:
+        LOGGER.warning(
+            "Translation step failed for %s, using original record JSON: %s",
+            record.source,
+            exc,
+        )
         translated_json = record.working_json
 
     return {"translated_json": translated_json}
-
 
 def summarize_node(state: PipelineRecordState) -> PipelineRecordState:
     user_prompt = json.dumps(
@@ -87,10 +102,9 @@ def summarize_node(state: PipelineRecordState) -> PipelineRecordState:
         },
         ensure_ascii=False,
     )
-    summary = chat_text(system_prompt=AGENT2_SYSTEM, user_prompt=user_prompt)
+    summary = chat_text(system_prompt=SUMMARIZATION_SYSTEM_PROMPT, user_prompt=user_prompt)
     validate_summary(summary)
     return {"summary": summary}
-
 
 def structure_node(state: PipelineRecordState) -> PipelineRecordState:
     record = state["record"]
@@ -101,7 +115,7 @@ def structure_node(state: PipelineRecordState) -> PipelineRecordState:
     }
     last_error: Exception | None = None
 
-    for attempt in range(AGENT3_MAX_ATTEMPTS):
+    for attempt in range(STRUCTURING_AGENT_MAX_ATTEMPTS):
         user_prompt = json.dumps(user_prompt_data, ensure_ascii=False)
         if attempt > 0 and last_error is not None:
             user_prompt = (
@@ -112,7 +126,7 @@ def structure_node(state: PipelineRecordState) -> PipelineRecordState:
 
         try:
             structured_json = chat_json(
-                system_prompt=AGENT3_SYSTEM,
+                system_prompt=STRUCTURING_SYSTEM_PROMPT,
                 user_prompt=user_prompt,
             )
             validate_structured_json(structured_json)
@@ -121,7 +135,6 @@ def structure_node(state: PipelineRecordState) -> PipelineRecordState:
             last_error = exc
 
     return {"structured_json": _fallback_structured_json(state)}
-
 
 def _fallback_structured_json(state: PipelineRecordState) -> dict[str, object]:
     record = state["record"]
@@ -139,7 +152,6 @@ def _fallback_structured_json(state: PipelineRecordState) -> dict[str, object]:
         "source_url": _best_original_value("source_url", "", record.raw_record),
         "affected_regions": [],
     }
-
 
 def repair_and_convert_node(state: PipelineRecordState) -> PipelineRecordState:
     record = state["record"]
@@ -172,7 +184,6 @@ def repair_and_convert_node(state: PipelineRecordState) -> PipelineRecordState:
     alert = structured_json_to_alert_create(structured_json)
     return {"structured_json": structured_json, "alert": alert}
 
-
 def _best_original_value(field_name: str, generated_value: Any, raw_record: dict[str, Any]) -> str:
     fields = _original_string_fields(raw_record)
     generated_text = clean_text(str(generated_value or ""))
@@ -189,7 +200,6 @@ def _best_original_value(field_name: str, generated_value: Any, raw_record: dict
         return _best_product_name(generated_text, fields) or generated_text
     return generated_text
 
-
 def _exact_original_match(value: str, fields: list[tuple[str, str]]) -> str:
     if not value:
         return ""
@@ -197,7 +207,6 @@ def _exact_original_match(value: str, fields: list[tuple[str, str]]) -> str:
         if clean_text(original_value) == value:
             return original_value
     return ""
-
 
 def _best_source_url(fields: list[tuple[str, str]]) -> str:
     candidates = [
@@ -218,7 +227,6 @@ def _best_source_url(fields: list[tuple[str, str]]) -> str:
         )
 
     return max(candidates, key=score)[1]
-
 
 def _best_recall_date(generated_value: str, fields: list[tuple[str, str]]) -> str:
     generated_date = _safe_parse_date(generated_value)
@@ -247,13 +255,11 @@ def _best_recall_date(generated_value: str, fields: list[tuple[str, str]]) -> st
 
     return max(candidates, key=score)[1]
 
-
 def _safe_parse_date(value: str):
     try:
         return parse_source_date(value)
     except ValueError:
         return None
-
 
 def _best_product_name(generated_value: str, fields: list[tuple[str, str]]) -> str:
     candidates = [
@@ -282,7 +288,6 @@ def _best_product_name(generated_value: str, fields: list[tuple[str, str]]) -> s
         )
 
     return max(candidates, key=score)[1]
-
 
 def _original_string_fields(value: Any, path: str = "") -> list[tuple[str, str]]:
     if isinstance(value, str):

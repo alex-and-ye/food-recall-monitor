@@ -4,7 +4,6 @@ from typing import Any
 
 from pydantic import BaseModel
 
-
 class SourceRecord(BaseModel):
     source: str
     raw_record: dict[str, Any]

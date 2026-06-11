@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, patch
 
 from agents.errors import SourceFetchError
 from agents.graph import repair_and_convert_node, run_pipeline, structure_node
-from agents.source_types import SourceRecord
+from models.source_record import SourceRecord
 from models.food_recall_alert import FoodRecallAlertCreate
 from models.pipeline_options import PipelineRunOptions
 from models.pipeline_result import FetchSourcesResult

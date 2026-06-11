@@ -5,18 +5,16 @@ from typing import Any
 
 import ollama
 
-from agents.config import DEFAULT_MODEL, OLLAMA_OPTIONS
-
+from agents.config import OLLAMA_OPTIONS, STRUCTURING_MODEL, SUMMARIZATION_MODEL
 
 class AgentOutputError(ValueError):
     pass
-
 
 def chat_text(
     *,
     system_prompt: str,
     user_prompt: str,
-    model: str = DEFAULT_MODEL,
+    model: str = SUMMARIZATION_MODEL,
 ) -> str:
     response = ollama.chat(
         model=model,
@@ -28,12 +26,11 @@ def chat_text(
     )
     return str(response["message"]["content"]).strip()
 
-
 def chat_json(
     *,
     system_prompt: str,
     user_prompt: str,
-    model: str = DEFAULT_MODEL,
+    model: str = STRUCTURING_MODEL,
 ) -> dict[str, Any]:
     raw_text = str(ollama.chat(
         model=model,
@@ -54,7 +51,6 @@ def chat_json(
         raise AgentOutputError("Agent JSON response must be an object")
 
     return parsed
-
 
 def _parse_json_object(raw_text: str) -> Any:
     text = raw_text.strip()

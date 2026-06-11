@@ -1,4 +1,4 @@
-AGENT1_SYSTEM = """
+TRANSLATION_SYSTEM_PROMPT: str = """
 You are a strict JSON value translation engine for food recall data.
 
 You will receive a JSON object from an unknown recall API. Translate only human-language string values into professional English.
@@ -14,7 +14,7 @@ Rules:
 Important: Preserve API keys exactly. Only values may be translated.
 """
 
-AGENT2_SYSTEM = """
+SUMMARIZATION_SYSTEM_PROMPT: str = """
 You are a food safety crisis communications specialist.
 
 You will receive translated recall data. Write a concise public-facing summary of exactly three sentences.
@@ -32,7 +32,7 @@ Output rules:
 5. Do not invent facts. If a detail is unavailable, use cautious wording rather than guessing.
 """
 
-AGENT3_SYSTEM = """
+STRUCTURING_SYSTEM_PROMPT: str = """
 You are a strict JSON structuring engine for food recall alerts.
 
 You will receive:

@@ -7,12 +7,12 @@ from typing import Any
 import httpx
 
 from agents.config import API_SOURCES
-from agents.source_types import SourceRecord
 from models.pipeline_result import FetchSourcesResult
+from models.source_record import SourceRecord
 
 LOGGER = logging.getLogger(__name__)
 
-SOURCE_REQUEST_HEADERS = {
+SOURCE_REQUEST_HEADERS: dict[str, str] = {
     "Accept": "application/json, text/plain, */*",
     "Accept-Language": "en-US,en;q=0.9",
     "User-Agent": (
