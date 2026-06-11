@@ -4,7 +4,6 @@ from datetime import date
 from db.chroma_client import FoodRecallAlertsChromaClient
 from models.food_recall_alert import FoodRecallAlertCreate
 
-
 class ChromaClientDedupeTests(unittest.TestCase):
     def test_save_alerts_assigns_uuid_and_skips_duplicate_dedupe_keys(self) -> None:
         client = object.__new__(FoodRecallAlertsChromaClient)
@@ -39,7 +38,6 @@ class ChromaClientDedupeTests(unittest.TestCase):
             FoodRecallAlertsChromaClient._build_dedupe_key(changed_url),
         )
 
-
 class FakeCollection:
     def __init__(self) -> None:
         self.existing_dedupe_keys: set[str] = set()
@@ -64,7 +62,6 @@ class FakeCollection:
         self.added["metadatas"].extend(metadatas)
         self.existing_dedupe_keys.update(metadata["dedupe_key"] for metadata in metadatas)
 
-
 def _alert(source_url: str = "https://example.com/recall") -> FoodRecallAlertCreate:
     return FoodRecallAlertCreate(
         api_source="test-source",
@@ -79,7 +76,6 @@ def _alert(source_url: str = "https://example.com/recall") -> FoodRecallAlertCre
         source_url=source_url,
         affected_regions=["Ontario"],
     )
-
 
 if __name__ == "__main__":
     unittest.main()

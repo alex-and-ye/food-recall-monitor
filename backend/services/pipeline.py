@@ -3,7 +3,6 @@ from db.interface import FoodRecallAlertsDBInterface
 from models.pipeline_options import PipelineRunOptions
 from models.pipeline_result import PipelineRunResult
 
-
 class PipelineService:
     def __init__(self, db: FoodRecallAlertsDBInterface) -> None:
         self.db = db

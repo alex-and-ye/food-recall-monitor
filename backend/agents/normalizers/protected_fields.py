@@ -5,10 +5,8 @@ import re
 from datetime import date, datetime
 from typing import Any
 
-
-_HTML_TAG_PATTERN = re.compile(r"<[^>]+>")
-_WHITESPACE_PATTERN = re.compile(r"\s+")
-
+_HTML_TAG_PATTERN: re.Pattern[str] = re.compile(r"<[^>]+>")
+_WHITESPACE_PATTERN: re.Pattern[str] = re.compile(r"\s+")
 
 def first_text(*values: Any) -> str:
     for value in values:
@@ -16,12 +14,10 @@ def first_text(*values: Any) -> str:
             return clean_text(value)
     return ""
 
-
 def clean_text(value: str) -> str:
     unescaped = html.unescape(value)
     without_tags = _HTML_TAG_PATTERN.sub(" ", unescaped)
     return _WHITESPACE_PATTERN.sub(" ", without_tags).strip()
-
 
 def split_source_list(value: Any) -> list[str]:
     if value is None:
@@ -35,7 +31,6 @@ def split_source_list(value: Any) -> list[str]:
             if item.strip()
         ]
     return [clean_text(str(value))]
-
 
 def parse_source_date(value: Any) -> date:
     if isinstance(value, date) and not isinstance(value, datetime):
@@ -53,4 +48,3 @@ def parse_source_date(value: Any) -> date:
         return datetime.fromisoformat(normalized).date()
     except ValueError:
         return date.fromisoformat(normalized[:10])
-

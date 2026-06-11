@@ -6,7 +6,6 @@ from agents.normalizers.protected_fields import clean_text, parse_source_date
 from agents.validators import validate_structured_json
 from models.food_recall_alert import FoodRecallAlertCreate
 
-
 def structured_json_to_alert_create(
     structured_json: dict[str, Any],
 ) -> FoodRecallAlertCreate:
@@ -26,18 +25,15 @@ def structured_json_to_alert_create(
         affected_regions=_string_list(structured_json.get("affected_regions")),
     )
 
-
 def _required_text(data: dict[str, Any], key: str) -> str:
     value = clean_text(str(data.get(key, "")))
     if not value:
         raise ValueError(f"Missing required field: {key}")
     return value
 
-
 def _optional_text(data: dict[str, Any], key: str, default: str) -> str:
     value = clean_text(str(data.get(key, "")))
     return value or default
-
 
 def _string_list(value: Any) -> list[str]:
     if not isinstance(value, list):

@@ -1,6 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
 
-
 class PipelineRunOptions(BaseModel):
     sources: list[str] = Field(default_factory=lambda: list(_source_names()))
     limit: int = Field(default=10, ge=1, le=100)
@@ -17,7 +16,6 @@ class PipelineRunOptions(BaseModel):
                 f"Configured sources: {', '.join(sorted(configured_sources))}"
             )
         return sources
-
 
 def _source_names() -> list[str]:
     from config.agents import DEFAULT_SOURCE_NAMES

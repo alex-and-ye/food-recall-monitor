@@ -8,7 +8,6 @@ from models.food_recall_alert import FoodRecallAlertCreate
 from models.pipeline_options import PipelineRunOptions
 from models.pipeline_result import FetchSourcesResult
 
-
 class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
     def test_repair_and_convert_restores_protected_values_from_original_json(self) -> None:
         source_record = _source_record()
@@ -188,7 +187,6 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(structured_json["source_url"], "https://source.example.com")
         self.assertEqual(structured_json["summary"], "Short summary.")
 
-
 def _source_record() -> SourceRecord:
     return SourceRecord(
         source="uk",
@@ -208,7 +206,6 @@ def _source_record() -> SourceRecord:
             },
         },
     )
-
 
 if __name__ == "__main__":
     unittest.main()

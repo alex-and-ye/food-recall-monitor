@@ -22,12 +22,10 @@ SOURCE_REQUEST_HEADERS: dict[str, str] = {
     ),
 }
 
-
 def _headers_for_source(source: str) -> dict[str, str]:
     headers = dict(SOURCE_REQUEST_HEADERS)
     headers.update(_source_headers(API_SOURCES[source]))
     return headers
-
 
 def _source_url(source: str) -> str:
     source_config = API_SOURCES[source]
@@ -36,7 +34,6 @@ def _source_url(source: str) -> str:
     if isinstance(source_config, Mapping):
         return str(source_config["url"])
     raise ValueError(f"Invalid API source config for {source}")
-
 
 def _source_headers(source_config: object) -> dict[str, str]:
     if not isinstance(source_config, Mapping):
@@ -51,7 +48,6 @@ def _source_headers(source_config: object) -> dict[str, str]:
         for key, value in headers.items()
     }
 
-
 async def fetch_source_records(
     source: str,
     *,
@@ -61,7 +57,6 @@ async def fetch_source_records(
     response = await client.get(_source_url(source), headers=_headers_for_source(source))
     response.raise_for_status()
     return parse_source_payload(source, response.json(), limit=limit)
-
 
 def parse_source_payload(
     source: str,
@@ -82,7 +77,6 @@ def parse_source_payload(
         if isinstance(raw_record, dict)
     ]
 
-
 def _infer_records(payload: Any) -> list[Any]:
     if isinstance(payload, list):
         return payload
@@ -100,7 +94,6 @@ def _infer_records(payload: Any) -> list[Any]:
 
     return max(lists, key=len)
 
-
 def _collect_record_lists(value: Any) -> list[list[Any]]:
     if isinstance(value, list):
         return [value] if _is_record_list(value) else []
@@ -111,10 +104,8 @@ def _collect_record_lists(value: Any) -> list[list[Any]]:
         return lists
     return []
 
-
 def _is_record_list(value: Any) -> bool:
     return isinstance(value, list) and any(isinstance(item, dict) for item in value)
-
 
 async def fetch_sources_sequentially(
     sources: list[str],

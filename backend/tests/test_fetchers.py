@@ -6,10 +6,8 @@ from config.agents import API_SOURCES
 from agents.fetchers import parse_source_payload
 from agents.fetchers.base import _headers_for_source
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RECALL_DATA_DIR = REPO_ROOT / "benchmark" / "recall_data"
-
 
 class FetcherParsingTests(unittest.TestCase):
     def test_us_source_headers_include_referer_and_origin(self) -> None:
@@ -55,10 +53,8 @@ class FetcherParsingTests(unittest.TestCase):
         self.assertEqual(record.working_json["source"], "us")
         self.assertEqual(record.working_json["record"], record.raw_record)
 
-
 def _load_json(filename: str):
     return json.loads((RECALL_DATA_DIR / filename).read_text(encoding="utf-8"))
-
 
 if __name__ == "__main__":
     unittest.main()

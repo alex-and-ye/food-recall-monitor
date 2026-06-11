@@ -28,7 +28,7 @@ from models.pipeline_options import PipelineRunOptions
 from models.pipeline_result import AgentPipelineResult
 from models.pipeline_state import PipelineRecordState
 
-LOGGER = logging.getLogger(__name__)
+LOGGER: logging.Logger = logging.getLogger(__name__)
 
 STRUCTURING_AGENT_MAX_ATTEMPTS: int = 2
 
