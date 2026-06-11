@@ -4,7 +4,7 @@ This package contains the recall ingestion and AI agent pipeline.
 
 ## Adding API Sources
 
-API sources are configured in `agents/config.py` under `API_SOURCES`. The
+API sources are configured in `config/agents.py` under `API_SOURCES`. The
 pipeline accepts the keys from that dictionary as `sources` values in
 `POST /api/pipeline/run`.
 
@@ -36,7 +36,7 @@ best matching value from the original record.
 
 ## Swappable Models
 
-LLM model names are configured in `agents/config.py`:
+LLM model names are configured in `config/agents.py`:
 
 - `TRANSLATION_MODEL`
 - `SUMMARIZATION_MODEL`

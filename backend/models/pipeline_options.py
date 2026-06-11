@@ -20,6 +20,6 @@ class PipelineRunOptions(BaseModel):
 
 
 def _source_names() -> list[str]:
-    from agents.config import DEFAULT_SOURCE_NAMES
+    from config.agents import DEFAULT_SOURCE_NAMES
 
     return DEFAULT_SOURCE_NAMES

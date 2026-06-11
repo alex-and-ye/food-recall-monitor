@@ -5,7 +5,7 @@ from typing import Any
 
 import ollama
 
-from agents.config import OLLAMA_OPTIONS, STRUCTURING_MODEL, SUMMARIZATION_MODEL
+from config.agents import OLLAMA_OPTIONS, STRUCTURING_MODEL, SUMMARIZATION_MODEL
 
 class AgentOutputError(ValueError):
     pass

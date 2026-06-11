@@ -2,7 +2,7 @@ import json
 import unittest
 from pathlib import Path
 
-from agents.config import API_SOURCES
+from config.agents import API_SOURCES
 from agents.fetchers import parse_source_payload
 from agents.fetchers.base import _headers_for_source
 

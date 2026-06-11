@@ -22,7 +22,7 @@ from agents.validators import (
     validate_summary,
     validate_translated_structure,
 )
-from agents.config import TRANSLATION_MODEL
+from config.agents import TRANSLATION_MODEL
 from models.food_recall_alert import FoodRecallAlertCreate
 from models.pipeline_options import PipelineRunOptions
 from models.pipeline_result import AgentPipelineResult

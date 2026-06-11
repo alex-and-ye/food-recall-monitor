@@ -6,7 +6,7 @@ from typing import Any
 
 import httpx
 
-from agents.config import API_SOURCES
+from config.agents import API_SOURCES
 from models.pipeline_result import FetchSourcesResult
 from models.source_record import SourceRecord
 

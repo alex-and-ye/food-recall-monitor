@@ -1,6 +1,6 @@
 import unittest
 
-from agents.config import DEFAULT_SOURCE_NAMES
+from config.agents import DEFAULT_SOURCE_NAMES
 from models.pipeline_options import PipelineRunOptions
 
 
