@@ -11,9 +11,11 @@ from models.food_recall_alert import FoodRecallAlert, FoodRecallAlertCreate
 class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
     COLLECTION_NAME = "food_recall_alerts_collection"
 
-    def __init__(self, db_path: str) -> None:
-        self.client = chromadb.PersistentClient(path=db_path)
-        self.collection = self.client.get_or_create_collection(name=FoodRecallAlertsChromaClient.COLLECTION_NAME)
+    def __init__(self, host: str = "localhost", port: int = 8000) -> None:
+        self.client = chromadb.HttpClient(host=host, port=port)
+        self.collection = self.client.get_or_create_collection(
+            name=FoodRecallAlertsChromaClient.COLLECTION_NAME
+        )
 
     def save_alerts(self, alerts: List[FoodRecallAlertCreate]) -> int:
         if not alerts:
