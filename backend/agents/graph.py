@@ -77,6 +77,8 @@ async def run_pipeline(options: PipelineRunOptions) -> AgentPipelineResult:
     )
 
 def translate_values_node(state: PipelineRecordState) -> PipelineRecordState:
+    if "record" not in state:
+        raise ValueError("Pipeline state is missing required key: record")
     record = state["record"]
     try:
         translated_json = chat_json(
@@ -96,6 +98,8 @@ def translate_values_node(state: PipelineRecordState) -> PipelineRecordState:
     return {"translated_json": translated_json}
 
 def summarize_node(state: PipelineRecordState) -> PipelineRecordState:
+    if "translated_json" not in state:
+        raise ValueError("Pipeline state is missing required key: translated_json")
     user_prompt = json.dumps(
         {
             "translated_json": state["translated_json"],
@@ -107,6 +111,12 @@ def summarize_node(state: PipelineRecordState) -> PipelineRecordState:
     return {"summary": summary}
 
 def structure_node(state: PipelineRecordState) -> PipelineRecordState:
+    if "record" not in state:
+        raise ValueError("Pipeline state is missing required key: record")
+    if "summary" not in state:
+        raise ValueError("Pipeline state is missing required key: summary")
+    if "translated_json" not in state:
+        raise ValueError("Pipeline state is missing required key: translated_json")
     record = state["record"]
     user_prompt_data = {
         "text_summary": state["summary"],
@@ -137,6 +147,10 @@ def structure_node(state: PipelineRecordState) -> PipelineRecordState:
     return {"structured_json": _fallback_structured_json(state)}
 
 def _fallback_structured_json(state: PipelineRecordState) -> dict[str, object]:
+    if "record" not in state:
+        raise ValueError("Pipeline state is missing required key: record")
+    if "summary" not in state:
+        raise ValueError("Pipeline state is missing required key: summary")
     record = state["record"]
 
     return {
@@ -154,6 +168,12 @@ def _fallback_structured_json(state: PipelineRecordState) -> dict[str, object]:
     }
 
 def repair_and_convert_node(state: PipelineRecordState) -> PipelineRecordState:
+    if "record" not in state:
+        raise ValueError("Pipeline state is missing required key: record")
+    if "structured_json" not in state:
+        raise ValueError("Pipeline state is missing required key: structured_json")
+    if "summary" not in state:
+        raise ValueError("Pipeline state is missing required key: summary")
     record = state["record"]
     structured_json = {
         "api_source": record.source,

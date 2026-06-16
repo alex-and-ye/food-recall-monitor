@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
@@ -86,7 +86,7 @@ def _infer_records(payload: Any) -> list[Any]:
     for key in ("results", "items", "data", "records"):
         value = payload.get(key)
         if _is_record_list(value):
-            return value
+            return cast(list[Any], value)
 
     lists = _collect_record_lists(payload)
     if not lists:
