@@ -1,5 +1,6 @@
 import unittest
-from types import SimpleNamespace
+from datetime import date
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 from agents.errors import SourceFetchError
@@ -13,13 +14,15 @@ from agents.graph import (
 from agents.llm import AgentOutputError
 from agents.validators import AgentValidationError
 from models.food_recall_alert import FoodRecallAlertCreate
+from models.pipeline_options import PipelineRunOptions
+from models.pipeline_state import PipelineRecordState
 from models.source_record import SourceRecord
 from models.pipeline_result import FetchSourcesResult
 
 class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
     def test_repair_and_convert_restores_protected_values_from_original_json(self) -> None:
         source_record = _source_record()
-        state = {
+        state: PipelineRecordState = {
             "record": source_record,
             "summary": "This product was recalled. It may be unsafe. Consumers should not eat it.",
             "structured_json": {
@@ -38,7 +41,9 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
 
         result = repair_and_convert_node(state)
 
-        alert = result["alert"]
+        alert = result.get("alert")
+        self.assertIsNotNone(alert)
+        assert alert is not None
         self.assertIsInstance(alert, FoodRecallAlertCreate)
         self.assertEqual(alert.api_source, "uk")
         self.assertEqual(alert.product_name, "Original Product")
@@ -51,7 +56,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
 
     def test_repair_and_convert_always_uses_record_api_source(self) -> None:
         source_record = _source_record(source="ca")
-        state = {
+        state: PipelineRecordState = {
             "record": source_record,
             "summary": "Pipeline summary.",
             "structured_json": {
@@ -71,8 +76,14 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
 
         result = repair_and_convert_node(state)
 
-        self.assertEqual(result["structured_json"]["api_source"], "ca")
-        self.assertEqual(result["alert"].api_source, "ca")
+        structured_json = result.get("structured_json")
+        alert = result.get("alert")
+        self.assertIsNotNone(structured_json)
+        self.assertIsNotNone(alert)
+        assert structured_json is not None
+        assert alert is not None
+        self.assertEqual(structured_json["api_source"], "ca")
+        self.assertEqual(alert.api_source, "ca")
 
     async def test_run_pipeline_with_mocked_fetch_and_agents(self) -> None:
         source_record = _source_record()
@@ -194,7 +205,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
 
     def test_structure_node_retries_invalid_agent3_schema(self) -> None:
         source_record = _source_record()
-        state = {
+        state: PipelineRecordState = {
             "record": source_record,
             "translated_json": source_record.working_json,
             "summary": "Short summary.",
@@ -221,7 +232,10 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
             result = structure_node(state)
 
         self.assertEqual(chat_json.call_count, 2)
-        self.assertEqual(result["structured_json"]["product_category"], "Produce")
+        structured_json = result.get("structured_json")
+        self.assertIsNotNone(structured_json)
+        assert structured_json is not None
+        self.assertEqual(structured_json["product_category"], "Produce")
 
     async def test_run_pipeline_raises_when_all_sources_fail_to_fetch(self) -> None:
         options = _options(sources=["us"], limit=1)
@@ -240,7 +254,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
 
     def test_structure_node_falls_back_after_agent3_retry_failure(self) -> None:
         source_record = _source_record()
-        state = {
+        state: PipelineRecordState = {
             "record": source_record,
             "translated_json": source_record.working_json,
             "summary": "Short summary.",
@@ -255,7 +269,9 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
         ):
             result = structure_node(state)
 
-        structured_json = result["structured_json"]
+        structured_json = result.get("structured_json")
+        self.assertIsNotNone(structured_json)
+        assert structured_json is not None
         self.assertEqual(structured_json["api_source"], "uk")
         self.assertEqual(structured_json["product_name"], "Original Product")
         self.assertEqual(structured_json["recall_date"], "2026-06-09")
@@ -300,7 +316,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
 
     def test_translate_values_node_falls_back_to_original_on_validation_error(self) -> None:
         source_record = _source_record()
-        state = {"record": source_record}
+        state: PipelineRecordState = {"record": source_record}
 
         with patch(
             "agents.graph.chat_json",
@@ -308,16 +324,20 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
         ):
             result = translate_values_node(state)
 
-        self.assertEqual(result["translated_json"], source_record.working_json)
+        translated_json = result.get("translated_json")
+        self.assertIsNotNone(translated_json)
+        self.assertEqual(translated_json, source_record.working_json)
 
     def test_translate_values_node_falls_back_to_original_on_agent_output_error(self) -> None:
         source_record = _source_record()
-        state = {"record": source_record}
+        state: PipelineRecordState = {"record": source_record}
 
         with patch("agents.graph.chat_json", side_effect=AgentOutputError("bad output")):
             result = translate_values_node(state)
 
-        self.assertEqual(result["translated_json"], source_record.working_json)
+        translated_json = result.get("translated_json")
+        self.assertIsNotNone(translated_json)
+        self.assertEqual(translated_json, source_record.working_json)
 
     def test_translate_values_node_uses_translated_payload_when_valid(self) -> None:
         source_record = _source_record()
@@ -331,23 +351,27 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
                 "consumer_action": "Ne pas consommer.",
             },
         }
-        state = {"record": source_record}
+        state: PipelineRecordState = {"record": source_record}
 
         with patch("agents.graph.chat_json", return_value=translated):
             result = translate_values_node(state)
 
-        self.assertEqual(result["translated_json"], translated)
+        translated_json = result.get("translated_json")
+        self.assertIsNotNone(translated_json)
+        self.assertEqual(translated_json, translated)
 
     def test_summarize_node_returns_summary_for_valid_text(self) -> None:
-        state = {"translated_json": _source_record().working_json}
+        state: PipelineRecordState = {"translated_json": _source_record().working_json}
 
         with patch("agents.graph.chat_text", return_value="Valid summary text."):
             result = summarize_node(state)
 
-        self.assertEqual(result["summary"], "Valid summary text.")
+        summary = result.get("summary")
+        self.assertIsNotNone(summary)
+        self.assertEqual(summary, "Valid summary text.")
 
     def test_summarize_node_raises_on_blank_summary(self) -> None:
-        state = {"translated_json": _source_record().working_json}
+        state: PipelineRecordState = {"translated_json": _source_record().working_json}
 
         with patch("agents.graph.chat_text", return_value="   "):
             with self.assertRaises(AgentValidationError):
@@ -355,7 +379,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
 
     def test_structure_node_retry_prompt_includes_previous_error_reason(self) -> None:
         source_record = _source_record()
-        state = {
+        state: PipelineRecordState = {
             "record": source_record,
             "translated_json": source_record.working_json,
             "summary": "Short summary.",
@@ -371,13 +395,13 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("previous response could not be used", second_user_prompt)
         self.assertIn("missing required fields", second_user_prompt)
 
-def _options(sources: list[str], limit: int) -> SimpleNamespace:
-    return SimpleNamespace(sources=sources, limit=limit)
+def _options(sources: list[str], limit: int) -> PipelineRunOptions:
+    return PipelineRunOptions.model_construct(sources=sources, limit=limit)
 
 def _valid_summary() -> str:
     return "This product was recalled. It may be unsafe. Consumers should not eat it."
 
-def _valid_structured_json() -> dict[str, object]:
+def _valid_structured_json() -> dict[str, Any]:
     return {
         "product_name": "Original Product",
         "product_category": "Produce",
@@ -398,7 +422,7 @@ def _alert_for_source(source: str) -> FoodRecallAlertCreate:
         product_category="Produce",
         recall_reason="Possible contamination",
         summary=_valid_summary(),
-        recall_date="2026-06-09",
+        recall_date=date(2026, 6, 9),
         risk_level="High",
         hazard_type="Listeria",
         consumer_action="Do not consume it.",

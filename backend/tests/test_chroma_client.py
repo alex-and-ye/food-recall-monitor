@@ -1,5 +1,6 @@
 import unittest
 from datetime import date
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 from db.chroma_client import FoodRecallAlertsChromaClient
@@ -21,7 +22,7 @@ class ChromaClientDedupeTests(unittest.TestCase):
         self.assertIs(client.collection, fake_collection)
 
     def test_save_alerts_assigns_uuid_and_skips_duplicate_dedupe_keys(self) -> None:
-        client = object.__new__(FoodRecallAlertsChromaClient)
+        client = cast(Any, object.__new__(FoodRecallAlertsChromaClient))
         client.collection = FakeCollection()
         alert = _alert()
 
@@ -54,7 +55,7 @@ class ChromaClientDedupeTests(unittest.TestCase):
         )
 
     def test_save_alerts_returns_zero_for_empty_input(self) -> None:
-        client = object.__new__(FoodRecallAlertsChromaClient)
+        client = cast(Any, object.__new__(FoodRecallAlertsChromaClient))
         client.collection = MagicMock()
 
         inserted_count = client.save_alerts([])
@@ -63,7 +64,7 @@ class ChromaClientDedupeTests(unittest.TestCase):
         client.collection.add.assert_not_called()
 
     def test_get_alerts_returns_empty_when_collection_has_no_metadata(self) -> None:
-        client = object.__new__(FoodRecallAlertsChromaClient)
+        client = cast(Any, object.__new__(FoodRecallAlertsChromaClient))
         client.collection = MagicMock()
         client.collection.get.return_value = {"metadatas": []}
 
@@ -72,7 +73,7 @@ class ChromaClientDedupeTests(unittest.TestCase):
         self.assertEqual(alerts, [])
 
     def test_get_alerts_skips_none_metadata_and_sorts_by_recall_date_desc(self) -> None:
-        client = object.__new__(FoodRecallAlertsChromaClient)
+        client = cast(Any, object.__new__(FoodRecallAlertsChromaClient))
         client.collection = MagicMock()
         client.collection.get.return_value = {
             "metadatas": [
@@ -113,7 +114,7 @@ class ChromaClientDedupeTests(unittest.TestCase):
         self.assertEqual([alert.alert_id for alert in alerts], ["newer", "older"])
 
     def test_get_existing_dedupe_keys_ignores_missing_values(self) -> None:
-        client = object.__new__(FoodRecallAlertsChromaClient)
+        client = cast(Any, object.__new__(FoodRecallAlertsChromaClient))
         client.collection = MagicMock()
         client.collection.get.return_value = {
             "metadatas": [
