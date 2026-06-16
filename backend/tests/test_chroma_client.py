@@ -1,10 +1,25 @@
 import unittest
 from datetime import date
+from unittest.mock import MagicMock, patch
 
 from db.chroma_client import FoodRecallAlertsChromaClient
 from models.food_recall_alert import FoodRecallAlertCreate
 
 class ChromaClientDedupeTests(unittest.TestCase):
+    def test_init_uses_server_based_http_client(self) -> None:
+        fake_collection = object()
+        fake_http_client = MagicMock()
+        fake_http_client.get_or_create_collection.return_value = fake_collection
+
+        with patch("db.chroma_client.chromadb.HttpClient", return_value=fake_http_client) as http_client:
+            client = FoodRecallAlertsChromaClient(host="chroma", port=9000)
+
+        http_client.assert_called_once_with(host="chroma", port=9000)
+        fake_http_client.get_or_create_collection.assert_called_once_with(
+            name=FoodRecallAlertsChromaClient.COLLECTION_NAME
+        )
+        self.assertIs(client.collection, fake_collection)
+
     def test_save_alerts_assigns_uuid_and_skips_duplicate_dedupe_keys(self) -> None:
         client = object.__new__(FoodRecallAlertsChromaClient)
         client.collection = FakeCollection()
@@ -37,6 +52,81 @@ class ChromaClientDedupeTests(unittest.TestCase):
             FoodRecallAlertsChromaClient._build_dedupe_key(first),
             FoodRecallAlertsChromaClient._build_dedupe_key(changed_url),
         )
+
+    def test_save_alerts_returns_zero_for_empty_input(self) -> None:
+        client = object.__new__(FoodRecallAlertsChromaClient)
+        client.collection = MagicMock()
+
+        inserted_count = client.save_alerts([])
+
+        self.assertEqual(inserted_count, 0)
+        client.collection.add.assert_not_called()
+
+    def test_get_alerts_returns_empty_when_collection_has_no_metadata(self) -> None:
+        client = object.__new__(FoodRecallAlertsChromaClient)
+        client.collection = MagicMock()
+        client.collection.get.return_value = {"metadatas": []}
+
+        alerts = client.get_alerts()
+
+        self.assertEqual(alerts, [])
+
+    def test_get_alerts_skips_none_metadata_and_sorts_by_recall_date_desc(self) -> None:
+        client = object.__new__(FoodRecallAlertsChromaClient)
+        client.collection = MagicMock()
+        client.collection.get.return_value = {
+            "metadatas": [
+                {
+                    "alert_id": "older",
+                    "api_source": "test-source",
+                    "product_name": "Old Product",
+                    "product_category": "Produce",
+                    "recall_reason": "Reason",
+                    "summary": "Old summary",
+                    "recall_date": "2025-01-01",
+                    "risk_level": "Low",
+                    "hazard_type": "Unknown",
+                    "consumer_action": "Discard",
+                    "source_url": "https://example.com/old",
+                    "affected_regions": "[]",
+                },
+                None,
+                {
+                    "alert_id": "newer",
+                    "api_source": "test-source",
+                    "product_name": "New Product",
+                    "product_category": "Produce",
+                    "recall_reason": "Reason",
+                    "summary": "New summary",
+                    "recall_date": "2026-01-01",
+                    "risk_level": "High",
+                    "hazard_type": "Listeria",
+                    "consumer_action": "Discard",
+                    "source_url": "https://example.com/new",
+                    "affected_regions": "[]",
+                },
+            ]
+        }
+
+        alerts = client.get_alerts()
+
+        self.assertEqual([alert.alert_id for alert in alerts], ["newer", "older"])
+
+    def test_get_existing_dedupe_keys_ignores_missing_values(self) -> None:
+        client = object.__new__(FoodRecallAlertsChromaClient)
+        client.collection = MagicMock()
+        client.collection.get.return_value = {
+            "metadatas": [
+                {"dedupe_key": "abc"},
+                {"dedupe_key": ""},
+                {},
+                None,
+            ]
+        }
+
+        keys = client._get_existing_dedupe_keys(["abc", "def"])
+
+        self.assertEqual(keys, {"abc"})
 
 class FakeCollection:
     def __init__(self) -> None:
