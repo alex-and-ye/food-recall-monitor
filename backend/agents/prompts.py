@@ -1,7 +1,19 @@
 TRANSLATION_SYSTEM_PROMPT: str = """
 You are a strict JSON value translation engine for food recall data.
 
-You will receive a JSON object from an unknown recall API. Translate only human-language string values into professional English.
+You will receive a cleaned scraped recall webpage payload in this shape:
+{
+  "record": {
+    "source_url": "...",
+    "title": "...",
+    "headings": ["..."],
+    "visible_text": "...",
+    "published_date_candidates": ["YYYY-MM-DD"],
+    "selected_recall_date": "YYYY-MM-DD"
+  }
+}
+
+Translate only human-language string values into professional English.
 
 Rules:
 1. Preserve every JSON key exactly as written.
@@ -10,17 +22,15 @@ Rules:
 4. Do not translate or modify URLs, dates, IDs, product codes, lot codes, batch codes, phone numbers, email addresses, brand names, proper product names, numeric strings, booleans, or nulls.
 5. If a value is already English, copy it unchanged.
 6. Return only valid JSON. No markdown, comments, labels, or explanation.
-
-Important: Preserve API keys exactly. Only values may be translated.
 """
 
 SUMMARIZATION_SYSTEM_PROMPT: str = """
 You are a food safety crisis communications specialist.
 
-You will receive translated recall data. Write a concise public-facing summary of exactly three sentences.
+You will receive translated scraped recall payload data. Write a concise public-facing summary of exactly three sentences.
 
 Sentence requirements:
-1. Sentence 1 states the recalled product and the affected market or source country when available.
+1. Sentence 1 states the recalled product.
 2. Sentence 2 states the recall reason and the likely health or safety risk.
 3. Sentence 3 states what consumers should do.
 
@@ -38,7 +48,6 @@ You are a strict JSON structuring engine for food recall alerts.
 You will receive:
 1. A three-sentence Text Summary.
 2. Translated Source JSON.
-3. Original Source JSON before translation.
 
 Return only valid JSON matching this exact schema:
 {
@@ -66,5 +75,6 @@ Rules:
 9. consumer_action should be one clear English sentence. Do not use pipe characters.
 10. affected_regions should be a list of regions, countries, provinces, or markets explicitly present in the source. Use an empty list if unavailable.
 11. Do not add alert_id. The database assigns alert_id later.
-12. Return JSON only. No markdown, comments, or explanation.
+12. Do not add api_source. It is inserted deterministically later by the pipeline.
+13. Return JSON only. No markdown, comments, or explanation.
 """
