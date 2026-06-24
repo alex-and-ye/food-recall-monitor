@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import EmptyState from "@/components/EmptyState";
 import FoodRecallAlertCard from "@/components/FoodRecallAlertCard";
-import Header from "@/components/Header";
 import LoadingState from "@/components/LoadingState";
 import Pagination from "@/components/Pagination";
 import { fetchMockAlerts } from "@/services/mockData";
@@ -43,31 +42,27 @@ export default function HomePage() {
   const visibleAlerts = alerts.slice(pageStart, pageEnd);
 
   return (
-    <div className="min-h-screen">
-      <Header />
+    <>
+      {status === "pending" && <LoadingState />}
 
-      <main className="mx-auto max-w-4xl px-6 py-10">
-        {status === "pending" && <LoadingState />}
+      {status === "empty" && <EmptyState onCheckAgain={loadAlerts} />}
 
-        {status === "empty" && <EmptyState onCheckAgain={loadAlerts} />}
-
-        {status === "ready" && (
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPrevious={() => setCurrentPage((page) => Math.max(1, page - 1))}
-            onNext={() =>
-              setCurrentPage((page) => Math.min(totalPages, page + 1))
-            }
-          >
-            <div className="mb-8 space-y-4">
-              {visibleAlerts.map((alert) => (
-                <FoodRecallAlertCard key={alert.alert_id} alert={alert} />
-              ))}
-            </div>
-          </Pagination>
-        )}
-      </main>
-    </div>
+      {status === "ready" && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPrevious={() => setCurrentPage((page) => Math.max(1, page - 1))}
+          onNext={() =>
+            setCurrentPage((page) => Math.min(totalPages, page + 1))
+          }
+        >
+          <div className="mb-8 space-y-4">
+            {visibleAlerts.map((alert) => (
+              <FoodRecallAlertCard key={alert.alert_id} alert={alert} />
+            ))}
+          </div>
+        </Pagination>
+      )}
+    </>
   );
 }
