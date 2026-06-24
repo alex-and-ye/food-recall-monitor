@@ -1,4 +1,4 @@
-import type { FoodRecallAlert } from "@/types/alert";
+import type { FoodRecallAlertStats, FoodRecallAlert } from "@/types/alert";
 
 export const SIMULATE_EMPTY_DATABASE = false;
 
@@ -418,4 +418,13 @@ export function fetchMockAlerts(): Promise<FoodRecallAlert[]> {
       resolve(SIMULATE_EMPTY_DATABASE ? [] : MOCK_ALERTS);
     }, LATENCY_MS);
   });
+}
+
+export async function fetchMockStats(): Promise<FoodRecallAlertStats> {
+  await new Promise((resolve) => setTimeout(resolve, 800));
+  return {
+    total_alerts: 142,
+    top_hazard_type: "Biological (E. Coli / Salmonella)",
+    active_regions: 18,
+  };
 }
