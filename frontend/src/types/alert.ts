@@ -13,3 +13,9 @@ export interface FoodRecallAlert {
   recall_date: string;
   source_url: string;
 }
+
+export interface FoodRecallAlertStats {
+  total_alerts: number;
+  top_hazard_type: string;
+  active_regions: number;
+}
