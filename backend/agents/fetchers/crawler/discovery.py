@@ -22,17 +22,17 @@ def classify_page(
     keyword_hit = any(keyword.lower() in lowered_url or keyword.lower() in title for keyword in recall_keywords)
     text_keyword_hit = any(keyword.lower() in text for keyword in recall_keywords)
 
+    if keyword_hit and text_keyword_hit:
+        if any(token in lowered_url for token in ("/recall/", "/alert/", "/withdrawal/", "/notice/")):
+            return "detail"
+        if "risk" in text or "consumer" in text or "do not consume" in text:
+            return "detail"
+
     if anchor_count >= 12 and any(token in lowered_url for token in ("search", "category", "recalls", "alerts")):
         return "listing"
 
     if text_keyword_hit and anchor_count >= 8:
         return "listing"
-
-    if keyword_hit and text_keyword_hit:
-        if any(token in lowered_url for token in ("recall", "alert", "withdrawal", "notice")):
-            return "detail"
-        if "risk" in text or "consumer" in text or "do not consume" in text:
-            return "detail"
 
     return "irrelevant"
 
