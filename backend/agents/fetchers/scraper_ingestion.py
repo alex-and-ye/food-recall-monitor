@@ -9,6 +9,7 @@ from agents.fetchers.crawler.orchestrator import crawl_source_pages
 from agents.fetchers.extraction.cleaning import clean_detail_payload
 from agents.fetchers.extraction.date_candidates import select_recent_recall_date
 from config.agents import SCRAPER_SOURCES
+from models.pipeline_progress import ProgressReporter
 from models.pipeline_result import FetchSourcesResult
 from models.scraped_record import ScrapedRecallRecord
 
@@ -36,14 +37,34 @@ async def fetch_source_records(
     *,
     limit: int,
     client: httpx.AsyncClient,
+    reporter: ProgressReporter | None = None,
 ) -> list[ScrapedRecallRecord]:
     source_config = SCRAPER_SOURCES[source]
     effective_limit = min(limit, source_config.max_pages_per_run)
+    if reporter is not None:
+        reporter.log(
+            stage="source",
+            source=source,
+            message="Starting source crawl",
+            details={
+                "effective_limit": effective_limit,
+                "max_depth": source_config.max_depth,
+                "max_pages_per_run": source_config.max_pages_per_run,
+            },
+        )
     detail_payloads = await crawl_source_pages(
         source_name=source,
         source_config=source_config,
         client=client,
+        reporter=reporter,
     )
+    if reporter is not None:
+        reporter.log(
+            stage="source",
+            source=source,
+            message="Detail payload extraction finished",
+            details={"detail_payload_count": len(detail_payloads)},
+        )
 
     records: list[ScrapedRecallRecord] = []
     for payload in detail_payloads:
@@ -52,14 +73,45 @@ async def fetch_source_records(
             lookback_days=source_config.lookback_days,
         )
         if selected_date is None:
+            if reporter is not None:
+                reporter.log(
+                    stage="source",
+                    source=source,
+                    message="Dropped detail payload after date filter",
+                    details={
+                        "source_url": str(payload.get("source_url", "")),
+                        "published_date_candidates": list(payload.get("published_date_candidates", [])),
+                    },
+                )
             continue
 
         payload["selected_recall_date"] = selected_date
         cleaned_payload = clean_detail_payload(payload)
         records.append(ScrapedRecallRecord(source_name=source, payload=cleaned_payload))
+        if reporter is not None:
+            reporter.log(
+                stage="source",
+                source=source,
+                message="Accepted cleaned payload",
+                details={
+                    "source_url": cleaned_payload.get("source_url", ""),
+                    "selected_recall_date": selected_date,
+                    "records_collected": len(records),
+                },
+            )
         if len(records) >= effective_limit:
             break
 
+    if reporter is not None:
+        reporter.log(
+            stage="source",
+            source=source,
+            message="Completed source processing",
+            details={
+                "records_output": len(records),
+                "detail_payload_count": len(detail_payloads),
+            },
+        )
     return records
 
 
@@ -67,6 +119,7 @@ async def fetch_sources_sequentially(
     sources: list[str],
     *,
     limit: int,
+    reporter: ProgressReporter | None = None,
 ) -> FetchSourcesResult:
     records: list[ScrapedRecallRecord] = []
     failures: dict[str, str] = {}
@@ -74,9 +127,21 @@ async def fetch_sources_sequentially(
         for source in sources:
             try:
                 records.extend(
-                    await fetch_source_records(source, limit=limit, client=client)
+                    await fetch_source_records(
+                        source,
+                        limit=limit,
+                        client=client,
+                        reporter=reporter,
+                    )
                 )
             except (KeyError, httpx.HTTPError, ValueError, RuntimeError) as exc:
                 failures[source] = str(exc)
                 LOGGER.warning("Skipping %s scraper source after fetch failure: %s", source, exc)
+                if reporter is not None:
+                    reporter.log(
+                        stage="source",
+                        source=source,
+                        message="Source processing failed",
+                        details={"error": str(exc)},
+                    )
     return FetchSourcesResult(records=records, failures=failures)
