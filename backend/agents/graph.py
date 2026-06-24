@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from langgraph.graph import END, START, StateGraph
@@ -25,6 +26,7 @@ from agents.validators import (
 from config.agents import TRANSLATION_MODEL
 from models.food_recall_alert import FoodRecallAlertCreate
 from models.pipeline_options import PipelineRunOptions
+from models.pipeline_progress import ProgressReporter
 from models.pipeline_result import AgentPipelineResult
 from models.pipeline_state import PipelineRecordState
 
@@ -32,12 +34,24 @@ LOGGER: logging.Logger = logging.getLogger(__name__)
 
 STRUCTURING_AGENT_MAX_ATTEMPTS: int = 2
 
-def create_pipeline_graph():
+def create_pipeline_graph(*, reporter: ProgressReporter | None = None):
     graph = StateGraph(PipelineRecordState)
-    graph.add_node("translate_values", translate_values_node)
-    graph.add_node("summarize", summarize_node)
-    graph.add_node("structure", structure_node)
-    graph.add_node("repair_and_convert", repair_and_convert_node)
+    graph.add_node(
+        "translate_values",
+        _tracked_node("translate_values", translate_values_node, reporter),
+    )
+    graph.add_node(
+        "summarize",
+        _tracked_node("summarize", summarize_node, reporter),
+    )
+    graph.add_node(
+        "structure",
+        _tracked_node("structure", structure_node, reporter),
+    )
+    graph.add_node(
+        "repair_and_convert",
+        _tracked_node("repair_and_convert", repair_and_convert_node, reporter),
+    )
 
     graph.add_edge(START, "translate_values")
     graph.add_edge("translate_values", "summarize")
@@ -47,18 +61,54 @@ def create_pipeline_graph():
 
     return graph.compile()
 
-async def run_pipeline(options: PipelineRunOptions) -> AgentPipelineResult:
-    graph = create_pipeline_graph()
-    fetch_result = await fetch_sources_sequentially(
-        options.sources,
-        limit=options.limit,
-    )
+async def run_pipeline(
+    options: PipelineRunOptions,
+    *,
+    reporter: ProgressReporter | None = None,
+) -> AgentPipelineResult:
+    graph = create_pipeline_graph(reporter=reporter)
+    if reporter is not None:
+        reporter.log(
+            stage="fetch",
+            message="Starting source fetch",
+            details={"sources": options.sources, "limit": options.limit},
+        )
+        fetch_result = await fetch_sources_sequentially(
+            options.sources,
+            limit=options.limit,
+            reporter=reporter,
+        )
+    else:
+        fetch_result = await fetch_sources_sequentially(
+            options.sources,
+            limit=options.limit,
+        )
 
     if not fetch_result.records and fetch_result.failures:
         raise SourceFetchError(fetch_result.failures)
 
+    if reporter is not None:
+        reporter.log(
+            stage="fetch",
+            message="Source fetch completed",
+            details={
+                "records_fetched": len(fetch_result.records),
+                "source_failures": fetch_result.failures,
+            },
+        )
+
     alerts: list[FoodRecallAlertCreate] = []
-    for record in fetch_result.records:
+    for index, record in enumerate(fetch_result.records, start=1):
+        if reporter is not None:
+            reporter.log(
+                stage="record",
+                source=record.source_name,
+                message="Processing scraped record",
+                details={
+                    "record_index": index,
+                    "source_url": record.payload.get("source_url", ""),
+                },
+            )
         try:
             result = await graph.ainvoke({"record": record})
         except (AgentOutputError, AgentValidationError, ValueError) as exc:
@@ -67,14 +117,58 @@ async def run_pipeline(options: PipelineRunOptions) -> AgentPipelineResult:
                 record.source_name,
                 exc,
             )
+            if reporter is not None:
+                reporter.log(
+                    stage="record",
+                    source=record.source_name,
+                    message="Record processing failed",
+                    details={
+                        "record_index": index,
+                        "error": str(exc),
+                    },
+                )
             continue
         alerts.append(result["alert"])
+        if reporter is not None:
+            reporter.log(
+                stage="record",
+                source=record.source_name,
+                message="Record processed successfully",
+                details={"record_index": index},
+            )
 
     return AgentPipelineResult(
         alerts=alerts,
         records_fetched=len(fetch_result.records),
         source_failures=fetch_result.failures,
     )
+
+
+def _tracked_node(
+    node_name: str,
+    node_fn: Callable[[PipelineRecordState], PipelineRecordState],
+    reporter: ProgressReporter | None,
+) -> Callable[[PipelineRecordState], PipelineRecordState]:
+    def wrapped(state: PipelineRecordState) -> PipelineRecordState:
+        source_name = None
+        if "record" in state:
+            source_name = state["record"].source_name
+        if reporter is not None:
+            reporter.log(
+                stage="agent",
+                source=source_name,
+                message=f"{node_name} started",
+            )
+        result = node_fn(state)
+        if reporter is not None:
+            reporter.log(
+                stage="agent",
+                source=source_name,
+                message=f"{node_name} completed",
+            )
+        return result
+
+    return wrapped
 
 def translate_values_node(state: PipelineRecordState) -> PipelineRecordState:
     if "record" not in state:
