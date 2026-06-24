@@ -8,7 +8,7 @@ from langgraph.graph import END, START, StateGraph
 
 from agents.converters import structured_json_to_alert_create
 from agents.errors import SourceFetchError
-from agents.fetchers import fetch_sources_sequentially
+from agents.fetchers import fetch_sources_sequentially, to_translator_envelope
 from agents.llm import AgentOutputError, chat_json, chat_text
 from agents.normalizers.protected_fields import clean_text, parse_source_date
 from agents.prompts import (
@@ -64,7 +64,7 @@ async def run_pipeline(options: PipelineRunOptions) -> AgentPipelineResult:
         except (AgentOutputError, AgentValidationError, ValueError) as exc:
             LOGGER.warning(
                 "Skipping record from %s after pipeline failure: %s",
-                record.source,
+                record.source_name,
                 exc,
             )
             continue
@@ -80,20 +80,21 @@ def translate_values_node(state: PipelineRecordState) -> PipelineRecordState:
     if "record" not in state:
         raise ValueError("Pipeline state is missing required key: record")
     record = state["record"]
+    translator_input = to_translator_envelope(record.payload)
     try:
         translated_json = chat_json(
             system_prompt=TRANSLATION_SYSTEM_PROMPT,
-            user_prompt=json.dumps(record.working_json, ensure_ascii=False),
+            user_prompt=json.dumps(translator_input, ensure_ascii=False),
             model=TRANSLATION_MODEL,
         )
-        validate_translated_structure(record.working_json, translated_json)
+        validate_translated_structure(translator_input, translated_json)
     except (AgentOutputError, AgentValidationError) as exc:
         LOGGER.warning(
             "Translation step failed for %s, using original record JSON: %s",
-            record.source,
+            record.source_name,
             exc,
         )
-        translated_json = record.working_json
+        translated_json = translator_input
 
     return {"translated_json": translated_json}
 
@@ -121,7 +122,6 @@ def structure_node(state: PipelineRecordState) -> PipelineRecordState:
     user_prompt_data = {
         "text_summary": state["summary"],
         "translated_source_json": state["translated_json"],
-        "original_source_json": record.raw_record,
     }
     last_error: Exception | None = None
 
@@ -154,16 +154,16 @@ def _fallback_structured_json(state: PipelineRecordState) -> dict[str, object]:
     record = state["record"]
 
     return {
-        "api_source": record.source,
-        "product_name": _best_original_value("product_name", "", record.raw_record),
+        "api_source": record.source_name,
+        "product_name": _best_payload_value("product_name", "", record.payload),
         "product_category": "Other",
         "recall_reason": "Recall reason unavailable",
         "summary": state["summary"],
-        "recall_date": _best_original_value("recall_date", "", record.raw_record),
+        "recall_date": _best_payload_value("recall_date", "", record.payload),
         "risk_level": "Unknown",
         "hazard_type": "Unknown",
         "consumer_action": "Follow the source recall notice.",
-        "source_url": _best_original_value("source_url", "", record.raw_record),
+        "source_url": _best_payload_value("source_url", "", record.payload),
         "affected_regions": [],
     }
 
@@ -176,7 +176,7 @@ def repair_and_convert_node(state: PipelineRecordState) -> PipelineRecordState:
         raise ValueError("Pipeline state is missing required key: summary")
     record = state["record"]
     structured_json = {
-        "api_source": record.source,
+        "api_source": record.source_name,
         **{
             key: value
             for key, value in dict(state["structured_json"]).items()
@@ -184,28 +184,29 @@ def repair_and_convert_node(state: PipelineRecordState) -> PipelineRecordState:
         },
     }
 
-    structured_json["product_name"] = _best_original_value(
+    structured_json["product_name"] = _best_payload_value(
         "product_name",
         structured_json.get("product_name"),
-        record.raw_record,
+        record.payload,
     )
-    structured_json["recall_date"] = _best_original_value(
+    structured_json["recall_date"] = _best_payload_value(
         "recall_date",
         structured_json.get("recall_date"),
-        record.raw_record,
+        record.payload,
     )
-    structured_json["source_url"] = _best_original_value(
+    structured_json["source_url"] = _best_payload_value(
         "source_url",
         structured_json.get("source_url"),
-        record.raw_record,
+        record.payload,
     )
     structured_json["summary"] = state["summary"]
 
     alert = structured_json_to_alert_create(structured_json)
     return {"structured_json": structured_json, "alert": alert}
 
-def _best_original_value(field_name: str, generated_value: Any, raw_record: dict[str, Any]) -> str:
-    fields = _original_string_fields(raw_record)
+
+def _best_payload_value(field_name: str, generated_value: Any, payload: dict[str, Any]) -> str:
+    fields = _original_string_fields(payload)
     generated_text = clean_text(str(generated_value or ""))
 
     exact_match = _exact_original_match(generated_text, fields)
@@ -241,9 +242,10 @@ def _best_source_url(fields: list[tuple[str, str]]) -> str:
         path, _ = candidate
         lowered_path = path.lower()
         return (
-            100 * ("url" in lowered_path)
-            + 80 * ("link" in lowered_path or "lien" in lowered_path)
-            + 40 * ("fiche" in lowered_path or "recall" in lowered_path)
+            120 * ("source_url" in lowered_path)
+            + 100 * ("url" in lowered_path)
+            + 60 * ("link" in lowered_path or "lien" in lowered_path)
+            + 30 * ("source" in lowered_path)
         )
 
     return max(candidates, key=score)[1]
@@ -267,7 +269,9 @@ def _best_recall_date(generated_value: str, fields: list[tuple[str, str]]) -> st
         path, _, _ = candidate
         lowered_path = path.lower()
         return (
-            100 * ("recall" in lowered_path or "rappel" in lowered_path)
+            160 * ("selected_recall_date" in lowered_path)
+            + 140 * ("published_date_candidates" in lowered_path)
+            + 100 * ("recall" in lowered_path or "rappel" in lowered_path)
             + 80 * ("publication" in lowered_path or "created" in lowered_path)
             + 40 * ("date" in lowered_path)
             - 60 * ("end" in lowered_path or "fin" in lowered_path or "closed" in lowered_path)
@@ -296,14 +300,16 @@ def _best_product_name(generated_value: str, fields: list[tuple[str, str]]) -> s
         lowered_value = clean_text(value).lower()
         lowered_generated = generated_value.lower()
         return (
-            120 * ("productname" in lowered_path or "product_name" in lowered_path)
-            + 100 * ("libelle" in lowered_path or "title" in lowered_path)
+            160 * ("title" in lowered_path)
+            + 120 * ("heading" in lowered_path)
+            + 110 * ("productname" in lowered_path or "product_name" in lowered_path)
             + 80 * ("product" in lowered_path or "produit" in lowered_path)
-            + 50 * ("model" in lowered_path or "reference" in lowered_path)
-            + 25 * ("brand" in lowered_path or "marque" in lowered_path or "establishment" in lowered_path)
+            + 40 * ("model" in lowered_path or "reference" in lowered_path)
+            + 20 * ("brand" in lowered_path or "marque" in lowered_path or "establishment" in lowered_path)
             + 80 * bool(lowered_generated and lowered_generated in lowered_value)
             + 80 * bool(lowered_generated and lowered_value in lowered_generated)
-            - 100 * ("summary" in lowered_path or "description" in lowered_path or "advice" in lowered_path)
+            - 120 * ("visible_text" in lowered_path)
+            - 90 * ("summary" in lowered_path or "description" in lowered_path or "advice" in lowered_path)
             - max(len(value) - 180, 0)
         )
 

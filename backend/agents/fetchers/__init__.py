@@ -1,7 +1,7 @@
-from agents.fetchers.base import (
+from agents.fetchers.scraper_ingestion import (
     fetch_source_records,
     fetch_sources_sequentially,
-    parse_source_payload,
+    to_translator_envelope,
 )
 from models.pipeline_result import FetchSourcesResult
 
@@ -9,5 +9,5 @@ __all__ = [
     "FetchSourcesResult",
     "fetch_source_records",
     "fetch_sources_sequentially",
-    "parse_source_payload",
+    "to_translator_envelope",
 ]

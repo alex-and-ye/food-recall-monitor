@@ -3,10 +3,10 @@ from __future__ import annotations
 from typing import Any, TypedDict
 
 from models.food_recall_alert import FoodRecallAlertCreate
-from models.source_record import SourceRecord
+from models.scraped_record import ScrapedRecallRecord
 
 class PipelineRecordState(TypedDict, total=False):
-    record: SourceRecord
+    record: ScrapedRecallRecord
     translated_json: dict[str, Any]
     summary: str
     structured_json: dict[str, Any]
