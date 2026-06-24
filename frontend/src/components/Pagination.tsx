@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import type { ReactNode } from "react";
 
 interface PaginationProps {
@@ -15,6 +16,10 @@ export default function Pagination({
   onNext,
   children,
 }: PaginationProps) {
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [currentPage]);
+
   return (
     <div>
       {children}
