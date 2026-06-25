@@ -15,7 +15,8 @@ async def fetch_static_html(
     url: str,
     *,
     headers: dict[str, str] | None = None,
+    proxy_url: str | None = None,
 ) -> tuple[str, str]:
-    response = await client.get(url, headers=headers)
+    response = await client.get(url, headers=headers, proxy=proxy_url)
     response.raise_for_status()
     return response.text, str(response.url)

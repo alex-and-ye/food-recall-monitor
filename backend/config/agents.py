@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import os
+
+from pydantic_core.core_schema import NoneSchema
+
 from models.scraper_config import ScraperHints, ScraperSourceConfig
 
 ScraperSourceRegistry = dict[str, ScraperSourceConfig]
@@ -19,6 +23,8 @@ SCRAPER_SOURCES: ScraperSourceRegistry = {
         base_url="https://rappel.conso.gouv.fr",
         allowed_domains=["rappel.conso.gouv.fr"],
         seed_urls=["https://rappel.conso.gouv.fr/categorie/1?#navigation"],
+        request_headers={},
+        proxy_url=None,
         max_depth=2,
         max_pages_per_run=50,
         lookback_days=1,
@@ -34,6 +40,8 @@ SCRAPER_SOURCES: ScraperSourceRegistry = {
         seed_urls=[
             "https://www.food.gov.uk/search?keywords=&filter_type%5BFood%20alert%5D=Food%20alert",
         ],
+        request_headers={},
+        proxy_url=None,
         max_depth=2,
         max_pages_per_run=40,
         lookback_days=1,
@@ -47,6 +55,11 @@ SCRAPER_SOURCES: ScraperSourceRegistry = {
         base_url="https://www.fsis.usda.gov",
         allowed_domains=["www.fsis.usda.gov", "fsis.usda.gov"],
         seed_urls=["https://www.fsis.usda.gov/recalls"],
+        request_headers={
+            "Referer": "https://www.fsis.usda.gov/recalls",
+            "Origin": "https://www.fsis.usda.gov",
+        },
+        proxy_url=None,
         max_depth=2,
         max_pages_per_run=40,
         lookback_days=1,
@@ -54,7 +67,7 @@ SCRAPER_SOURCES: ScraperSourceRegistry = {
             recall_keywords=["recall", "alert", "allergen", "salmonella", "listeria"],
             date_selectors=["time", ".date", ".recall-date"],
             blocked_paths=["/about-fsis", "/newsroom"],
-            force_browser=False,
+            force_browser=True,
         ),
     ),
 }
