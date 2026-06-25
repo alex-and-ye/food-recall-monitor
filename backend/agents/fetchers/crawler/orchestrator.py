@@ -36,6 +36,7 @@ async def crawl_source_pages(
     recall_keywords = source_config.hints.recall_keywords
     blocked_paths = source_config.hints.blocked_paths
     queue: list[_QueueItem] = []
+    fetch_failures = 0
     for seed in source_config.seed_urls:
         score = score_url_relevance(seed, recall_keywords)
         heapq.heappush(queue, _QueueItem(priority=-score, depth=0, url=seed))
@@ -44,7 +45,11 @@ async def crawl_source_pages(
                 stage="crawl",
                 source=source_name,
                 message="Seed URL queued",
-                details={"url": seed, "priority_score": score},
+                details={
+                    "url": seed,
+                    "priority_score": score,
+                    "proxy_enabled": bool(source_config.proxy_url),
+                },
             )
 
     detail_pages: list[dict[str, object]] = []
@@ -65,13 +70,44 @@ async def crawl_source_pages(
             continue
 
         try:
-            html, final_url = await fetch_static_html(client, item.url)
+            html = ""
+            final_url = item.url
             render_mode = "static"
-            if source_config.hints.force_browser or _looks_dynamic(html):
-                html, final_url = await fetch_browser_html(item.url)
+            static_error: Exception | None = None
+            if not source_config.hints.force_browser:
+                try:
+                    html, final_url = await fetch_static_html(
+                        client,
+                        item.url,
+                        headers=source_config.request_headers or None,
+                        proxy_url=source_config.proxy_url,
+                    )
+                except httpx.HTTPError as exc:
+                    static_error = exc
+                    if reporter is not None:
+                        reporter.log(
+                            stage="crawl",
+                            source=source_name,
+                            message="Static fetch failed, attempting browser fallback",
+                            details={"url": item.url, "error": str(exc)},
+                        )
+
+            should_try_browser = source_config.hints.force_browser or static_error is not None or _looks_dynamic(html)
+            if should_try_browser:
+                html, final_url = await fetch_browser_html(
+                    item.url,
+                    headers=source_config.request_headers or None,
+                    proxy_url=source_config.proxy_url,
+                )
                 render_mode = "browser"
+
+            if not html.strip():
+                if static_error is not None:
+                    raise static_error
+                raise RuntimeError(f"Empty HTML content fetched for {item.url}")
         except (httpx.HTTPError, RuntimeError, ValueError) as exc:
             LOGGER.warning("Skipping %s page %s after fetch failure: %s", source_name, item.url, exc)
+            fetch_failures += 1
             if reporter is not None:
                 reporter.log(
                     stage="crawl",
@@ -144,7 +180,14 @@ async def crawl_source_pages(
                 "pages_seen": pages_seen,
                 "detail_pages": len(detail_pages),
                 "visited_pages": len(visited),
+                "fetch_failures": fetch_failures,
             },
+        )
+
+    if pages_seen == 0 and fetch_failures > 0:
+        raise RuntimeError(
+            f"Unable to fetch any pages for source {source_name}. "
+            f"Encountered {fetch_failures} fetch failure(s)."
         )
 
     return detail_pages
