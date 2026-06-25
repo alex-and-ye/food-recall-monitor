@@ -9,7 +9,7 @@ class PageDiscoveryTests(unittest.TestCase):
         page_class = classify_page(
             url="https://example.com/recalls/notice-1",
             html=html,
-            recall_keywords=["recall", "alert"],
+            detail_page_keywords=["/notice-"],
         )
         self.assertEqual(page_class, "detail")
 
@@ -18,7 +18,7 @@ class PageDiscoveryTests(unittest.TestCase):
         page_class = classify_page(
             url="https://example.com/recalls",
             html=html,
-            recall_keywords=["recall"],
+            detail_page_keywords=["/notice-"],
         )
         self.assertEqual(page_class, "listing")
 
@@ -27,7 +27,7 @@ class PageDiscoveryTests(unittest.TestCase):
         page_class = classify_page(
             url="https://example.com/about",
             html=html,
-            recall_keywords=["recall"],
+            detail_page_keywords=["/notice-"],
         )
         self.assertEqual(page_class, "irrelevant")
 

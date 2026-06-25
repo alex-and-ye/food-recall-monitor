@@ -1,42 +1,15 @@
 from __future__ import annotations
 
-from bs4 import BeautifulSoup
-
-HIGH_CONFIDENCE_DETAIL_PATHS: tuple[str, ...] = (
-    "/recall/",
-    "/alert/",
-    "/withdrawal/",
-    "/notice/",
-    "/fiche-rappel/",
-)
+def score_page_relevance(url: str, html: str, detail_page_keywords: list[str]) -> int:
+    del html
+    return score_url_relevance(url, detail_page_keywords)
 
 
-def score_page_relevance(url: str, html: str, recall_keywords: list[str]) -> int:
-    score = score_url_relevance(url, recall_keywords)
-    if not html.strip():
-        return score
-
-    soup = BeautifulSoup(html, "html.parser")
-    title = (soup.title.get_text(" ", strip=True) if soup.title else "").lower()
-    text = soup.get_text(" ", strip=True).lower()[:4_000]
-
-    for keyword in recall_keywords:
-        lowered = keyword.lower()
-        if lowered in title:
-            score += 4
-        if lowered in text:
-            score += 1
-    return score
-
-
-def score_url_relevance(url: str, recall_keywords: list[str]) -> int:
+def score_url_relevance(url: str, detail_page_keywords: list[str]) -> int:
     lowered = url.lower()
     score = 0
-    if any(token in lowered for token in HIGH_CONFIDENCE_DETAIL_PATHS):
+    if any(keyword.lower() in lowered for keyword in detail_page_keywords):
         score += 12
-    for keyword in recall_keywords:
-        if keyword.lower() in lowered:
-            score += 3
-    if any(token in lowered for token in ("recall", "alert", "withdraw", "allergen")):
-        score += 2
+    if any(token in lowered for token in ("faq", "support", "privacy", "contact", "mentions-legales")):
+        score -= 4
     return score
