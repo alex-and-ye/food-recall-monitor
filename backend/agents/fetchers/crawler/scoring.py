@@ -2,6 +2,14 @@ from __future__ import annotations
 
 from bs4 import BeautifulSoup
 
+HIGH_CONFIDENCE_DETAIL_PATHS: tuple[str, ...] = (
+    "/recall/",
+    "/alert/",
+    "/withdrawal/",
+    "/notice/",
+    "/fiche-rappel/",
+)
+
 
 def score_page_relevance(url: str, html: str, recall_keywords: list[str]) -> int:
     score = score_url_relevance(url, recall_keywords)
@@ -24,6 +32,8 @@ def score_page_relevance(url: str, html: str, recall_keywords: list[str]) -> int
 def score_url_relevance(url: str, recall_keywords: list[str]) -> int:
     lowered = url.lower()
     score = 0
+    if any(token in lowered for token in HIGH_CONFIDENCE_DETAIL_PATHS):
+        score += 12
     for keyword in recall_keywords:
         if keyword.lower() in lowered:
             score += 3
