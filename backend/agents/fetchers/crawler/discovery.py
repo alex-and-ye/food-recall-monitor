@@ -6,6 +6,14 @@ from bs4 import BeautifulSoup
 
 PageClass = str
 
+DETAIL_URL_TOKENS: tuple[str, ...] = (
+    "/recall/",
+    "/alert/",
+    "/withdrawal/",
+    "/notice/",
+    "/fiche-rappel/",
+)
+
 
 def classify_page(
     *,
@@ -23,7 +31,7 @@ def classify_page(
     text_keyword_hit = any(keyword.lower() in text for keyword in recall_keywords)
 
     if keyword_hit and text_keyword_hit:
-        if any(token in lowered_url for token in ("/recall/", "/alert/", "/withdrawal/", "/notice/")):
+        if any(token in lowered_url for token in DETAIL_URL_TOKENS):
             return "detail"
         if "risk" in text or "consumer" in text or "do not consume" in text:
             return "detail"
