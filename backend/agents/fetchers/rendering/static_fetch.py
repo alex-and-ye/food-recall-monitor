@@ -17,6 +17,14 @@ async def fetch_static_html(
     headers: dict[str, str] | None = None,
     proxy_url: str | None = None,
 ) -> tuple[str, str]:
-    response = await client.get(url, headers=headers, proxy=proxy_url)
+    if proxy_url:
+        async with httpx.AsyncClient(
+            timeout=client.timeout,
+            follow_redirects=True,
+            proxy=proxy_url,
+        ) as proxy_client:
+            response = await proxy_client.get(url, headers=headers)
+    else:
+        response = await client.get(url, headers=headers)
     response.raise_for_status()
     return response.text, str(response.url)
