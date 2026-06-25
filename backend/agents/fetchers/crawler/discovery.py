@@ -6,43 +6,26 @@ from bs4 import BeautifulSoup
 
 PageClass = str
 
-DETAIL_URL_TOKENS: tuple[str, ...] = (
-    "/recall/",
-    "/alert/",
-    "/withdrawal/",
-    "/notice/",
-    "/fiche-rappel/",
-)
-
-
 def classify_page(
     *,
     url: str,
     html: str,
-    recall_keywords: list[str],
+    detail_page_keywords: list[str],
 ) -> PageClass:
     lowered_url = url.lower()
+    if matches_detail_url(lowered_url, detail_page_keywords):
+        return "detail"
+
     soup = BeautifulSoup(html, "html.parser")
-    title = (soup.title.get_text(" ", strip=True) if soup.title else "").lower()
-    text = soup.get_text(" ", strip=True).lower()
     anchor_count = len(soup.find_all("a"))
-
-    keyword_hit = any(keyword.lower() in lowered_url or keyword.lower() in title for keyword in recall_keywords)
-    text_keyword_hit = any(keyword.lower() in text for keyword in recall_keywords)
-
-    if keyword_hit and text_keyword_hit:
-        if any(token in lowered_url for token in DETAIL_URL_TOKENS):
-            return "detail"
-        if "risk" in text or "consumer" in text or "do not consume" in text:
-            return "detail"
-
-    if anchor_count >= 12 and any(token in lowered_url for token in ("search", "category", "recalls", "alerts")):
+    if anchor_count >= 8:
         return "listing"
-
-    if text_keyword_hit and anchor_count >= 8:
-        return "listing"
-
     return "irrelevant"
+
+
+def matches_detail_url(url: str, detail_page_keywords: list[str]) -> bool:
+    lowered = url.lower()
+    return any(keyword.lower() in lowered for keyword in detail_page_keywords)
 
 
 def extract_internal_links(

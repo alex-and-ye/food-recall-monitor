@@ -8,7 +8,7 @@ from urllib.robotparser import RobotFileParser
 
 import httpx
 
-from agents.fetchers.crawler.discovery import classify_page, extract_internal_links
+from agents.fetchers.crawler.discovery import classify_page, extract_internal_links, matches_detail_url
 from agents.fetchers.crawler.scoring import score_page_relevance, score_url_relevance
 from agents.fetchers.extraction.detail_extractor import extract_detail_payload
 from agents.fetchers.rendering.browser_fetch import fetch_browser_html
@@ -33,12 +33,12 @@ async def crawl_source_pages(
     client: httpx.AsyncClient,
     reporter: ProgressReporter | None = None,
 ) -> list[dict[str, object]]:
-    recall_keywords = source_config.hints.recall_keywords
+    detail_page_keywords = source_config.hints.detail_page_keywords
     blocked_paths = source_config.hints.blocked_paths
     queue: list[_QueueItem] = []
     fetch_failures = 0
     for seed in source_config.seed_urls:
-        score = score_url_relevance(seed, recall_keywords)
+        score = score_url_relevance(seed, detail_page_keywords)
         heapq.heappush(queue, _QueueItem(priority=-score, depth=0, url=seed))
         if reporter is not None:
             reporter.log(
@@ -118,7 +118,11 @@ async def crawl_source_pages(
             continue
 
         pages_seen += 1
-        page_class = classify_page(url=final_url, html=html, recall_keywords=recall_keywords)
+        page_class = classify_page(
+            url=final_url,
+            html=html,
+            detail_page_keywords=detail_page_keywords,
+        )
         if reporter is not None:
             reporter.log(
                 stage="crawl",
@@ -169,7 +173,9 @@ async def crawl_source_pages(
         for link in links:
             if link in visited:
                 continue
-            score = score_page_relevance(link, "", recall_keywords)
+            if not matches_detail_url(link, detail_page_keywords):
+                continue
+            score = score_page_relevance(link, "", detail_page_keywords)
             heapq.heappush(queue, _QueueItem(priority=-score, depth=item.depth + 1, url=link))
     if reporter is not None:
         reporter.log(

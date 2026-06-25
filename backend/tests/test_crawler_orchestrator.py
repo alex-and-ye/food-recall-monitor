@@ -15,7 +15,7 @@ class CrawlerOrchestratorTests(unittest.IsolatedAsyncioTestCase):
             seed_urls=["https://example.com/recalls"],
             max_depth=1,
             max_pages_per_run=2,
-            hints=ScraperHints(recall_keywords=["recall"], blocked_paths=["/blocked"]),
+            hints=ScraperHints(detail_page_keywords=["/recalls/"], blocked_paths=["/blocked"]),
         )
 
         with (
@@ -48,7 +48,7 @@ class CrawlerOrchestratorTests(unittest.IsolatedAsyncioTestCase):
             seed_urls=["https://example.com/recalls"],
             max_depth=0,
             max_pages_per_run=1,
-            hints=ScraperHints(recall_keywords=["recall"]),
+            hints=ScraperHints(detail_page_keywords=["/recalls/"]),
         )
         with (
             patch(
