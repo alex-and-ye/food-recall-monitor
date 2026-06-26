@@ -21,7 +21,7 @@ from models.scraped_record import ScrapedRecallRecord
 
 
 class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
-    def test_repair_and_convert_restores_protected_values_from_payload(self) -> None:
+    def test_repair_and_convert_restores_deterministic_values_from_payload(self) -> None:
         scraped_record = _scraped_record()
         state: PipelineRecordState = {
             "record": scraped_record,
@@ -43,10 +43,44 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
         result = repair_and_convert_node(state)
         alert = result["alert"]
         self.assertEqual(alert.api_source, "uk")
-        self.assertEqual(alert.product_name, "Original Product")
+        self.assertEqual(alert.product_name, "LLM changed name")
         self.assertEqual(alert.recall_date.isoformat(), "2026-06-09")
         self.assertEqual(alert.source_url, "https://source.example.com/recalls/abc")
         self.assertEqual(alert.summary, _valid_summary())
+
+    def test_repair_and_convert_keeps_llm_product_name_over_page_heading(self) -> None:
+        scraped_record = ScrapedRecallRecord(
+            source_name="france",
+            payload={
+                "source_url": "https://rappel.conso.gouv.fr/fiche-rappel/22622/Interne",
+                "title": "Flux RSS - veille, abonnement",
+                "headings": ["Flux RSS - veille, abonnement", "Produit"],
+                "visible_text": "ORIENTAL KITCHEN NEM CHUA et NEM CHUA La Tam Ruot rappelés.",
+                "published_date_candidates": ["2026-06-25"],
+                "selected_recall_date": "2026-06-25",
+            },
+        )
+        state: PipelineRecordState = {
+            "record": scraped_record,
+            "summary": _valid_summary(),
+            "structured_json": {
+                "product_name": "NEM CHUA and NEM CHUA La Tam Ruot",
+                "product_category": "Meat",
+                "recall_reason": "Possible contamination",
+                "summary": "LLM summary",
+                "recall_date": "2026-06-25",
+                "risk_level": "High",
+                "hazard_type": "Listeria monocytogenes",
+                "consumer_action": "Do not consume it.",
+                "source_url": "https://changed.example.com",
+                "affected_regions": [],
+            },
+        }
+
+        result = repair_and_convert_node(state)
+
+        self.assertEqual(result["alert"].product_name, "NEM CHUA and NEM CHUA La Tam Ruot")
+        self.assertEqual(result["structured_json"]["source_url"], "https://rappel.conso.gouv.fr/fiche-rappel/22622/Interne")
 
     def test_repair_and_convert_always_uses_source_context_for_api_source(self) -> None:
         scraped_record = _scraped_record(source_name="ca")
