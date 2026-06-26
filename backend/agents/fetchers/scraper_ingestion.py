@@ -86,6 +86,7 @@ async def fetch_source_records(
             continue
 
         payload["selected_recall_date"] = selected_date
+        payload["selected_recall_date_source"] = _date_candidate_source(payload, selected_date)
         cleaned_payload = clean_detail_payload(payload)
         records.append(ScrapedRecallRecord(source_name=source, payload=cleaned_payload))
         if reporter is not None:
@@ -145,3 +146,11 @@ async def fetch_sources_sequentially(
                         details={"error": str(exc)},
                     )
     return FetchSourcesResult(records=records, failures=failures)
+
+
+def _date_candidate_source(payload: dict[str, Any], selected_date: str) -> str:
+    sources = payload.get("published_date_candidate_sources")
+    if not isinstance(sources, dict):
+        return "generic"
+    source = str(sources.get(selected_date, "")).strip()
+    return source or "generic"

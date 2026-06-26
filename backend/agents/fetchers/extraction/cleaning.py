@@ -40,10 +40,18 @@ def clean_detail_payload(payload: dict[str, Any]) -> dict[str, Any]:
             payload.get("published_date_candidates", [])
         ),
     }
+    candidate_sources = _normalized_date_candidate_sources(
+        payload.get("published_date_candidate_sources")
+    )
+    if candidate_sources:
+        cleaned["published_date_candidate_sources"] = candidate_sources
 
     selected_date = payload.get("selected_recall_date")
     if isinstance(selected_date, str) and selected_date.strip():
         cleaned["selected_recall_date"] = selected_date.strip()
+    selected_date_source = payload.get("selected_recall_date_source")
+    if isinstance(selected_date_source, str) and selected_date_source.strip():
+        cleaned["selected_recall_date_source"] = selected_date_source.strip()
 
     _assert_no_html_tags(cleaned)
     return cleaned
@@ -99,6 +107,18 @@ def _normalized_date_candidates(value: Any) -> list[str]:
             continue
         seen.add(text)
         normalized.append(text)
+    return normalized
+
+
+def _normalized_date_candidate_sources(value: Any) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    normalized: dict[str, str] = {}
+    for candidate, source in value.items():
+        candidate_text = str(candidate).strip()
+        source_text = str(source).strip()
+        if candidate_text and source_text:
+            normalized[candidate_text] = source_text
     return normalized
 
 

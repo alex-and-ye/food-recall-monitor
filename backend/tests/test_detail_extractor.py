@@ -44,6 +44,29 @@ class DetailExtractorTests(unittest.TestCase):
         self.assertNotIn("Top navigation", payload["visible_text"])
         self.assertNotIn("Privacy policy", payload["visible_text"])
 
+    def test_detail_extractor_tracks_selector_and_generic_date_sources(self) -> None:
+        html = """
+        <html>
+          <body>
+            <main>
+              <h1>Recall heading</h1>
+              <span class="issued-date">24 June 2026</span>
+              <p>Recall notice content published 23 June 2026.</p>
+            </main>
+          </body>
+        </html>
+        """
+
+        payload = extract_detail_payload(
+            source_url="https://example.com/recalls/3",
+            html=html,
+            date_selectors=[".issued-date"],
+        )
+
+        self.assertEqual(payload["published_date_candidates"][:2], ["2026-06-24", "2026-06-23"])
+        self.assertEqual(payload["published_date_candidate_sources"]["2026-06-24"], "selector")
+        self.assertEqual(payload["published_date_candidate_sources"]["2026-06-23"], "generic")
+
 
 if __name__ == "__main__":
     unittest.main()

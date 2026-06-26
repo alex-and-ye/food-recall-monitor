@@ -6,7 +6,23 @@ from typing import Iterable
 from dateparser.search import search_dates
 
 
-def extract_date_candidates(text: str) -> list[str]:
+DEFAULT_EXCLUDED_DATE_CONTEXT_MARKERS: tuple[str, ...] = (
+    "last modified",
+    "best before",
+    "prev :",
+    "prev:",
+    "previous :",
+    "previous:",
+    "next :",
+    "next:",
+)
+
+
+def extract_date_candidates(
+    text: str,
+    *,
+    excluded_context_markers: Iterable[str] | None = DEFAULT_EXCLUDED_DATE_CONTEXT_MARKERS,
+) -> list[str]:
     if not text.strip():
         return []
 
@@ -22,12 +38,29 @@ def extract_date_candidates(text: str) -> list[str]:
 
     seen: set[str] = set()
     candidates: list[str] = []
-    for _, parsed in matches:
+    markers = tuple(marker.lower() for marker in excluded_context_markers or ())
+    for matched_text, parsed in matches:
+        if _is_excluded_date_context(text, matched_text, markers):
+            continue
         as_date = parsed.astimezone(UTC).date().isoformat()
         if as_date not in seen:
             seen.add(as_date)
             candidates.append(as_date)
     return candidates
+
+
+def _is_excluded_date_context(text: str, matched_text: str, markers: tuple[str, ...]) -> bool:
+    if not markers:
+        return False
+
+    lowered_text = text.lower()
+    matched_index = lowered_text.find(matched_text.lower())
+    if matched_index < 0:
+        return False
+
+    context_start = max(0, matched_index - 80)
+    context = lowered_text[context_start : matched_index + len(matched_text)]
+    return any(marker in context for marker in markers)
 
 
 def select_recent_recall_date(

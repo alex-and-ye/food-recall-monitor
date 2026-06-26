@@ -27,14 +27,12 @@ def extract_detail_payload(
             if extracted:
                 extra_date_text.append(extracted)
 
-    date_candidates = extract_date_candidates(
-        " ".join(
-            [
-                visible_text,
-                *extra_date_text,
-            ]
-        )
+    selector_candidates = extract_date_candidates(
+        " ".join(extra_date_text),
+        excluded_context_markers=(),
     )
+    generic_candidates = extract_date_candidates(visible_text)
+    date_candidates = _merge_date_candidates(selector_candidates, generic_candidates)
 
     return {
         "source_url": source_url,
@@ -42,6 +40,10 @@ def extract_detail_payload(
         "headings": [str(tag) for tag in heading_tags[:8]],
         "visible_text": visible_text,
         "published_date_candidates": date_candidates,
+        "published_date_candidate_sources": _date_candidate_sources(
+            selector_candidates,
+            generic_candidates,
+        ),
     }
 
 
@@ -52,3 +54,23 @@ def _content_root(soup: BeautifulSoup) -> Tag:
     if soup.body is not None:
         return soup.body
     return soup
+
+
+def _merge_date_candidates(selector_candidates: list[str], generic_candidates: list[str]) -> list[str]:
+    seen: set[str] = set()
+    merged: list[str] = []
+    for candidate in [*selector_candidates, *generic_candidates]:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        merged.append(candidate)
+    return merged
+
+
+def _date_candidate_sources(selector_candidates: list[str], generic_candidates: list[str]) -> dict[str, str]:
+    sources: dict[str, str] = {}
+    for candidate in selector_candidates:
+        sources.setdefault(candidate, "selector")
+    for candidate in generic_candidates:
+        sources.setdefault(candidate, "generic")
+    return sources

@@ -13,6 +13,21 @@ class DateCandidatesTests(unittest.TestCase):
         self.assertIn("2026-06-23", candidates)
         self.assertIn("2026-06-24", candidates)
 
+    def test_extract_date_candidates_excludes_non_issued_page_dates(self) -> None:
+        candidates = extract_date_candidates(
+            "Allergy Alert, 4 June 2026 00:00. "
+            "Product Details Best before 06 June 2026. "
+            "Last modified: 17 June 2026 15:30. "
+            "Prev : Earlier alert 18 June 2026. "
+            "Next : Later alert 19 June 2026."
+        )
+
+        self.assertIn("2026-06-04", candidates)
+        self.assertNotIn("2026-06-06", candidates)
+        self.assertNotIn("2026-06-17", candidates)
+        self.assertNotIn("2026-06-18", candidates)
+        self.assertNotIn("2026-06-19", candidates)
+
     def test_select_recent_recall_date_respects_lookback(self) -> None:
         selected = select_recent_recall_date(
             ["2026-06-23", "2026-06-20"],

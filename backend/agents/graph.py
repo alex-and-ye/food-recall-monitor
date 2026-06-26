@@ -282,8 +282,7 @@ def repair_and_convert_node(state: PipelineRecordState) -> PipelineRecordState:
         structured_json.get("product_name"),
         record.payload,
     )
-    structured_json["recall_date"] = _best_payload_value(
-        "recall_date",
+    structured_json["recall_date"] = _best_generated_recall_date(
         structured_json.get("recall_date"),
         record.payload,
     )
@@ -324,6 +323,12 @@ def _best_generated_product_name(generated_value: Any, payload: dict[str, Any]) 
     if generated_text:
         return generated_text
     return _best_product_name("", fields)
+
+def _best_generated_recall_date(generated_value: Any, payload: dict[str, Any]) -> str:
+    generated_text = clean_text(str(generated_value or ""))
+    if payload.get("selected_recall_date_source") == "generic" and _safe_parse_date(generated_text) is not None:
+        return generated_text
+    return _best_payload_value("recall_date", generated_value, payload)
 
 def _exact_original_match(value: str, fields: list[tuple[str, str]]) -> str:
     if not value:
