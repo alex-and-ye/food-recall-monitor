@@ -278,8 +278,7 @@ def repair_and_convert_node(state: PipelineRecordState) -> PipelineRecordState:
         },
     }
 
-    structured_json["product_name"] = _best_payload_value(
-        "product_name",
+    structured_json["product_name"] = _best_generated_product_name(
         structured_json.get("product_name"),
         record.payload,
     )
@@ -314,6 +313,17 @@ def _best_payload_value(field_name: str, generated_value: Any, payload: dict[str
     if field_name == "product_name":
         return _best_product_name(generated_text, fields) or generated_text
     return generated_text
+
+def _best_generated_product_name(generated_value: Any, payload: dict[str, Any]) -> str:
+    fields = _original_string_fields(payload)
+    generated_text = clean_text(str(generated_value or ""))
+
+    exact_match = _exact_original_match(generated_text, fields)
+    if exact_match:
+        return exact_match
+    if generated_text:
+        return generated_text
+    return _best_product_name("", fields)
 
 def _exact_original_match(value: str, fields: list[tuple[str, str]]) -> str:
     if not value:
