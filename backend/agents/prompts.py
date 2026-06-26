@@ -65,7 +65,7 @@ Return only valid JSON matching this exact schema:
 
 Rules:
 1. Copy summary exactly from Text Summary. Do not rewrite it.
-2. Infer product_name from the source JSON and prefer values that look like product names, titles, labels, model names, or product item names.
+2. Infer product_name from the source JSON and prefer values that look like food product names or food items.
 3. Infer recall_date from the source JSON and use YYYY-MM-DD when possible.
 4. Infer source_url from the source JSON. Never invent, shorten, or replace URLs.
 5. product_category should be a short English category such as Produce, Meat, Dairy, Seafood, Prepared foods, Allergens, or Other.
