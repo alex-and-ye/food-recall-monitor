@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import os
-
 from models.scraper_config import ScraperHints, ScraperSourceConfig
 
 ScraperSourceRegistry = dict[str, ScraperSourceConfig]
@@ -39,20 +37,14 @@ SCRAPER_SOURCES: ScraperSourceRegistry = {
             blocked_paths=["/about", "/contact", "/privacy", "/cookies"],
         ),
     ),
-    "us": ScraperSourceConfig(
-        base_url="https://www.fsis.usda.gov",
-        allowed_domains=["www.fsis.usda.gov", "fsis.usda.gov"],
-        seed_urls=["https://www.fsis.usda.gov/recalls"],
-        request_headers={
-            "Referer": "https://www.fsis.usda.gov/recalls",
-            "Origin": "https://www.fsis.usda.gov",
-        },
-        proxy_url=os.getenv("FSIS_PROXY_URL"),
+    "germany": ScraperSourceConfig(
+        base_url="https://www.lebensmittelwarnung.de",
+        allowed_domains=["www.lebensmittelwarnung.de", "lebensmittelwarnung.de"],
+        seed_urls=["https://www.lebensmittelwarnung.de/DE/Home/home_node.html"],
         hints=ScraperHints(
-            detail_page_keywords=["/recalls-alerts/"],
-            date_selectors=["time", ".date", ".recall-date"],
-            blocked_paths=["/about-fsis", "/newsroom"],
-            force_browser=True,
+            detail_page_keywords=["/___lebensmittelwarnung.de/"],
+            date_selectors=["time", ".date", "[datetime]"],
+            blocked_paths=["/DE/Service", "/DE/FAQ", "/DE/Glossar", "/DE/Themen"],
         ),
     ),
 }
