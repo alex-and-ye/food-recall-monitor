@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
+from models.scraper_config import ScraperHints, ScraperSourceConfig
 
-ApiSourceConfig = str | dict[str, Any]
+ScraperSourceRegistry = dict[str, ScraperSourceConfig]
 
 TRANSLATION_MODEL: str = "qwen2.5:14b"
 SUMMARIZATION_MODEL: str = "qwen2.5:14b"
@@ -14,16 +14,39 @@ OLLAMA_OPTIONS: dict[str, float | int] = {
     "num_gpu": 99,
 }
 
-API_SOURCES: dict[str, ApiSourceConfig] = {
-    "france": 'https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/rappelconso-v2-gtin-espaces/records?where=categorie_produit%3D"alimentation"&order_by=date_publication%20desc',
-    "uk": "https://data.food.gov.uk/food-alerts/id?_view=full&_limit=100&_sort=-created",
-    "us": {
-        "url": "https://www.fsis.usda.gov/fsis/api/recall/v/1?field_translation_language=es",
-        "headers": {
-            "Referer": "https://www.fsis.usda.gov/recalls",
-            "Origin": "https://www.fsis.usda.gov",
-        },
-    },
+SCRAPER_SOURCES: ScraperSourceRegistry = {
+    "france": ScraperSourceConfig(
+        base_url="https://rappel.conso.gouv.fr",
+        allowed_domains=["rappel.conso.gouv.fr"],
+        seed_urls=["https://rappel.conso.gouv.fr/categorie/1?#navigation"],
+        hints=ScraperHints(
+            detail_page_keywords=["/fiche-rappel/"],
+            date_selectors=["time", ".date", "[datetime]"],
+            blocked_paths=["/faq", "/mentions-legales", "/parametres"],
+        ),
+    ),
+    "uk": ScraperSourceConfig(
+        base_url="https://www.food.gov.uk",
+        allowed_domains=["www.food.gov.uk", "food.gov.uk"],
+        seed_urls=[
+            "https://alerts.food.gov.uk/news-alerts",
+        ],
+        hints=ScraperHints(
+            detail_page_keywords=["/news-alerts/alert/", "/recall/", "/alert/"],
+            date_selectors=["time", ".published-date", ".date"],
+            blocked_paths=["/about", "/contact", "/privacy", "/cookies"],
+        ),
+    ),
+    "germany": ScraperSourceConfig(
+        base_url="https://www.lebensmittelwarnung.de",
+        allowed_domains=["www.lebensmittelwarnung.de", "lebensmittelwarnung.de"],
+        seed_urls=["https://www.lebensmittelwarnung.de/DE/Home/home_node.html"],
+        hints=ScraperHints(
+            detail_page_keywords=["/___lebensmittelwarnung.de/"],
+            date_selectors=["time", ".date", "[datetime]"],
+            blocked_paths=["/DE/Service", "/DE/FAQ", "/DE/Glossar", "/DE/Themen"],
+        ),
+    ),
 }
 
-DEFAULT_SOURCE_NAMES: list[str] = list(API_SOURCES)
+DEFAULT_SOURCE_NAMES: list[str] = list(SCRAPER_SOURCES)

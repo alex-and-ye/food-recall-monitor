@@ -5,10 +5,11 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from models.food_recall_alert import FoodRecallAlertCreate
+    from models.scraped_record import ScrapedRecallRecord
 
 @dataclass
 class FetchSourcesResult:
-    records: list
+    records: list[ScrapedRecallRecord]
     failures: dict[str, str] = field(default_factory=dict)
 
 @dataclass
@@ -19,6 +20,7 @@ class AgentPipelineResult:
 
 @dataclass
 class PipelineRunResult:
+    run_id: str | None
     new_alerts_count: int
     records_fetched: int
     source_failures: dict[str, str] = field(default_factory=dict)
