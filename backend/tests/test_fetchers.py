@@ -29,6 +29,7 @@ class ScraperIngestionTests(unittest.IsolatedAsyncioTestCase):
             "headings": ["<h2>Risk</h2>"],
             "visible_text": "<p>Recall notice content.</p>",
             "published_date_candidates": ["2026-06-09"],
+            "published_date_candidate_sources": {"2026-06-09": "selector"},
         }
 
         with (
@@ -49,6 +50,7 @@ class ScraperIngestionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(records[0].source_name, "uk")
         self.assertEqual(records[0].payload["source_url"], "https://example.com/recalls/abc")
         self.assertEqual(records[0].payload["title"], "Original Product")
+        self.assertEqual(records[0].payload["selected_recall_date_source"], "selector")
 
     async def test_fetch_source_records_skips_records_outside_lookback(self) -> None:
         source_config = ScraperSourceConfig(

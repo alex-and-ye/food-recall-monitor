@@ -106,6 +106,32 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["structured_json"]["api_source"], "ca")
         self.assertEqual(result["alert"].api_source, "ca")
 
+    def test_repair_and_convert_keeps_valid_llm_recall_date_when_scraper_date_is_generic(self) -> None:
+        scraped_record = _scraped_record()
+        scraped_record.payload["selected_recall_date"] = "2026-06-24"
+        scraped_record.payload["selected_recall_date_source"] = "generic"
+        state: PipelineRecordState = {
+            "record": scraped_record,
+            "summary": _valid_summary(),
+            "structured_json": {
+                "product_name": "Original Product",
+                "product_category": "Produce",
+                "recall_reason": "Possible contamination",
+                "summary": "LLM summary",
+                "recall_date": "2026-06-04",
+                "risk_level": "High",
+                "hazard_type": "Listeria",
+                "consumer_action": "Do not consume it.",
+                "source_url": "https://changed.example.com",
+                "affected_regions": [],
+            },
+        }
+
+        result = repair_and_convert_node(state)
+
+        self.assertEqual(result["structured_json"]["recall_date"], "2026-06-04")
+        self.assertEqual(result["alert"].recall_date.isoformat(), "2026-06-04")
+
     async def test_run_pipeline_with_mocked_fetch_and_agents(self) -> None:
         scraped_record = _scraped_record()
         options = _options(sources=["uk"], limit=1)
