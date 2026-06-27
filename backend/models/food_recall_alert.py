@@ -6,6 +6,15 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+
+class FoodRecallAlertStats(BaseModel):
+    total_alerts: int
+    top_5_hazard_types: list[tuple[str, int]]
+    top_5_product_categories: list[tuple[str, int]]
+    top_5_affected_regions: list[tuple[str, int]]
+    alerts_last_7_days: int
+    alerts_last_30_days: int
+
 class FoodRecallAlertCreate(BaseModel):
     """Recall alert produced by the pipeline before database persistence."""
 
