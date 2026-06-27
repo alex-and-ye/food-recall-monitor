@@ -16,6 +16,9 @@ export interface FoodRecallAlert {
 
 export interface FoodRecallAlertStats {
   total_alerts: number;
-  top_hazard_type: string;
-  active_regions: number;
+  top_5_hazard_types: [string, number][];
+  top_5_product_categories: [string, number][];
+  top_5_affected_regions: [string, number][];
+  alerts_last_7_days: number;
+  alerts_last_30_days: number;
 }
