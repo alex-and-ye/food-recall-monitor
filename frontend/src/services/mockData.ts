@@ -422,9 +422,61 @@ export function fetchMockAlerts(): Promise<FoodRecallAlert[]> {
 
 export async function fetchMockStats(): Promise<FoodRecallAlertStats> {
   await new Promise((resolve) => setTimeout(resolve, 800));
+
+  const alerts = SIMULATE_EMPTY_DATABASE ? [] : MOCK_ALERTS;
+
+  if (alerts.length === 0) {
+    return {
+      total_alerts: 0,
+      top_5_hazard_types: [],
+      top_5_product_categories: [],
+      top_5_affected_regions: [],
+      alerts_last_7_days: 0,
+      alerts_last_30_days: 0,
+    };
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const sevenDaysAgo = new Date(today);
+  sevenDaysAgo.setDate(today.getDate() - 7);
+  const thirtyDaysAgo = new Date(today);
+  thirtyDaysAgo.setDate(today.getDate() - 30);
+
+  const hazardTypes = new Map<string, number>();
+  const productCategories = new Map<string, number>();
+  const affectedRegions = new Map<string, number>();
+  let alertsLast7Days = 0;
+  let alertsLast30Days = 0;
+
+  for (const alert of alerts) {
+    hazardTypes.set(alert.hazard_type, (hazardTypes.get(alert.hazard_type) ?? 0) + 1);
+    productCategories.set(
+      alert.product_category,
+      (productCategories.get(alert.product_category) ?? 0) + 1,
+    );
+    for (const region of alert.affected_regions) {
+      affectedRegions.set(region, (affectedRegions.get(region) ?? 0) + 1);
+    }
+
+    const recallDate = new Date(`${alert.recall_date}T00:00:00`);
+    if (recallDate >= sevenDaysAgo) {
+      alertsLast7Days += 1;
+    }
+    if (recallDate >= thirtyDaysAgo) {
+      alertsLast30Days += 1;
+    }
+  }
+
+  const toTopFive = (counts: Map<string, number>): [string, number][] =>
+    [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+
   return {
-    total_alerts: 142,
-    top_hazard_type: "Biological (E. Coli / Salmonella)",
-    active_regions: 18,
+    total_alerts: alerts.length,
+    top_5_hazard_types: toTopFive(hazardTypes),
+    top_5_product_categories: toTopFive(productCategories),
+    top_5_affected_regions: toTopFive(affectedRegions),
+    alerts_last_7_days: alertsLast7Days,
+    alerts_last_30_days: alertsLast30Days,
   };
 }
