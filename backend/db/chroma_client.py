@@ -1,5 +1,5 @@
 import hashlib
-from typing import List, cast
+from typing import List, Optional, cast
 from uuid import uuid4
 
 import chromadb
@@ -103,3 +103,11 @@ class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
         parsed_alerts.sort(key=lambda x: x.recall_date, reverse=True)
         
         return parsed_alerts
+
+    def get_alert_by_id(self, alert_id: str) -> Optional[FoodRecallAlert]:
+        results = self.collection.get(ids=[alert_id], include=["metadatas"])
+        metadatas = results.get("metadatas") or []
+        if not metadatas or metadatas[0] is None:
+            return None
+
+        return FoodRecallAlert.from_metadata(dict(metadatas[0]))
