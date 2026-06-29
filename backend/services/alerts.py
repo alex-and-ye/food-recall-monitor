@@ -1,6 +1,6 @@
 from collections import Counter
 from datetime import date, timedelta
-from typing import List
+from typing import List, Optional
 
 from db.interface import FoodRecallAlertsDBInterface
 from models.food_recall_alert import FoodRecallAlert, FoodRecallAlertStats
@@ -11,6 +11,9 @@ class AlertsService:
 
     def get_alerts(self) -> List[FoodRecallAlert]:
         return self.db.get_alerts()
+
+    def get_alert_by_id(self, alert_id: str) -> Optional[FoodRecallAlert]:
+        return self.db.get_alert_by_id(alert_id)
 
     def get_alert_stats(self) -> FoodRecallAlertStats:
         alerts = self.db.get_alerts()
