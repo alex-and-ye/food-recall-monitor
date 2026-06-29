@@ -113,6 +113,54 @@ class ChromaClientDedupeTests(unittest.TestCase):
 
         self.assertEqual([alert.alert_id for alert in alerts], ["newer", "older"])
 
+    def test_get_alert_by_id_returns_alert_when_found(self) -> None:
+        client = cast(Any, object.__new__(FoodRecallAlertsChromaClient))
+        client.collection = MagicMock()
+        client.collection.get.return_value = {
+            "metadatas": [
+                {
+                    "alert_id": "alert-123",
+                    "api_source": "test-source",
+                    "product_name": "Sample Product",
+                    "product_category": "Produce",
+                    "recall_reason": "Reason",
+                    "summary": "Summary",
+                    "recall_date": "2026-06-09",
+                    "risk_level": "High",
+                    "hazard_type": "Listeria",
+                    "consumer_action": "Discard",
+                    "source_url": "https://example.com/recall",
+                    "affected_regions": "[]",
+                }
+            ]
+        }
+
+        alert = client.get_alert_by_id("alert-123")
+
+        self.assertIsNotNone(alert)
+        assert alert is not None
+        self.assertEqual(alert.alert_id, "alert-123")
+        self.assertEqual(alert.product_name, "Sample Product")
+        client.collection.get.assert_called_once_with(ids=["alert-123"], include=["metadatas"])
+
+    def test_get_alert_by_id_returns_none_when_not_found(self) -> None:
+        client = cast(Any, object.__new__(FoodRecallAlertsChromaClient))
+        client.collection = MagicMock()
+        client.collection.get.return_value = {"metadatas": []}
+
+        alert = client.get_alert_by_id("missing-id")
+
+        self.assertIsNone(alert)
+
+    def test_get_alert_by_id_returns_none_when_metadata_is_none(self) -> None:
+        client = cast(Any, object.__new__(FoodRecallAlertsChromaClient))
+        client.collection = MagicMock()
+        client.collection.get.return_value = {"metadatas": [None]}
+
+        alert = client.get_alert_by_id("alert-123")
+
+        self.assertIsNone(alert)
+
     def test_get_existing_dedupe_keys_ignores_missing_values(self) -> None:
         client = cast(Any, object.__new__(FoodRecallAlertsChromaClient))
         client.collection = MagicMock()

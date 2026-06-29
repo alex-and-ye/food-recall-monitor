@@ -1,7 +1,11 @@
 export type RiskLevel = "High" | "Medium" | "Low";
 
+export type CountrySource = "UK" | "Germany" | "France";
+
 export interface FoodRecallAlert {
   alert_id: string;
+  batch_id: string;
+  country_source: CountrySource;
   product_name: string;
   product_category: string;
   risk_level: RiskLevel;

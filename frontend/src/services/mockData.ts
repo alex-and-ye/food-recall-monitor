@@ -1,8 +1,14 @@
-import type { FoodRecallAlertStats, FoodRecallAlert } from "@/types/alert";
+import type {
+  CountrySource,
+  FoodRecallAlertStats,
+  FoodRecallAlert,
+} from "@/types/alert";
 
 export const SIMULATE_EMPTY_DATABASE = false;
 
-const MOCK_ALERTS: FoodRecallAlert[] = [
+const COUNTRY_SOURCES: CountrySource[] = ["UK", "Germany", "France"];
+
+const MOCK_ALERTS_RAW: Omit<FoodRecallAlert, "batch_id" | "country_source">[] = [
   {
     alert_id: "alert-001",
     product_name: "Organic Baby Spinach",
@@ -409,6 +415,12 @@ const MOCK_ALERTS: FoodRecallAlert[] = [
     source_url: "https://www.fsis.usda.gov/recalls",
   },
 ];
+
+const MOCK_ALERTS: FoodRecallAlert[] = MOCK_ALERTS_RAW.map((alert, index) => ({
+  ...alert,
+  batch_id: `BTH-2026-${String(index + 1).padStart(3, "0")}`,
+  country_source: COUNTRY_SOURCES[index % COUNTRY_SOURCES.length],
+}));
 
 const LATENCY_MS = 1200;
 
