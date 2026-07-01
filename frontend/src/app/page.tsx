@@ -91,7 +91,7 @@ export default function HomePage() {
             </Pagination>
           ) : (
             <p className="text-center text-sm text-slate-600">
-              No alerts match your current search and filters.
+              No food recall alerts match your current search and filters.
             </p>
           )}
         </>
