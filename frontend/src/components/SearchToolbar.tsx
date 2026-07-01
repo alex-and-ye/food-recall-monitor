@@ -1,6 +1,6 @@
 "use client";
 
-import { type SubmitEvent, useCallback, useState } from "react";
+import { type SubmitEvent, useCallback, useEffect, useRef, useState } from "react";
 import {
   buildAlertSearchPayload,
   DEFAULT_ALERT_SEARCH_FORM_STATE,
@@ -32,19 +32,36 @@ export default function AlertSearchToolbar({
   const [formState, setFormState] = useState<AlertSearchFormState>(
     DEFAULT_ALERT_SEARCH_FORM_STATE,
   );
+  const hasSearchedRef = useRef(false);
 
   const filtersActive = hasActiveFilters(formState);
+
+  const resetFeedResults = useCallback(() => {
+    if (!hasFeeds || !onSearch) {
+      return;
+    }
+
+    onSearch(buildAlertSearchPayload(DEFAULT_ALERT_SEARCH_FORM_STATE));
+    hasSearchedRef.current = false;
+  }, [hasFeeds, onSearch]);
 
   const performSearch = useCallback(() => {
     const payload = buildAlertSearchPayload(formState);
 
     if (onSearch) {
+      hasSearchedRef.current = true;
       onSearch(payload);
       return;
     }
 
     alert(JSON.stringify(payload, null, 2));
   }, [formState, onSearch]);
+
+  useEffect(() => {
+    if (!hasActiveFilters(formState) && hasSearchedRef.current) {
+      resetFeedResults();
+    }
+  }, [formState, resetFeedResults]);
 
   const handleSubmit = (event: SubmitEvent) => {
     event.preventDefault();
@@ -57,6 +74,7 @@ export default function AlertSearchToolbar({
 
   const handleClearFilters = () => {
     setFormState(DEFAULT_ALERT_SEARCH_FORM_STATE);
+    resetFeedResults();
   };
 
   return (
