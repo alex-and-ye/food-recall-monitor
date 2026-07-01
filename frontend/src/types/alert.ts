@@ -2,6 +2,10 @@ export type RiskLevel = "High" | "Medium" | "Low";
 
 export type CountrySource = "UK" | "Germany" | "France";
 
+export const RISK_LEVELS = ["High", "Medium", "Low"] as const satisfies readonly RiskLevel[];
+
+export const COUNTRY_SOURCES = ["UK", "Germany", "France"] as const satisfies readonly CountrySource[];
+
 export interface FoodRecallAlert {
   alert_id: string;
   batch_id: string;
