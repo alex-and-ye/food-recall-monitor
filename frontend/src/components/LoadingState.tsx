@@ -7,7 +7,7 @@ export default function LoadingState() {
         aria-label="Loading"
       />
       <p className="text-base font-medium text-slate-600">
-        Fetching food recall alerts...
+        Loading data...
       </p>
     </div>
   );
