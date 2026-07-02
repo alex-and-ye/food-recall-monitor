@@ -13,7 +13,7 @@ from agents.graph import (
 )
 from agents.llm import AgentOutputError
 from agents.validators import AgentValidationError
-from models.food_recall_alert import FoodRecallAlertCreate
+from models.food_recall_alert import FoodRecallAlertCreate, api_source_to_country_source
 from models.pipeline_options import PipelineRunOptions
 from models.pipeline_result import FetchSourcesResult
 from models.pipeline_state import PipelineRecordState
@@ -154,6 +154,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(len(result.alerts), 1)
         self.assertEqual(result.alerts[0].api_source, "uk")
+        self.assertEqual(result.alerts[0].country_source, "UK")
         self.assertEqual(result.alerts[0].source_url, "https://source.example.com/recalls/abc")
 
     async def test_run_pipeline_uses_supplied_sources_and_limit(self) -> None:
@@ -334,6 +335,7 @@ def _valid_structured_json() -> dict[str, Any]:
 def _alert_for_source(source: str) -> FoodRecallAlertCreate:
     return FoodRecallAlertCreate(
         api_source=source,
+        country_source=api_source_to_country_source(source),
         product_name="Original Product",
         product_category="Produce",
         recall_reason="Possible contamination",
