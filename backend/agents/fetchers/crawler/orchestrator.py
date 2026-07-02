@@ -134,6 +134,7 @@ async def crawl_source_pages(
                     "page_class": page_class,
                     "render_mode": render_mode,
                     "pages_seen": pages_seen,
+                    "html_excerpt": html[:500],
                 },
             )
         if page_class == "detail":
@@ -151,6 +152,7 @@ async def crawl_source_pages(
                     details={
                         "url": final_url,
                         "date_candidates": len(list(payload.get("published_date_candidates", []))),
+                        "extracted_payload": _to_jsonable(payload),
                     },
                 )
 
@@ -168,7 +170,7 @@ async def crawl_source_pages(
                 stage="crawl",
                 source=source_name,
                 message="Discovered internal links",
-                details={"url": final_url, "link_count": len(links)},
+                details={"url": final_url, "link_count": len(links), "links": links},
             )
         for link in links:
             if link in visited:
@@ -227,3 +229,17 @@ def _looks_dynamic(html: str) -> bool:
     script_tags = html.count("<script")
     text_like = len(" ".join(html.split()))
     return script_tags > 20 and text_like < 3_000
+
+
+def _to_jsonable(value: object) -> object:
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    if isinstance(value, dict):
+        return {str(key): _to_jsonable(child) for key, child in value.items()}
+    if isinstance(value, list):
+        return [_to_jsonable(child) for child in value]
+    if isinstance(value, tuple):
+        return [_to_jsonable(child) for child in value]
+    if isinstance(value, set):
+        return [_to_jsonable(child) for child in sorted(value, key=str)]
+    return str(value)
