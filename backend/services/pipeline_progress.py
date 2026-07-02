@@ -99,17 +99,6 @@ class PipelineProgressTracker:
                 run.events = run.events[-MAX_EVENTS_PER_RUN:]
             run_status = run.status
 
-        LOGGER.info(
-            "Pipeline progress event",
-            extra={
-                "event": "pipeline_progress",
-                "run_id": run_id,
-                "stage": stage,
-                "source": source,
-                "pipeline_status": run_status,
-                "details": event.details,
-            },
-        )
         with self._lock:
             self._write_run_log_event(
                 run_id=run_id,
