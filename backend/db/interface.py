@@ -13,5 +13,9 @@ class FoodRecallAlertsDBInterface(ABC):
         pass
 
     @abstractmethod
+    def search_alerts(self, search: str | None = None, risk_level: str | None = None, country_source: str | None = None) -> List[FoodRecallAlert]:
+        pass
+
+    @abstractmethod
     def save_alerts(self, alerts: List[FoodRecallAlertCreate]) -> int:
         pass
