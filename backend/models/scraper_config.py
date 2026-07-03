@@ -16,8 +16,26 @@ DEFAULT_LOOKBACK_DAYS = 1
 class ScraperHints(BaseModel):
     detail_page_keywords: list[str] = Field(default_factory=lambda: list(DEFAULT_DETAIL_PAGE_KEYWORDS))
     date_selectors: list[str] = Field(default_factory=list)
+    date_languages: list[str] = Field(default_factory=list)
     blocked_paths: list[str] = Field(default_factory=list)
     force_browser: bool = False
+
+    @field_validator("date_languages", mode="before")
+    @classmethod
+    def _normalize_date_languages(cls, value: object) -> list[str]:
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            return []
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for language in value:
+            code = str(language).strip().lower().split("-", maxsplit=1)[0]
+            if not code or code in seen:
+                continue
+            seen.add(code)
+            normalized.append(code)
+        return normalized
 
     @field_validator("detail_page_keywords", mode="before")
     @classmethod

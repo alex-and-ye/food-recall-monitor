@@ -3,8 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Iterable
 
-from dateparser.search import search_dates
-
+from agents.fetchers.extraction.date_parser import search_adaptive_dates
 
 DEFAULT_EXCLUDED_DATE_CONTEXT_MARKERS: tuple[str, ...] = (
     "last modified",
@@ -21,46 +20,16 @@ DEFAULT_EXCLUDED_DATE_CONTEXT_MARKERS: tuple[str, ...] = (
 def extract_date_candidates(
     text: str,
     *,
+    languages: Iterable[str] | None = None,
     excluded_context_markers: Iterable[str] | None = DEFAULT_EXCLUDED_DATE_CONTEXT_MARKERS,
+    reference_date: datetime | None = None,
 ) -> list[str]:
-    if not text.strip():
-        return []
-
-    matches = search_dates(
+    return search_adaptive_dates(
         text,
-        settings={
-            "RETURN_AS_TIMEZONE_AWARE": True,
-            "PREFER_DATES_FROM": "past",
-        },
+        languages=languages,
+        excluded_context_markers=excluded_context_markers,
+        reference_date=reference_date,
     )
-    if not matches:
-        return []
-
-    seen: set[str] = set()
-    candidates: list[str] = []
-    markers = tuple(marker.lower() for marker in excluded_context_markers or ())
-    for matched_text, parsed in matches:
-        if _is_excluded_date_context(text, matched_text, markers):
-            continue
-        as_date = parsed.astimezone(UTC).date().isoformat()
-        if as_date not in seen:
-            seen.add(as_date)
-            candidates.append(as_date)
-    return candidates
-
-
-def _is_excluded_date_context(text: str, matched_text: str, markers: tuple[str, ...]) -> bool:
-    if not markers:
-        return False
-
-    lowered_text = text.lower()
-    matched_index = lowered_text.find(matched_text.lower())
-    if matched_index < 0:
-        return False
-
-    context_start = max(0, matched_index - 80)
-    context = lowered_text[context_start : matched_index + len(matched_text)]
-    return any(marker in context for marker in markers)
 
 
 def select_recent_recall_date(

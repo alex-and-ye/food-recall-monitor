@@ -142,6 +142,7 @@ async def crawl_source_pages(
                 source_url=final_url,
                 html=html,
                 date_selectors=source_config.hints.date_selectors,
+                date_languages=source_config.hints.date_languages,
             )
             detail_pages.append(payload)
             if reporter is not None:
