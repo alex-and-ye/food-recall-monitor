@@ -9,6 +9,3 @@ __pycache__/
 
 # Backend structured logs (hidden by dot-prefixed folder)
 .logs/
-
-# Per-run pipeline logs
-pipeline_runs/

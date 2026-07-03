@@ -9,7 +9,7 @@ import time
 from typing import TextIO
 from uuid import uuid4
 
-from logging_config import get_run_logs_dir
+from paths import get_run_logs_dir
 from models.pipeline_options import PipelineRunOptions
 from models.pipeline_progress import PipelineProgressEvent, PipelineRunProgress
 
