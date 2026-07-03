@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import heapq
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
 
@@ -23,7 +23,8 @@ LOGGER = logging.getLogger(__name__)
 class _QueueItem:
     priority: int
     depth: int
-    url: str
+    order: int
+    url: str = field(compare=False)
 
 
 async def crawl_source_pages(
@@ -37,9 +38,11 @@ async def crawl_source_pages(
     blocked_paths = source_config.hints.blocked_paths
     queue: list[_QueueItem] = []
     fetch_failures = 0
+    enqueue_order = 0
     for seed in source_config.seed_urls:
         score = score_url_relevance(seed, detail_page_keywords)
-        heapq.heappush(queue, _QueueItem(priority=-score, depth=0, url=seed))
+        heapq.heappush(queue, _QueueItem(priority=-score, depth=0, order=enqueue_order, url=seed))
+        enqueue_order += 1
         if reporter is not None:
             reporter.log(
                 stage="crawl",
@@ -179,7 +182,16 @@ async def crawl_source_pages(
             if not matches_detail_url(link, detail_page_keywords):
                 continue
             score = score_page_relevance(link, "", detail_page_keywords)
-            heapq.heappush(queue, _QueueItem(priority=-score, depth=item.depth + 1, url=link))
+            heapq.heappush(
+                queue,
+                _QueueItem(
+                    priority=-score,
+                    depth=item.depth + 1,
+                    order=enqueue_order,
+                    url=link,
+                ),
+            )
+            enqueue_order += 1
     if reporter is not None:
         reporter.log(
             stage="crawl",
