@@ -51,6 +51,9 @@ class ScraperIngestionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(records[0].payload["source_url"], "https://example.com/recalls/abc")
         self.assertEqual(records[0].payload["title"], "Original Product")
         self.assertEqual(records[0].payload["selected_recall_date_source"], "selector")
+        self.assertEqual(records[0].payload["selected_recall_date"], "2026-06-09")
+        self.assertNotIn("published_date_candidates", records[0].payload)
+        self.assertNotIn("published_date_candidate_sources", records[0].payload)
 
     async def test_fetch_source_records_skips_records_outside_lookback(self) -> None:
         source_config = ScraperSourceConfig(

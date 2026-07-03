@@ -36,15 +36,7 @@ def clean_detail_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "title": title,
         "headings": headings,
         "visible_text": visible_text,
-        "published_date_candidates": _normalized_date_candidates(
-            payload.get("published_date_candidates", [])
-        ),
     }
-    candidate_sources = _normalized_date_candidate_sources(
-        payload.get("published_date_candidate_sources")
-    )
-    if candidate_sources:
-        cleaned["published_date_candidate_sources"] = candidate_sources
 
     selected_date = payload.get("selected_recall_date")
     if isinstance(selected_date, str) and selected_date.strip():
@@ -94,32 +86,6 @@ def _canonicalize_url(url: str) -> str:
     ]
     clean_query = urlencode(filtered_query, doseq=True)
     return urlunsplit((parts.scheme, parts.netloc, parts.path, clean_query, ""))
-
-
-def _normalized_date_candidates(value: Any) -> list[str]:
-    if not isinstance(value, list):
-        return []
-    seen: set[str] = set()
-    normalized: list[str] = []
-    for candidate in value:
-        text = str(candidate).strip()
-        if not text or text in seen:
-            continue
-        seen.add(text)
-        normalized.append(text)
-    return normalized
-
-
-def _normalized_date_candidate_sources(value: Any) -> dict[str, str]:
-    if not isinstance(value, dict):
-        return {}
-    normalized: dict[str, str] = {}
-    for candidate, source in value.items():
-        candidate_text = str(candidate).strip()
-        source_text = str(source).strip()
-        if candidate_text and source_text:
-            normalized[candidate_text] = source_text
-    return normalized
 
 
 def _assert_no_html_tags(cleaned_payload: dict[str, Any]) -> None:

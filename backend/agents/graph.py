@@ -393,7 +393,6 @@ def _best_recall_date(generated_value: str, fields: list[tuple[str, str]]) -> st
         lowered_path = path.lower()
         return (
             160 * ("selected_recall_date" in lowered_path)
-            + 140 * ("published_date_candidates" in lowered_path)
             + 100 * ("recall" in lowered_path or "rappel" in lowered_path)
             + 80 * ("publication" in lowered_path or "created" in lowered_path)
             + 40 * ("date" in lowered_path)

@@ -56,7 +56,6 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
                 "title": "Flux RSS - veille, abonnement",
                 "headings": ["Flux RSS - veille, abonnement", "Produit"],
                 "visible_text": "ORIENTAL KITCHEN NEM CHUA et NEM CHUA La Tam Ruot rappelés.",
-                "published_date_candidates": ["2026-06-25"],
                 "selected_recall_date": "2026-06-25",
             },
         )
@@ -357,7 +356,6 @@ def _scraped_record(source_name: str = "uk") -> ScrapedRecallRecord:
             "title": "Original Product",
             "headings": ["Risk", "Action"],
             "visible_text": "Original Product recalled due to contamination. Do not consume this product.",
-            "published_date_candidates": ["2026-06-09"],
             "selected_recall_date": "2026-06-09",
         },
     )
