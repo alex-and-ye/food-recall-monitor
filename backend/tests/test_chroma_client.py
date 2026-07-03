@@ -4,7 +4,7 @@ from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 from db.chroma_client import FoodRecallAlertsChromaClient
-from models.food_recall_alert import FoodRecallAlertCreate
+from models.food_recall_alert import FoodRecallAlertCreate, api_source_to_country_source
 
 class ChromaClientDedupeTests(unittest.TestCase):
     def test_init_uses_server_based_http_client(self) -> None:
@@ -204,6 +204,7 @@ class FakeCollection:
 def _alert(source_url: str = "https://example.com/recall") -> FoodRecallAlertCreate:
     return FoodRecallAlertCreate(
         api_source="test-source",
+        country_source=api_source_to_country_source("test-source"),
         product_name="Sample Product",
         product_category="Produce",
         recall_reason="Possible contamination",

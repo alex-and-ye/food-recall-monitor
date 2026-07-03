@@ -104,6 +104,20 @@ class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
         
         return parsed_alerts
 
+    def search_alerts(self, search: str | None = None, risk_level: str | None = None, country_source: str | None = None) -> List[FoodRecallAlert]:
+        alerts = self.get_alerts()
+
+        if risk_level:
+            alerts = [alert for alert in alerts if alert.risk_level == risk_level]
+
+        if country_source:
+            alerts = [alert for alert in alerts if alert.country_source == country_source]
+
+        if search and search.strip():
+            alerts = [alert for alert in alerts if alert.matches_search(search)]
+
+        return alerts
+
     def get_alert_by_id(self, alert_id: str) -> Optional[FoodRecallAlert]:
         results = self.collection.get(ids=[alert_id], include=["metadatas"])
         metadatas = results.get("metadatas") or []
