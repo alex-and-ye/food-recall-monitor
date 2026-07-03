@@ -25,7 +25,6 @@ class ScraperIngestionTests(unittest.IsolatedAsyncioTestCase):
         )
         payload = {
             "source_url": "https://example.com/recalls/abc?utm_source=test",
-            "title": "<h1>Original Product</h1>",
             "headings": ["<h2>Risk</h2>"],
             "visible_text": "<p>Recall notice content.</p>",
             "published_date_candidates": ["2026-06-09"],
@@ -49,7 +48,8 @@ class ScraperIngestionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(records[0], ScrapedRecallRecord)
         self.assertEqual(records[0].source_name, "uk")
         self.assertEqual(records[0].payload["source_url"], "https://example.com/recalls/abc")
-        self.assertEqual(records[0].payload["title"], "Original Product")
+        self.assertNotIn("title", records[0].payload)
+        self.assertEqual(records[0].payload["headings"], ["Risk"])
         self.assertEqual(records[0].payload["selected_recall_date_source"], "selector")
         self.assertEqual(records[0].payload["selected_recall_date"], "2026-06-09")
         self.assertNotIn("published_date_candidates", records[0].payload)
@@ -71,7 +71,6 @@ class ScraperIngestionTests(unittest.IsolatedAsyncioTestCase):
                     return_value=[
                         {
                             "source_url": "https://example.com/recalls/abc",
-                            "title": "A",
                             "headings": [],
                             "visible_text": "B",
                             "published_date_candidates": ["2026-06-01"],
@@ -118,7 +117,7 @@ class ScraperIngestionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("403", result.failures["us"])
 
     def test_translator_envelope_wraps_cleaned_payload(self) -> None:
-        payload = {"title": "Original Product", "visible_text": "Recall content"}
+        payload = {"headings": ["Original Product"], "visible_text": "Recall content"}
         self.assertEqual(to_translator_envelope(payload), {"record": payload})
 
 

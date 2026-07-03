@@ -25,7 +25,6 @@ def extract_detail_payload(
         _html_language(soup),
         configured_languages=date_languages,
     )
-    title_tag = content_root.find("h1") or soup.find("title")
     heading_tags = content_root.find_all(["h1", "h2", "h3"])
     visible_text = content_root.get_text(" ", strip=True)
 
@@ -57,7 +56,6 @@ def extract_detail_payload(
 
     return {
         "source_url": source_url,
-        "title": str(title_tag) if title_tag else "",
         "headings": [str(tag) for tag in heading_tags[:8]],
         "visible_text": visible_text,
         "published_date_candidates": date_candidates,

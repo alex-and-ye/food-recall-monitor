@@ -422,7 +422,7 @@ def _best_product_name(generated_value: str, fields: list[tuple[str, str]]) -> s
         lowered_value = clean_text(value).lower()
         lowered_generated = generated_value.lower()
         return (
-            160 * ("title" in lowered_path)
+            180 * ("headings" in lowered_path)
             + 120 * ("heading" in lowered_path)
             + 110 * ("productname" in lowered_path or "product_name" in lowered_path)
             + 80 * ("product" in lowered_path or "produit" in lowered_path)

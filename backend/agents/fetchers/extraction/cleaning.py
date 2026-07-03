@@ -21,7 +21,6 @@ MULTISPACE_RE = re.compile(r"\s+")
 
 
 def clean_detail_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    title = _normalize_plain_text(_strip_html(str(payload.get("title", ""))))
     headings = [
         _normalize_plain_text(_strip_html(str(heading)))
         for heading in payload.get("headings", [])
@@ -33,7 +32,6 @@ def clean_detail_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
     cleaned = {
         "source_url": source_url,
-        "title": title,
         "headings": headings,
         "visible_text": visible_text,
     }
@@ -89,9 +87,8 @@ def _canonicalize_url(url: str) -> str:
 
 
 def _assert_no_html_tags(cleaned_payload: dict[str, Any]) -> None:
-    for key in ("title", "visible_text"):
-        if HTML_TAG_RE.search(str(cleaned_payload.get(key, ""))):
-            raise ValueError(f"Unexpected HTML tags after cleaning: {key}")
+    if HTML_TAG_RE.search(str(cleaned_payload.get("visible_text", ""))):
+        raise ValueError("Unexpected HTML tags after cleaning: visible_text")
     for heading in cleaned_payload.get("headings", []):
         if HTML_TAG_RE.search(str(heading)):
             raise ValueError("Unexpected HTML tags after cleaning: headings")

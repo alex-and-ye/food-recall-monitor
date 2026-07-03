@@ -53,7 +53,6 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
             source_name="france",
             payload={
                 "source_url": "https://rappel.conso.gouv.fr/fiche-rappel/22622/Interne",
-                "title": "Flux RSS - veille, abonnement",
                 "headings": ["Flux RSS - veille, abonnement", "Produit"],
                 "visible_text": "ORIENTAL KITCHEN NEM CHUA et NEM CHUA La Tam Ruot rappelés.",
                 "selected_recall_date": "2026-06-25",
@@ -233,7 +232,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
         translated = {
             "record": {
                 **scraped_record.payload,
-                "title": "Produit rappelé Original Product",
+                "headings": ["Produit rappelé Original Product", "Risque", "Action"],
             }
         }
         state: PipelineRecordState = {"record": scraped_record}
@@ -353,8 +352,7 @@ def _scraped_record(source_name: str = "uk") -> ScrapedRecallRecord:
         source_name=source_name,
         payload={
             "source_url": "https://source.example.com/recalls/abc",
-            "title": "Original Product",
-            "headings": ["Risk", "Action"],
+            "headings": ["Original Product", "Risk", "Action"],
             "visible_text": "Original Product recalled due to contamination. Do not consume this product.",
             "selected_recall_date": "2026-06-09",
         },
