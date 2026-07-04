@@ -20,8 +20,5 @@ def get_db() -> FoodRecallAlertsDBInterface:
 def get_alerts_service(db: FoodRecallAlertsDBInterface = Depends(get_db)) -> AlertsService:
     return AlertsService(db)
 
-def get_pipeline_progress_tracker() -> PipelineProgressTracker:
-    return _pipeline_progress_tracker
-
 def get_pipeline_service(db: FoodRecallAlertsDBInterface = Depends(get_db)) -> PipelineService:
-    return PipelineService(db, progress_tracker=get_pipeline_progress_tracker())
+    return PipelineService(db, progress_tracker=_pipeline_progress_tracker)

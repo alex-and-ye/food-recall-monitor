@@ -46,7 +46,6 @@ class PipelineService:
             raise
 
         return PipelineRunResult(
-            run_id=run_id,
             new_alerts_count=saved_count,
             records_fetched=pipeline_result.records_fetched,
             source_failures=pipeline_result.source_failures,
