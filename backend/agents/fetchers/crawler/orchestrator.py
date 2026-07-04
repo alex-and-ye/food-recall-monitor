@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import heapq
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
 
@@ -23,7 +23,8 @@ LOGGER = logging.getLogger(__name__)
 class _QueueItem:
     priority: int
     depth: int
-    url: str
+    order: int
+    url: str = field(compare=False)
 
 
 async def crawl_source_pages(
@@ -37,9 +38,11 @@ async def crawl_source_pages(
     blocked_paths = source_config.hints.blocked_paths
     queue: list[_QueueItem] = []
     fetch_failures = 0
+    enqueue_order = 0
     for seed in source_config.seed_urls:
         score = score_url_relevance(seed, detail_page_keywords)
-        heapq.heappush(queue, _QueueItem(priority=-score, depth=0, url=seed))
+        heapq.heappush(queue, _QueueItem(priority=-score, depth=0, order=enqueue_order, url=seed))
+        enqueue_order += 1
         if reporter is not None:
             reporter.log(
                 stage="crawl",
@@ -134,6 +137,7 @@ async def crawl_source_pages(
                     "page_class": page_class,
                     "render_mode": render_mode,
                     "pages_seen": pages_seen,
+                    "html_excerpt": html[:500],
                 },
             )
         if page_class == "detail":
@@ -141,6 +145,7 @@ async def crawl_source_pages(
                 source_url=final_url,
                 html=html,
                 date_selectors=source_config.hints.date_selectors,
+                date_languages=source_config.hints.date_languages,
             )
             detail_pages.append(payload)
             if reporter is not None:
@@ -151,6 +156,7 @@ async def crawl_source_pages(
                     details={
                         "url": final_url,
                         "date_candidates": len(list(payload.get("published_date_candidates", []))),
+                        "extracted_payload": _to_jsonable(payload),
                     },
                 )
 
@@ -168,7 +174,7 @@ async def crawl_source_pages(
                 stage="crawl",
                 source=source_name,
                 message="Discovered internal links",
-                details={"url": final_url, "link_count": len(links)},
+                details={"url": final_url, "link_count": len(links), "links": links},
             )
         for link in links:
             if link in visited:
@@ -176,7 +182,16 @@ async def crawl_source_pages(
             if not matches_detail_url(link, detail_page_keywords):
                 continue
             score = score_page_relevance(link, "", detail_page_keywords)
-            heapq.heappush(queue, _QueueItem(priority=-score, depth=item.depth + 1, url=link))
+            heapq.heappush(
+                queue,
+                _QueueItem(
+                    priority=-score,
+                    depth=item.depth + 1,
+                    order=enqueue_order,
+                    url=link,
+                ),
+            )
+            enqueue_order += 1
     if reporter is not None:
         reporter.log(
             stage="crawl",
@@ -227,3 +242,17 @@ def _looks_dynamic(html: str) -> bool:
     script_tags = html.count("<script")
     text_like = len(" ".join(html.split()))
     return script_tags > 20 and text_like < 3_000
+
+
+def _to_jsonable(value: object) -> object:
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    if isinstance(value, dict):
+        return {str(key): _to_jsonable(child) for key, child in value.items()}
+    if isinstance(value, list):
+        return [_to_jsonable(child) for child in value]
+    if isinstance(value, tuple):
+        return [_to_jsonable(child) for child in value]
+    if isinstance(value, set):
+        return [_to_jsonable(child) for child in sorted(value, key=str)]
+    return str(value)

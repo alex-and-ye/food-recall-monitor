@@ -63,7 +63,10 @@ async def fetch_source_records(
             stage="source",
             source=source,
             message="Detail payload extraction finished",
-            details={"detail_payload_count": len(detail_payloads)},
+            details={
+                "detail_payload_count": len(detail_payloads),
+                "detail_payloads": _to_jsonable(detail_payloads),
+            },
         )
 
     records: list[ScrapedRecallRecord] = []
@@ -81,6 +84,7 @@ async def fetch_source_records(
                     details={
                         "source_url": str(payload.get("source_url", "")),
                         "published_date_candidates": list(payload.get("published_date_candidates", [])),
+                        "payload": _to_jsonable(payload),
                     },
                 )
             continue
@@ -97,7 +101,9 @@ async def fetch_source_records(
                 details={
                     "source_url": cleaned_payload.get("source_url", ""),
                     "selected_recall_date": selected_date,
+                    "selected_recall_date_source": payload.get("selected_recall_date_source", "generic"),
                     "records_collected": len(records),
+                    "cleaned_payload": _to_jsonable(cleaned_payload),
                 },
             )
         if len(records) >= effective_limit:
@@ -154,3 +160,17 @@ def _date_candidate_source(payload: dict[str, Any], selected_date: str) -> str:
         return "generic"
     source = str(sources.get(selected_date, "")).strip()
     return source or "generic"
+
+
+def _to_jsonable(value: Any) -> Any:
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    if isinstance(value, dict):
+        return {str(key): _to_jsonable(child) for key, child in value.items()}
+    if isinstance(value, list):
+        return [_to_jsonable(child) for child in value]
+    if isinstance(value, tuple):
+        return [_to_jsonable(child) for child in value]
+    if isinstance(value, set):
+        return [_to_jsonable(child) for child in sorted(value, key=str)]
+    return str(value)

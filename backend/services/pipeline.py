@@ -27,7 +27,10 @@ class PipelineService:
                 reporter.log(
                     stage="db",
                     message="Persisting alerts to database",
-                    details={"alerts_to_save": len(pipeline_result.alerts)},
+                    details={
+                        "alerts_to_save": len(pipeline_result.alerts),
+                        "alerts": [alert.model_dump(mode="json") for alert in pipeline_result.alerts],
+                    },
                 )
             saved_count = self.db.save_alerts(pipeline_result.alerts)
             if self.progress_tracker is not None and run_id is not None:
@@ -43,7 +46,6 @@ class PipelineService:
             raise
 
         return PipelineRunResult(
-            run_id=run_id,
             new_alerts_count=saved_count,
             records_fetched=pipeline_result.records_fetched,
             source_failures=pipeline_result.source_failures,

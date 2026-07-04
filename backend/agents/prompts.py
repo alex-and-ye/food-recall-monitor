@@ -5,10 +5,8 @@ You will receive a cleaned scraped recall webpage payload in this shape:
 {
   "record": {
     "source_url": "...",
-    "title": "...",
     "headings": ["..."],
     "visible_text": "...",
-    "published_date_candidates": ["YYYY-MM-DD"],
     "selected_recall_date": "YYYY-MM-DD"
   }
 }

@@ -20,7 +20,6 @@ class AgentPipelineResult:
 
 @dataclass
 class PipelineRunResult:
-    run_id: str | None
     new_alerts_count: int
     records_fetched: int
     source_failures: dict[str, str] = field(default_factory=dict)

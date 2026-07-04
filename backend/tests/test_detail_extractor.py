@@ -18,8 +18,9 @@ class DetailExtractorTests(unittest.TestCase):
 
         payload = extract_detail_payload(source_url="https://example.com/recalls/1", html=html)
         self.assertEqual(payload["source_url"], "https://example.com/recalls/1")
-        self.assertIn("Recall heading", payload["title"])
+        self.assertNotIn("title", payload)
         self.assertTrue(payload["headings"])
+        self.assertIn("Recall heading", payload["headings"][0])
         self.assertIn("Do not consume", payload["visible_text"])
         self.assertIn("2026-06-23", payload["published_date_candidates"])
 
@@ -39,7 +40,8 @@ class DetailExtractorTests(unittest.TestCase):
         """
 
         payload = extract_detail_payload(source_url="https://example.com/recalls/2", html=html)
-        self.assertIn("Main recall heading", payload["title"])
+        self.assertNotIn("title", payload)
+        self.assertIn("Main recall heading", payload["headings"][0])
         self.assertIn("Stop using this product", payload["visible_text"])
         self.assertNotIn("Top navigation", payload["visible_text"])
         self.assertNotIn("Privacy policy", payload["visible_text"])

@@ -94,6 +94,13 @@ async def run_pipeline(
             details={
                 "records_fetched": len(fetch_result.records),
                 "source_failures": fetch_result.failures,
+                "fetched_records": [
+                    {
+                        "source_name": record.source_name,
+                        "payload": _to_jsonable(record.payload),
+                    }
+                    for record in fetch_result.records
+                ],
             },
         )
 
@@ -107,6 +114,7 @@ async def run_pipeline(
                 details={
                     "record_index": index,
                     "source_url": record.payload.get("source_url", ""),
+                    "record_payload": _to_jsonable(record.payload),
                 },
             )
         try:
@@ -125,6 +133,7 @@ async def run_pipeline(
                     details={
                         "record_index": index,
                         "error": str(exc),
+                        "record_payload": _to_jsonable(record.payload),
                     },
                 )
             continue
@@ -134,7 +143,10 @@ async def run_pipeline(
                 stage="record",
                 source=record.source_name,
                 message="Record processed successfully",
-                details={"record_index": index},
+                details={
+                    "record_index": index,
+                    "processed_state": _state_snapshot(result),
+                },
             )
 
     return AgentPipelineResult(
@@ -158,6 +170,7 @@ def _tracked_node(
                 stage="agent",
                 source=source_name,
                 message=f"{node_name} started",
+                details={"input_state": _state_snapshot(state)},
             )
         result = node_fn(state)
         if reporter is not None:
@@ -165,6 +178,7 @@ def _tracked_node(
                 stage="agent",
                 source=source_name,
                 message=f"{node_name} completed",
+                details={"output_state": _state_snapshot(result)},
             )
         return result
 
@@ -379,7 +393,6 @@ def _best_recall_date(generated_value: str, fields: list[tuple[str, str]]) -> st
         lowered_path = path.lower()
         return (
             160 * ("selected_recall_date" in lowered_path)
-            + 140 * ("published_date_candidates" in lowered_path)
             + 100 * ("recall" in lowered_path or "rappel" in lowered_path)
             + 80 * ("publication" in lowered_path or "created" in lowered_path)
             + 40 * ("date" in lowered_path)
@@ -409,7 +422,7 @@ def _best_product_name(generated_value: str, fields: list[tuple[str, str]]) -> s
         lowered_value = clean_text(value).lower()
         lowered_generated = generated_value.lower()
         return (
-            160 * ("title" in lowered_path)
+            180 * ("headings" in lowered_path)
             + 120 * ("heading" in lowered_path)
             + 110 * ("productname" in lowered_path or "product_name" in lowered_path)
             + 80 * ("product" in lowered_path or "produit" in lowered_path)
@@ -439,3 +452,41 @@ def _original_string_fields(value: Any, path: str = "") -> list[tuple[str, str]]
             fields.extend(_original_string_fields(child, f"{path}[{index}]"))
         return fields
     return []
+
+
+def _state_snapshot(state: dict[str, Any]) -> dict[str, Any]:
+    snapshot: dict[str, Any] = {}
+    if "record" in state:
+        record = state["record"]
+        snapshot["record"] = {
+            "source_name": record.source_name,
+            "payload": _to_jsonable(record.payload),
+        }
+    if "translated_json" in state:
+        snapshot["translated_json"] = _to_jsonable(state["translated_json"])
+    if "summary" in state:
+        snapshot["summary"] = _to_jsonable(state["summary"])
+    if "structured_json" in state:
+        snapshot["structured_json"] = _to_jsonable(state["structured_json"])
+    if "alert" in state:
+        snapshot["alert"] = _to_jsonable(state["alert"])
+    return snapshot
+
+
+def _to_jsonable(value: Any) -> Any:
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    if isinstance(value, dict):
+        return {str(key): _to_jsonable(child) for key, child in value.items()}
+    if isinstance(value, list):
+        return [_to_jsonable(child) for child in value]
+    if isinstance(value, tuple):
+        return [_to_jsonable(child) for child in value]
+    if isinstance(value, set):
+        return [_to_jsonable(child) for child in sorted(value, key=str)]
+    if hasattr(value, "model_dump"):
+        try:
+            return _to_jsonable(value.model_dump(mode="json"))
+        except TypeError:
+            return _to_jsonable(value.model_dump())
+    return str(value)

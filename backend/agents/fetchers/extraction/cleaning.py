@@ -21,7 +21,6 @@ MULTISPACE_RE = re.compile(r"\s+")
 
 
 def clean_detail_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    title = _normalize_plain_text(_strip_html(str(payload.get("title", ""))))
     headings = [
         _normalize_plain_text(_strip_html(str(heading)))
         for heading in payload.get("headings", [])
@@ -33,18 +32,9 @@ def clean_detail_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
     cleaned = {
         "source_url": source_url,
-        "title": title,
         "headings": headings,
         "visible_text": visible_text,
-        "published_date_candidates": _normalized_date_candidates(
-            payload.get("published_date_candidates", [])
-        ),
     }
-    candidate_sources = _normalized_date_candidate_sources(
-        payload.get("published_date_candidate_sources")
-    )
-    if candidate_sources:
-        cleaned["published_date_candidate_sources"] = candidate_sources
 
     selected_date = payload.get("selected_recall_date")
     if isinstance(selected_date, str) and selected_date.strip():
@@ -96,36 +86,9 @@ def _canonicalize_url(url: str) -> str:
     return urlunsplit((parts.scheme, parts.netloc, parts.path, clean_query, ""))
 
 
-def _normalized_date_candidates(value: Any) -> list[str]:
-    if not isinstance(value, list):
-        return []
-    seen: set[str] = set()
-    normalized: list[str] = []
-    for candidate in value:
-        text = str(candidate).strip()
-        if not text or text in seen:
-            continue
-        seen.add(text)
-        normalized.append(text)
-    return normalized
-
-
-def _normalized_date_candidate_sources(value: Any) -> dict[str, str]:
-    if not isinstance(value, dict):
-        return {}
-    normalized: dict[str, str] = {}
-    for candidate, source in value.items():
-        candidate_text = str(candidate).strip()
-        source_text = str(source).strip()
-        if candidate_text and source_text:
-            normalized[candidate_text] = source_text
-    return normalized
-
-
 def _assert_no_html_tags(cleaned_payload: dict[str, Any]) -> None:
-    for key in ("title", "visible_text"):
-        if HTML_TAG_RE.search(str(cleaned_payload.get(key, ""))):
-            raise ValueError(f"Unexpected HTML tags after cleaning: {key}")
+    if HTML_TAG_RE.search(str(cleaned_payload.get("visible_text", ""))):
+        raise ValueError("Unexpected HTML tags after cleaning: visible_text")
     for heading in cleaned_payload.get("headings", []):
         if HTML_TAG_RE.search(str(heading)):
             raise ValueError("Unexpected HTML tags after cleaning: headings")

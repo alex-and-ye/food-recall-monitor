@@ -6,3 +6,6 @@ __pycache__/
 
 # Data files
 .chroma_data/
+
+# Backend structured logs (hidden by dot-prefixed folder)
+.logs/
