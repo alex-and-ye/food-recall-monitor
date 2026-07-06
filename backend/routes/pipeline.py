@@ -7,6 +7,7 @@ from dependencies import get_pipeline_service
 
 router = APIRouter(prefix="/api/pipeline", tags=["pipeline"])
 
+# TODO: Remove this manual trigger route before final project delivery
 @router.post("/run", response_model=dict, status_code=status.HTTP_200_OK)
 async def run_pipeline(
     options: PipelineRunOptions | None = None,
