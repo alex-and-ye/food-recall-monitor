@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from "react";
 import LoadingState from "@/components/LoadingState";
-import { fetchMockStats } from "@/services/mockData";
+import {
+  bodyTextClassName,
+  cardClassName,
+  mutedTextClassName,
+  pageTitleClassName,
+  sectionLabelClassName,
+} from "@/lib/ui";
+import { getAlertStats } from "@/services/api/client";
 import type { FoodRecallAlertStats } from "@/types/alert";
 
 type StatsStatus = "pending" | "ready";
@@ -21,25 +28,23 @@ function RankedList({
   const maxCount = items[0]?.[1] ?? 0;
 
   return (
-    <div className="rounded-xl bg-white p-6 shadow-md ring-1 ring-slate-200/60">
-      <h3 className="mb-4 text-sm font-medium tracking-wide text-slate-500 uppercase">
-        {title}
-      </h3>
+    <div className={`${cardClassName} p-6`}>
+      <h3 className={`mb-4 ${sectionLabelClassName}`}>{title}</h3>
 
       {items.length === 0 ? (
-        <p className="text-sm text-slate-500">No data available.</p>
+        <p className={mutedTextClassName}>No data available.</p>
       ) : (
         <ol className="space-y-3">
           {items.map(([name, count], index) => (
             <li key={`${name}-${index}`}>
               <div className="mb-1 flex items-baseline justify-between gap-3">
-                <span className="truncate text-sm font-medium text-slate-800">
-                  <span className="mr-2 text-xs font-semibold text-slate-400">
+                <span className={`truncate font-medium ${bodyTextClassName}`}>
+                  <span className="mr-2 text-sm font-semibold text-slate-400">
                     {index + 1}.
                   </span>
                   {name}
                 </span>
-                <span className={`shrink-0 text-sm font-bold ${accentClassName}`}>
+                <span className={`shrink-0 text-base font-bold ${accentClassName}`}>
                   {count}
                 </span>
               </div>
@@ -64,16 +69,11 @@ interface SummaryCardProps {
   value: number;
 }
 
-function SummaryCard({
-  label,
-  value,
-}: SummaryCardProps) {
+function SummaryCard({ label, value }: SummaryCardProps) {
   return (
-    <div className="rounded-xl bg-white p-8 shadow-md ring-1 ring-slate-200/60">
-      <p className="mb-3 text-sm font-medium tracking-wide text-slate-500 uppercase">
-        {label}
-      </p>
-      <p className={`text-5xl font-extrabold text-slate-900`}>{value}</p>
+    <div className={`${cardClassName} p-6`}>
+      <p className={`mb-3 ${sectionLabelClassName}`}>{label}</p>
+      <p className="text-5xl font-extrabold text-slate-900">{value}</p>
     </div>
   );
 }
@@ -83,7 +83,7 @@ export default function StatsPage() {
   const [stats, setStats] = useState<FoodRecallAlertStats | null>(null);
 
   useEffect(() => {
-    fetchMockStats().then((data) => {
+    getAlertStats().then((data) => {
       setStats(data);
       setStatus("ready");
     });
@@ -99,7 +99,7 @@ export default function StatsPage() {
 
   return (
     <div>
-      <h2 className="mb-8 text-2xl font-bold tracking-tight text-slate-900">
+      <h2 className={`mb-8 ${pageTitleClassName}`}>
         Food Recall Alert Statistics
       </h2>
 
