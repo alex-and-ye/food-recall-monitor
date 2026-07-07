@@ -6,7 +6,7 @@ from dependencies import get_alerts_service
 
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
-@router.get("/", response_model=dict, status_code=status.HTTP_200_OK)
+@router.get("", response_model=dict, status_code=status.HTTP_200_OK)
 async def get_alerts(
     search: str | None = None,
     risk_level: str | None = None,
