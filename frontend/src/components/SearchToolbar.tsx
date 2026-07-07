@@ -1,67 +1,39 @@
 "use client";
 
-import { type SubmitEvent, useCallback, useEffect, useRef, useState } from "react";
+import { type SubmitEvent, useCallback, useEffect, useState } from "react";
 import {
-  buildAlertSearchPayload,
   DEFAULT_ALERT_SEARCH_FORM_STATE,
   hasActiveFilters,
   type AlertSearchFormState,
-  type AlertSearchPayload,
 } from "@/lib/alertSearch";
+import {
+  cardClassName,
+  formLabelClassName,
+  inputClassName,
+  primaryButtonClassName,
+  secondaryButtonClassName,
+  selectClassName,
+} from "@/lib/ui";
 import { COUNTRY_SOURCES, RISK_LEVELS } from "@/types/alert";
-
-const disabledClassName = "disabled:cursor-not-allowed disabled:opacity-40";
-
-const inputClassName = `w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 ${disabledClassName}`;
-
-const selectClassName = `w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition-colors focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 ${disabledClassName}`;
-
-const secondaryButtonClassName = `rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 ${disabledClassName}`;
-
-const primaryButtonClassName = `rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 ${disabledClassName}`;
 
 interface AlertSearchToolbarProps {
   hasFeeds: boolean;
-  onSearch?: (payload: AlertSearchPayload) => void;
+  formState: AlertSearchFormState;
+  onApplyFilters: (state: AlertSearchFormState) => void;
 }
 
 export default function AlertSearchToolbar({
   hasFeeds,
-  onSearch,
+  formState: urlFormState,
+  onApplyFilters,
 }: AlertSearchToolbarProps) {
-  const [formState, setFormState] = useState<AlertSearchFormState>(
-    DEFAULT_ALERT_SEARCH_FORM_STATE,
-  );
-  const hasSearchedRef = useRef(false);
-
-  const filtersActive = hasActiveFilters(formState);
-
-  const resetFeedResults = useCallback(() => {
-    if (!hasFeeds || !onSearch) {
-      return;
-    }
-
-    onSearch(buildAlertSearchPayload(DEFAULT_ALERT_SEARCH_FORM_STATE));
-    hasSearchedRef.current = false;
-  }, [hasFeeds, onSearch]);
-
-  const performSearch = useCallback(() => {
-    const payload = buildAlertSearchPayload(formState);
-
-    if (onSearch) {
-      hasSearchedRef.current = true;
-      onSearch(payload);
-      return;
-    }
-
-    alert(JSON.stringify(payload, null, 2));
-  }, [formState, onSearch]);
+  const [formState, setFormState] = useState<AlertSearchFormState>(urlFormState);
 
   useEffect(() => {
-    if (!hasActiveFilters(formState) && hasSearchedRef.current) {
-      resetFeedResults();
-    }
-  }, [formState, resetFeedResults]);
+    setFormState(urlFormState);
+  }, [urlFormState]);
+
+  const filtersActive = hasActiveFilters(formState);
 
   const handleSubmit = (event: SubmitEvent) => {
     event.preventDefault();
@@ -69,25 +41,44 @@ export default function AlertSearchToolbar({
       return;
     }
 
-    performSearch();
+    onApplyFilters(formState);
   };
 
   const handleClearFilters = () => {
     setFormState(DEFAULT_ALERT_SEARCH_FORM_STATE);
-    resetFeedResults();
+    onApplyFilters(DEFAULT_ALERT_SEARCH_FORM_STATE);
   };
+
+  const handleRiskLevelChange = useCallback(
+    (riskLevel: AlertSearchFormState["riskLevel"]) => {
+      const nextState = { ...formState, riskLevel };
+      setFormState(nextState);
+      if (hasFeeds) {
+        onApplyFilters(nextState);
+      }
+    },
+    [formState, hasFeeds, onApplyFilters],
+  );
+
+  const handleCountrySourceChange = useCallback(
+    (countrySource: AlertSearchFormState["countrySource"]) => {
+      const nextState = { ...formState, countrySource };
+      setFormState(nextState);
+      if (hasFeeds) {
+        onApplyFilters(nextState);
+      }
+    },
+    [formState, hasFeeds, onApplyFilters],
+  );
 
   return (
     <form
       onSubmit={handleSubmit}
-      className="mb-6 rounded-xl border border-slate-300 bg-white p-4 shadow-sm sm:p-5"
+      className={`mb-6 ${cardClassName} p-4 sm:p-5`}
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
         <div className="min-w-0 flex-1 lg:min-w-[12rem]">
-          <label
-            htmlFor="alert-search"
-            className="mb-1.5 block text-sm font-medium text-slate-700"
-          >
+          <label htmlFor="alert-search" className={formLabelClassName}>
             Search
           </label>
           <input
@@ -107,20 +98,16 @@ export default function AlertSearchToolbar({
         </div>
 
         <div className="min-w-0 sm:min-w-[10rem]">
-          <label
-            htmlFor="alert-risk-level"
-            className="mb-1.5 block text-sm font-medium text-slate-700"
-          >
+          <label htmlFor="alert-risk-level" className={formLabelClassName}>
             Risk Level
           </label>
           <select
             id="alert-risk-level"
             value={formState.riskLevel}
             onChange={(event) =>
-              setFormState((current) => ({
-                ...current,
-                riskLevel: event.target.value as AlertSearchFormState["riskLevel"],
-              }))
+              handleRiskLevelChange(
+                event.target.value as AlertSearchFormState["riskLevel"],
+              )
             }
             disabled={!hasFeeds}
             className={selectClassName}
@@ -135,20 +122,16 @@ export default function AlertSearchToolbar({
         </div>
 
         <div className="min-w-0 sm:min-w-[10rem]">
-          <label
-            htmlFor="alert-country-source"
-            className="mb-1.5 block text-sm font-medium text-slate-700"
-          >
+          <label htmlFor="alert-country-source" className={formLabelClassName}>
             Country Source
           </label>
           <select
             id="alert-country-source"
             value={formState.countrySource}
             onChange={(event) =>
-              setFormState((current) => ({
-                ...current,
-                countrySource: event.target.value as AlertSearchFormState["countrySource"],
-              }))
+              handleCountrySourceChange(
+                event.target.value as AlertSearchFormState["countrySource"],
+              )
             }
             disabled={!hasFeeds}
             className={selectClassName}
