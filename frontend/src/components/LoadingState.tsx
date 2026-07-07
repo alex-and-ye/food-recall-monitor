@@ -1,3 +1,5 @@
+import { bodySecondaryClassName } from "@/lib/ui";
+
 export default function LoadingState() {
   return (
     <div className="flex flex-col items-center justify-center gap-4 py-24">
@@ -6,9 +8,7 @@ export default function LoadingState() {
         role="status"
         aria-label="Loading"
       />
-      <p className="text-base font-medium text-slate-600">
-        Loading data...
-      </p>
+      <p className={`font-medium ${bodySecondaryClassName}`}>Loading data...</p>
     </div>
   );
 }
