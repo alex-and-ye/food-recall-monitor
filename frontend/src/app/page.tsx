@@ -1,77 +1,103 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import SearchToolbar from "@/components/SearchToolbar";
 import EmptyState from "@/components/EmptyState";
 import FoodRecallAlertCard from "@/components/FoodRecallAlertCard";
 import LoadingState from "@/components/LoadingState";
 import Pagination from "@/components/Pagination";
 import {
-  filterAlerts,
+  alertFetchParamsFromSearchParams,
   formatResultsCount,
-  type AlertSearchPayload,
+  formStateFromSearchParams,
+  hasActiveUrlFilters,
+  searchParamsFromFormState,
+  type AlertSearchFormState,
 } from "@/lib/alertSearch";
-import { fetchMockAlerts } from "@/services/mockData";
+import { bodySecondaryClassName } from "@/lib/ui";
+import { getAlerts } from "@/services/api/client";
 import type { FoodRecallAlert } from "@/types/alert";
 
 const ITEMS_PER_PAGE = 10;
 
 type PageStatus = "pending" | "empty" | "ready";
 
-export default function HomePage() {
+function HomePageContent() {
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
+
   const [status, setStatus] = useState<PageStatus>("pending");
   const [alerts, setAlerts] = useState<FoodRecallAlert[]>([]);
-  const [displayedAlerts, setDisplayedAlerts] = useState<FoodRecallAlert[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
 
-  const loadAlerts = useCallback(() => {
-    setStatus("pending");
-    setCurrentPage(1);
+  const urlFormState = formStateFromSearchParams(searchParams);
 
-    fetchMockAlerts().then((data) => {
-      if (data.length === 0) {
-        setAlerts([]);
-        setDisplayedAlerts([]);
-        setStatus("empty");
-      } else {
+  const applyFilters = useCallback(
+    (state: AlertSearchFormState) => {
+      const params = searchParamsFromFormState(state);
+      const query = params.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+      setCurrentPage(1);
+    },
+    [pathname, router],
+  );
+
+  const loadAlerts = useCallback(() => {
+    const params = alertFetchParamsFromSearchParams(searchParams);
+    setStatus("pending");
+
+    getAlerts(params)
+      .then((data) => {
+        const filtersActive = hasActiveUrlFilters(searchParams);
+
+        if (data.length === 0 && !filtersActive) {
+          setAlerts([]);
+          setStatus("empty");
+          return;
+        }
+
         setAlerts(data);
-        setDisplayedAlerts(data);
         setStatus("ready");
-      }
-    });
-  }, []);
+      })
+      .catch(() => {
+        setAlerts([]);
+        setStatus("empty");
+      });
+  }, [searchParams]);
 
   useEffect(() => {
     loadAlerts();
   }, [loadAlerts]);
 
-  const handleSearch = useCallback(
-    (payload: AlertSearchPayload) => {
-      setDisplayedAlerts(filterAlerts(alerts, payload));
-      setCurrentPage(1);
-    },
-    [alerts],
-  );
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchParams]);
 
-  const hasFeeds = alerts.length > 0;
-  const hasResults = displayedAlerts.length > 0;
-  const totalPages = Math.max(1, Math.ceil(displayedAlerts.length / ITEMS_PER_PAGE));
+  const hasFeeds = status === "ready" || hasActiveUrlFilters(searchParams);
+  const hasResults = alerts.length > 0;
+  const totalPages = Math.max(1, Math.ceil(alerts.length / ITEMS_PER_PAGE));
   const pageStart = (currentPage - 1) * ITEMS_PER_PAGE;
   const pageEnd = currentPage * ITEMS_PER_PAGE;
-  const visibleAlerts = displayedAlerts.slice(pageStart, pageEnd);
+  const visibleAlerts = alerts.slice(pageStart, pageEnd);
 
   return (
     <>
-      <SearchToolbar hasFeeds={hasFeeds} onSearch={handleSearch} />
+      <SearchToolbar
+        hasFeeds={hasFeeds}
+        formState={urlFormState}
+        onApplyFilters={applyFilters}
+      />
 
       {status === "pending" && <LoadingState />}
 
-      {status === "empty" && <EmptyState onCheckAgain={loadAlerts} />}
+      {status === "empty" && <EmptyState />}
 
       {status === "ready" && (
         <>
-          <p className="mb-4 text-sm font-medium text-slate-600">
-            {formatResultsCount(displayedAlerts.length)}
+          <p className={`mb-4 font-medium ${bodySecondaryClassName}`}>
+            {formatResultsCount(alerts.length)}
           </p>
 
           {hasResults ? (
@@ -90,12 +116,20 @@ export default function HomePage() {
               </div>
             </Pagination>
           ) : (
-            <p className="text-center text-sm text-slate-600">
+            <p className={`text-center ${bodySecondaryClassName}`}>
               No food recall alerts match your current search and filters.
             </p>
           )}
         </>
       )}
     </>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={<LoadingState />}>
+      <HomePageContent />
+    </Suspense>
   );
 }
