@@ -1,3 +1,4 @@
+import type { ReadonlyURLSearchParams } from "next/navigation";
 import type { CountrySource, FoodRecallAlert, RiskLevel } from "@/types/alert";
 
 export type RiskLevelFilter = RiskLevel | "All";
@@ -40,6 +41,69 @@ export function hasActiveFilters(state: AlertSearchFormState): boolean {
   );
 }
 
+export function formStateFromSearchParams(
+  searchParams: ReadonlyURLSearchParams,
+): AlertSearchFormState {
+  const riskLevel = searchParams.get("risk_level");
+  const countrySource = searchParams.get("country_source");
+
+  return {
+    search: searchParams.get("search") ?? "",
+    riskLevel:
+      riskLevel === "High" || riskLevel === "Medium" || riskLevel === "Low"
+        ? riskLevel
+        : "All",
+    countrySource:
+      countrySource === "UK" ||
+      countrySource === "Germany" ||
+      countrySource === "France"
+        ? countrySource
+        : "All",
+  };
+}
+
+export function searchParamsFromFormState(
+  state: AlertSearchFormState,
+): URLSearchParams {
+  const params = new URLSearchParams();
+
+  const search = state.search.trim();
+  if (search) {
+    params.set("search", search);
+  }
+  if (state.riskLevel !== "All") {
+    params.set("risk_level", state.riskLevel);
+  }
+  if (state.countrySource !== "All") {
+    params.set("country_source", state.countrySource);
+  }
+
+  return params;
+}
+
+export function hasActiveUrlFilters(
+  searchParams: ReadonlyURLSearchParams,
+): boolean {
+  return hasActiveFilters(formStateFromSearchParams(searchParams));
+}
+
+export function alertFetchParamsFromSearchParams(
+  searchParams: ReadonlyURLSearchParams,
+): {
+  search?: string;
+  risk_level?: string;
+  country_source?: string;
+} {
+  const formState = formStateFromSearchParams(searchParams);
+  const payload = buildAlertSearchPayload(formState);
+
+  return {
+    search: payload.search.trim() || undefined,
+    risk_level: payload.risk_level ?? undefined,
+    country_source: payload.country_source ?? undefined,
+  };
+}
+
 export function filterAlerts(
   alerts: FoodRecallAlert[],
   payload: AlertSearchPayload,
@@ -69,7 +133,7 @@ export function filterAlerts(
       alert.hazard_type,
       alert.summary,
       alert.consumer_action,
-      alert.batch_id,
+      alert.api_source,
       ...alert.affected_regions,
     ]
       .join(" ")
