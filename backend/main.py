@@ -1,17 +1,32 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from bootstrap import run_state_aware_bootstrap
+from dependencies import get_db, get_alerts_service, get_pipeline_service
 from paths import ensure_backend_data_dirs
 from routes.alerts import router as alerts_router
 from routes.pipeline import router as pipeline_router
+from scheduler import start_daily_pipeline_scheduler, stop_daily_pipeline_scheduler
 
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     ensure_backend_data_dirs()
+
+    db = get_db()
+    pipeline_service = get_pipeline_service(db)
+    alerts_service = get_alerts_service(db)
+
+    await run_state_aware_bootstrap(alerts_service, pipeline_service)
+    scheduler_task, stop_event = start_daily_pipeline_scheduler(pipeline_service)
+
     yield
+
+    await stop_daily_pipeline_scheduler(scheduler_task, stop_event)
 
 app = FastAPI(
     title="Food Recall Monitor API",
