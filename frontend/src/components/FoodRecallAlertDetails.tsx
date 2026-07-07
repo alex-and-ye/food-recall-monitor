@@ -36,11 +36,6 @@ export default function FoodRecallAlertDetails({
       </div>
 
       <div>
-        <span className={detailLabelClassName}>API Source:</span>
-        <p className={detailValueClassName}>{formatText(alert.api_source)}</p>
-      </div>
-
-      <div>
         <span className={detailLabelClassName}>Country Source:</span>
         <p className={detailValueClassName}>
           {formatText(alert.country_source)}
