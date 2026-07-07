@@ -1,11 +1,13 @@
-interface EmptyStateProps {
-  onCheckAgain: () => void;
-}
+import { bodySecondaryClassName, cardClassName } from "@/lib/ui";
 
-export default function EmptyState({ onCheckAgain }: EmptyStateProps) {
+export default function EmptyState() {
   return (
-    <p className="text-lg text-slate-700 text-center">
-      No records available. Please check back tomorrow.
-    </p>
+    <div
+      className={`${cardClassName} px-6 py-12 text-center`}
+    >
+      <p className={`font-medium ${bodySecondaryClassName}`}>
+        No records available. Please check back tomorrow.
+      </p>
+    </div>
   );
 }
