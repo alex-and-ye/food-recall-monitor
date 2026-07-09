@@ -1,5 +1,6 @@
 from agents.graph import run_pipeline as run_agent_pipeline
 from db.interface import FoodRecallAlertsDBInterface
+from models.food_recall_alert import FoodRecallAlertCreate
 from models.pipeline_options import PipelineRunOptions
 from models.pipeline_result import PipelineRunResult
 from services.alert_events import AlertChangeBroadcaster
@@ -25,17 +26,29 @@ class PipelineService:
             reporter = self.progress_tracker.reporter(run_id)
 
         try:
-            pipeline_result = await run_agent_pipeline(run_options, reporter=reporter)
-            if reporter is not None:
-                reporter.log(
-                    stage="db",
-                    message="Persisting alerts to database",
-                    details={
-                        "alerts_to_save": len(pipeline_result.alerts),
-                        "alerts": [alert.model_dump(mode="json") for alert in pipeline_result.alerts],
-                    },
-                )
-            saved_count = self.db.save_alerts(pipeline_result.alerts)
+            saved_count = 0
+
+            def save_alert_incrementally(alert: FoodRecallAlertCreate) -> int:
+                nonlocal saved_count
+                inserted_count = self.db.save_alerts([alert])
+                saved_count += inserted_count
+                if reporter is not None:
+                    reporter.log(
+                        stage="db",
+                        message="Alert persisted to database",
+                        details={
+                            "saved_for_alert": inserted_count,
+                            "saved_so_far": saved_count,
+                            "alert": alert.model_dump(mode="json"),
+                        },
+                    )
+                return inserted_count
+
+            pipeline_result = await run_agent_pipeline(
+                run_options,
+                reporter=reporter,
+                on_alert_processed=save_alert_incrementally,
+            )
             if self.alert_broadcaster is not None:
                 self.alert_broadcaster.notify(saved_count)
             if self.progress_tracker is not None and run_id is not None:
