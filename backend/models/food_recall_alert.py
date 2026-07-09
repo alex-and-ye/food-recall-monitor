@@ -23,6 +23,10 @@ class FoodRecallAlertStats(BaseModel):
     alerts_last_7_days: int
     alerts_last_30_days: int
 
+class FoodRecallAlertsVersion(BaseModel):
+    count: int
+    fingerprint: str
+
 class FoodRecallAlertCreate(BaseModel):
     """Recall alert produced by the pipeline before database persistence."""
 

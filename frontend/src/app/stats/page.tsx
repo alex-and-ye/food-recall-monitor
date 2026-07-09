@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import LoadingState from "@/components/LoadingState";
 import {
   bodyTextClassName,
@@ -10,6 +10,7 @@ import {
   sectionLabelClassName,
 } from "@/lib/ui";
 import { getAlertStats } from "@/services/api/client";
+import { useAlertsChangeStream } from "@/hooks/useAlertsChangeStream";
 import type { FoodRecallAlertStats } from "@/types/alert";
 
 type StatsStatus = "pending" | "ready";
@@ -82,12 +83,24 @@ export default function StatsPage() {
   const [status, setStatus] = useState<StatsStatus>("pending");
   const [stats, setStats] = useState<FoodRecallAlertStats | null>(null);
 
-  useEffect(() => {
+  const loadStats = useCallback((options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setStatus("pending");
+    }
+
     getAlertStats().then((data) => {
       setStats(data);
       setStatus("ready");
     });
   }, []);
+
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
+
+  useAlertsChangeStream(() => {
+    loadStats({ silent: true });
+  }, status !== "pending");
 
   if (status === "pending") {
     return <LoadingState />;

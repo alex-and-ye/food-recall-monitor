@@ -100,6 +100,18 @@ class ChromaClientSearchTests(unittest.TestCase):
             ["uk-high"],
         )
 
+    def test_get_alerts_version_returns_count_and_fingerprint(self) -> None:
+        client = cast(Any, object.__new__(FoodRecallAlertsChromaClient))
+        client.collection = MagicMock()
+        client.collection.get.return_value = {
+            "ids": ["alert-b", "alert-a", "alert-c"],
+        }
+
+        version = client.get_alerts_version()
+
+        self.assertEqual(version.count, 3)
+        self.assertEqual(len(version.fingerprint), 64)
+
 def _alert(
     *,
     alert_id: str = "alert-1",

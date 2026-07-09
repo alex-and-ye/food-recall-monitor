@@ -6,7 +6,7 @@ import chromadb
 from chromadb.api.types import Metadata, Where
 
 from db.interface import FoodRecallAlertsDBInterface
-from models.food_recall_alert import FoodRecallAlert, FoodRecallAlertCreate
+from models.food_recall_alert import FoodRecallAlert, FoodRecallAlertCreate, FoodRecallAlertsVersion
 
 class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
     COLLECTION_NAME = "food_recall_alerts_collection"
@@ -87,6 +87,17 @@ class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
             ]
         )
         return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
+
+    def get_alerts_version(self) -> FoodRecallAlertsVersion:
+        results = self.collection.get(include=[])
+        ids = results.get("ids") or []
+        sorted_ids = sorted(ids)
+        fingerprint = hashlib.sha256(",".join(sorted_ids).encode("utf-8")).hexdigest()
+
+        return FoodRecallAlertsVersion(
+            count=len(sorted_ids),
+            fingerprint=fingerprint,
+        )
 
     def get_alerts(self) -> List[FoodRecallAlert]:
         results = self.collection.get(include=["metadatas"])

@@ -3,7 +3,7 @@ from datetime import date, timedelta
 from typing import List, Optional
 
 from db.interface import FoodRecallAlertsDBInterface
-from models.food_recall_alert import FoodRecallAlert, FoodRecallAlertStats
+from models.food_recall_alert import FoodRecallAlert, FoodRecallAlertStats, FoodRecallAlertsVersion
 
 class AlertsService:
     def __init__(self, db: FoodRecallAlertsDBInterface) -> None:
@@ -11,6 +11,9 @@ class AlertsService:
 
     def get_alerts(self) -> List[FoodRecallAlert]:
         return self.db.get_alerts()
+
+    def get_alerts_version(self) -> FoodRecallAlertsVersion:
+        return self.db.get_alerts_version()
 
     def get_alert_by_id(self, alert_id: str) -> Optional[FoodRecallAlert]:
         return self.db.get_alert_by_id(alert_id)

@@ -30,3 +30,8 @@ export interface FoodRecallAlertStats {
   alerts_last_7_days: number;
   alerts_last_30_days: number;
 }
+
+export interface FoodRecallAlertsVersion {
+  count: number;
+  fingerprint: string;
+}
