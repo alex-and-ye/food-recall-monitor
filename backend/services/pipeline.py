@@ -2,6 +2,7 @@ from agents.graph import run_pipeline as run_agent_pipeline
 from db.interface import FoodRecallAlertsDBInterface
 from models.pipeline_options import PipelineRunOptions
 from models.pipeline_result import PipelineRunResult
+from services.alert_events import AlertChangeBroadcaster
 from services.pipeline_progress import PipelineProgressTracker
 
 class PipelineService:
@@ -9,9 +10,11 @@ class PipelineService:
         self,
         db: FoodRecallAlertsDBInterface,
         progress_tracker: PipelineProgressTracker | None = None,
+        alert_broadcaster: AlertChangeBroadcaster | None = None,
     ) -> None:
         self.db = db
         self.progress_tracker = progress_tracker
+        self.alert_broadcaster = alert_broadcaster
 
     async def run_pipeline(self, options: PipelineRunOptions | None = None) -> PipelineRunResult:
         run_options = options or PipelineRunOptions()
@@ -33,6 +36,8 @@ class PipelineService:
                     },
                 )
             saved_count = self.db.save_alerts(pipeline_result.alerts)
+            if self.alert_broadcaster is not None:
+                self.alert_broadcaster.notify(saved_count)
             if self.progress_tracker is not None and run_id is not None:
                 self.progress_tracker.complete_run(
                     run_id=run_id,

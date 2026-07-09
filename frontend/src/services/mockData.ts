@@ -3,7 +3,7 @@
 import { filterAlerts, type AlertSearchPayload } from "@/lib/alertSearch";
 import type { GetAlertsParams } from "@/services/api/client";
 import { ApiError } from "@/services/api/errors";
-import type { FoodRecallAlert, FoodRecallAlertStats } from "@/types/alert";
+import type { FoodRecallAlert, FoodRecallAlertStats, FoodRecallAlertsVersion } from "@/types/alert";
 
 const MOCK_ALERTS: FoodRecallAlert[] = [
   {
@@ -184,4 +184,12 @@ export async function fetchMockAlertById(id: string): Promise<FoodRecallAlert> {
 
 export async function fetchMockStats(): Promise<FoodRecallAlertStats> {
   return buildMockStats(MOCK_ALERTS);
+}
+
+export async function fetchMockAlertsVersion(): Promise<FoodRecallAlertsVersion> {
+  const sortedIds = MOCK_ALERTS.map((alert) => alert.alert_id).sort();
+  return {
+    count: sortedIds.length,
+    fingerprint: sortedIds.join(","),
+  };
 }

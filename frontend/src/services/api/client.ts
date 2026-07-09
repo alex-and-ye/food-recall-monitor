@@ -1,8 +1,9 @@
-import type { FoodRecallAlert, FoodRecallAlertStats } from "@/types/alert";
+import type { FoodRecallAlert, FoodRecallAlertStats, FoodRecallAlertsVersion } from "@/types/alert";
 import { ApiError } from "@/services/api/errors";
 import {
   fetchMockAlertById,
   fetchMockAlerts,
+  fetchMockAlertsVersion,
   fetchMockStats,
 } from "@/services/mockData";
 
@@ -11,9 +12,21 @@ export { ApiError } from "@/services/api/errors";
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api";
 
+export function getApiBaseUrl(): string {
+  return API_BASE_URL;
+}
+
+export function getAlertsEventsUrl(): string {
+  return `${API_BASE_URL}/alerts/events`;
+}
+
+export function isMockDataMode(): boolean {
+  return process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true";
+}
+
 // TODO: Remove mock data support before final project delivery
 function useMockData(): boolean {
-  return process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true";
+  return isMockDataMode();
 }
 
 interface AlertsResponse {
@@ -88,6 +101,14 @@ export async function getAlertStats(): Promise<FoodRecallAlertStats> {
   }
 
   return apiFetch<FoodRecallAlertStats>("/alerts/stats");
+}
+
+export async function getAlertsVersion(): Promise<FoodRecallAlertsVersion> {
+  if (useMockData()) {
+    return fetchMockAlertsVersion();
+  }
+
+  return apiFetch<FoodRecallAlertsVersion>("/alerts/version");
 }
 
 export async function getAlertById(id: string): Promise<FoodRecallAlert> {

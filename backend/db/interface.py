@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional
 
-from models.food_recall_alert import FoodRecallAlert, FoodRecallAlertCreate
+from models.food_recall_alert import FoodRecallAlert, FoodRecallAlertCreate, FoodRecallAlertsVersion
 
 class FoodRecallAlertsDBInterface(ABC):
     @abstractmethod
@@ -18,4 +18,8 @@ class FoodRecallAlertsDBInterface(ABC):
 
     @abstractmethod
     def save_alerts(self, alerts: List[FoodRecallAlertCreate]) -> int:
+        pass
+
+    @abstractmethod
+    def get_alerts_version(self) -> FoodRecallAlertsVersion:
         pass

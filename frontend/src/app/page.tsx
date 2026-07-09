@@ -17,6 +17,7 @@ import {
 } from "@/lib/alertSearch";
 import { bodySecondaryClassName } from "@/lib/ui";
 import { getAlerts } from "@/services/api/client";
+import { useAlertsChangeStream } from "@/hooks/useAlertsChangeStream";
 import type { FoodRecallAlert } from "@/types/alert";
 
 const ITEMS_PER_PAGE = 10;
@@ -44,9 +45,11 @@ function HomePageContent() {
     [pathname, router],
   );
 
-  const loadAlerts = useCallback(() => {
+  const loadAlerts = useCallback((options?: { silent?: boolean }) => {
     const params = alertFetchParamsFromSearchParams(searchParams);
-    setStatus("pending");
+    if (!options?.silent) {
+      setStatus("pending");
+    }
 
     getAlerts(params)
       .then((data) => {
@@ -62,14 +65,20 @@ function HomePageContent() {
         setStatus("ready");
       })
       .catch(() => {
-        setAlerts([]);
-        setStatus("empty");
+        if (!options?.silent) {
+          setAlerts([]);
+          setStatus("empty");
+        }
       });
   }, [searchParams]);
 
   useEffect(() => {
     loadAlerts();
   }, [loadAlerts]);
+
+  useAlertsChangeStream(() => {
+    loadAlerts({ silent: true });
+  }, status !== "pending");
 
   useEffect(() => {
     setCurrentPage(1);
