@@ -6,6 +6,7 @@ from db.interface import FoodRecallAlertsDBInterface
 from db.chroma_client import FoodRecallAlertsChromaClient
 from services.alert_events import AlertChangeBroadcaster
 from services.alerts import AlertsService
+from services.pipeline_events import PipelineProgressBroadcaster
 from services.pipeline_progress import PipelineProgressTracker
 from services.pipeline import PipelineService
 
@@ -13,7 +14,10 @@ _chroma_client: FoodRecallAlertsDBInterface = FoodRecallAlertsChromaClient(
     host=os.getenv("CHROMA_HOST", "localhost"),
     port=int(os.getenv("CHROMA_PORT", "8000")),
 )
-_pipeline_progress_tracker = PipelineProgressTracker()
+_pipeline_progress_broadcaster = PipelineProgressBroadcaster()
+_pipeline_progress_tracker = PipelineProgressTracker(
+    progress_broadcaster=_pipeline_progress_broadcaster,
+)
 _alert_change_broadcaster = AlertChangeBroadcaster()
 
 def get_db() -> FoodRecallAlertsDBInterface:
@@ -24,6 +28,12 @@ def get_alerts_service(db: FoodRecallAlertsDBInterface = Depends(get_db)) -> Ale
 
 def get_alert_change_broadcaster() -> AlertChangeBroadcaster:
     return _alert_change_broadcaster
+
+def get_pipeline_progress_broadcaster() -> PipelineProgressBroadcaster:
+    return _pipeline_progress_broadcaster
+
+def get_pipeline_progress_tracker() -> PipelineProgressTracker:
+    return _pipeline_progress_tracker
 
 def get_pipeline_service(
     db: FoodRecallAlertsDBInterface = Depends(get_db),

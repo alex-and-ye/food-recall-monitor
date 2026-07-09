@@ -1,4 +1,8 @@
 import type { FoodRecallAlert, FoodRecallAlertStats, FoodRecallAlertsVersion } from "@/types/alert";
+import type {
+  PipelineProgress,
+  PipelineRunStartResponse,
+} from "@/types/pipeline";
 import { ApiError } from "@/services/api/errors";
 import {
   fetchMockAlertById,
@@ -18,6 +22,10 @@ export function getApiBaseUrl(): string {
 
 export function getAlertsEventsUrl(): string {
   return `${API_BASE_URL}/alerts/events`;
+}
+
+export function getPipelineEventsUrl(): string {
+  return `${API_BASE_URL}/pipeline/events`;
 }
 
 export function isMockDataMode(): boolean {
@@ -117,4 +125,42 @@ export async function getAlertById(id: string): Promise<FoodRecallAlert> {
   }
 
   return apiFetch<FoodRecallAlert>(`/alerts/${encodeURIComponent(id)}`);
+}
+
+export async function startPipelineRun(): Promise<PipelineRunStartResponse> {
+  if (useMockData()) {
+    return {
+      run_id: "mock-run",
+      status: "started",
+      message: "Mock pipeline run started",
+    };
+  }
+
+  return apiFetch<PipelineRunStartResponse>("/pipeline/run", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({}),
+  });
+}
+
+export async function getPipelineProgress(): Promise<PipelineProgress> {
+  if (useMockData()) {
+    return {
+      run_id: null,
+      status: "idle",
+      percent: 0,
+      stage: "idle",
+      message: "Ready",
+      sources_total: 0,
+      sources_completed: 0,
+      records_total: null,
+      records_processed: 0,
+      new_alerts_count: null,
+      error: null,
+    };
+  }
+
+  return apiFetch<PipelineProgress>("/pipeline/progress");
 }
