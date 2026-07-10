@@ -1,7 +1,7 @@
 import unittest
 from datetime import date
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 from agents.errors import SourceFetchError
 from agents.graph import (
@@ -305,6 +305,53 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.records_fetched, 2)
         self.assertEqual(len(result.alerts), 1)
         self.assertEqual(result.alerts[0].api_source, "ca")
+
+    async def test_run_pipeline_invokes_callback_for_each_processed_alert(self) -> None:
+        fake_graph = AsyncMock()
+        first_alert = _alert_for_source("uk")
+        second_alert = _alert_for_source("ca")
+        fake_graph.ainvoke = AsyncMock(side_effect=[{"alert": first_alert}, {"alert": second_alert}])
+        on_alert_processed = Mock(return_value=1)
+
+        with (
+            patch(
+                "agents.graph.fetch_sources_sequentially",
+                new=AsyncMock(return_value=FetchSourcesResult(records=[_scraped_record("uk"), _scraped_record("ca")])),
+            ),
+            patch("agents.graph.create_pipeline_graph", return_value=fake_graph),
+        ):
+            result = await run_pipeline(
+                _options(["uk", "ca"], limit=2),
+                on_alert_processed=on_alert_processed,
+            )
+
+        self.assertEqual(result.records_fetched, 2)
+        self.assertEqual(len(result.alerts), 2)
+        self.assertEqual(on_alert_processed.call_count, 2)
+        on_alert_processed.assert_any_call(first_alert)
+        on_alert_processed.assert_any_call(second_alert)
+
+    async def test_run_pipeline_does_not_invoke_callback_for_failed_record(self) -> None:
+        fake_graph = AsyncMock()
+        second_alert = _alert_for_source("ca")
+        fake_graph.ainvoke = AsyncMock(side_effect=[ValueError("bad record"), {"alert": second_alert}])
+        on_alert_processed = Mock(return_value=1)
+
+        with (
+            patch(
+                "agents.graph.fetch_sources_sequentially",
+                new=AsyncMock(return_value=FetchSourcesResult(records=[_scraped_record("uk"), _scraped_record("ca")])),
+            ),
+            patch("agents.graph.create_pipeline_graph", return_value=fake_graph),
+        ):
+            result = await run_pipeline(
+                _options(["uk", "ca"], limit=2),
+                on_alert_processed=on_alert_processed,
+            )
+
+        self.assertEqual(result.records_fetched, 2)
+        self.assertEqual(len(result.alerts), 1)
+        on_alert_processed.assert_called_once_with(second_alert)
 
 
 def _options(sources: list[str], limit: int) -> PipelineRunOptions:

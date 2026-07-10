@@ -65,6 +65,7 @@ async def run_pipeline(
     options: PipelineRunOptions,
     *,
     reporter: ProgressReporter | None = None,
+    on_alert_processed: Callable[[FoodRecallAlertCreate], int] | None = None,
 ) -> AgentPipelineResult:
     graph = create_pipeline_graph(reporter=reporter)
     if reporter is not None:
@@ -138,6 +139,8 @@ async def run_pipeline(
                 )
             continue
         alerts.append(result["alert"])
+        if on_alert_processed is not None:
+            on_alert_processed(result["alert"])
         if reporter is not None:
             reporter.log(
                 stage="record",
