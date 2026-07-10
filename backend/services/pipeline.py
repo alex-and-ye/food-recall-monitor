@@ -42,6 +42,8 @@ class PipelineService:
                             "alert": alert.model_dump(mode="json"),
                         },
                     )
+                if self.alert_broadcaster is not None and inserted_count > 0:
+                    self.alert_broadcaster.notify(inserted_count)
                 return inserted_count
 
             pipeline_result = await run_agent_pipeline(
@@ -49,8 +51,6 @@ class PipelineService:
                 reporter=reporter,
                 on_alert_processed=save_alert_incrementally,
             )
-            if self.alert_broadcaster is not None:
-                self.alert_broadcaster.notify(saved_count)
             if self.progress_tracker is not None and run_id is not None:
                 self.progress_tracker.complete_run(
                     run_id=run_id,

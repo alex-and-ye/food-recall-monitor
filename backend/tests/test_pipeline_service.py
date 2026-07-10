@@ -34,12 +34,16 @@ class PipelineServiceTests(unittest.IsolatedAsyncioTestCase):
         db.save_alerts.assert_any_call([first_alert])
         db.save_alerts.assert_any_call([second_alert])
 
-    async def test_run_pipeline_notifies_broadcaster_with_total_saved_count(self) -> None:
+    async def test_run_pipeline_notifies_broadcaster_after_each_insert(self) -> None:
         db = Mock()
-        db.save_alerts.side_effect = [1, 1]
+        db.save_alerts.side_effect = [1, 0, 1]
         broadcaster = Mock()
         service = PipelineService(db, alert_broadcaster=broadcaster)
-        alerts = [_alert_for_source("uk"), _alert_for_source("ca")]
+        alerts = [
+            _alert_for_source("uk"),
+            _alert_for_source("ca"),
+            _alert_for_source("us"),
+        ]
 
         async def fake_run_agent_pipeline(options, *, reporter=None, on_alert_processed=None):
             assert on_alert_processed is not None
@@ -47,14 +51,18 @@ class PipelineServiceTests(unittest.IsolatedAsyncioTestCase):
                 on_alert_processed(alert)
             return AgentPipelineResult(
                 alerts=alerts,
-                records_fetched=2,
+                records_fetched=3,
                 source_failures={},
             )
 
         with patch("services.pipeline.run_agent_pipeline", side_effect=fake_run_agent_pipeline):
-            await service.run_pipeline(PipelineRunOptions.model_construct(sources=["uk", "ca"], limit=2))
+            result = await service.run_pipeline(
+                PipelineRunOptions.model_construct(sources=["uk", "ca", "us"], limit=3)
+            )
 
-        broadcaster.notify.assert_called_once_with(2)
+        self.assertEqual(result.new_alerts_count, 2)
+        self.assertEqual(broadcaster.notify.call_count, 2)
+        broadcaster.notify.assert_any_call(1)
 
 def _alert_for_source(source: str) -> FoodRecallAlertCreate:
     return FoodRecallAlertCreate(
