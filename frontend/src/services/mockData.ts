@@ -1,4 +1,4 @@
-// TODO: Remove this mock data service before final project delivery
+// TODO: Remove this before final project delivery
 
 import { filterAlerts, type AlertSearchPayload } from "@/lib/alertSearch";
 import type { GetAlertsParams } from "@/services/api/client";

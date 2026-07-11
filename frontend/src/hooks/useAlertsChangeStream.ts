@@ -18,6 +18,7 @@ export function useAlertsChangeStream(
   }, [onAlertsChanged]);
 
   useEffect(() => {
+    // TODO: Remove this before final project delivery
     if (!enabled || isMockDataMode()) {
       return;
     }

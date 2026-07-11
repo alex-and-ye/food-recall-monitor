@@ -134,6 +134,7 @@ export function alertFetchParamsFromSearchParams(
   };
 }
 
+// TODO: Remove this before final project delivery
 function compareRecallDates(
   left: FoodRecallAlert,
   right: FoodRecallAlert,
@@ -141,6 +142,7 @@ function compareRecallDates(
   return left.recall_date.localeCompare(right.recall_date);
 }
 
+// TODO: Remove this before final project delivery
 export function filterAlerts(
   alerts: FoodRecallAlert[],
   payload: AlertSearchPayload,

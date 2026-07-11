@@ -1,5 +1,6 @@
 import type { FoodRecallAlert, FoodRecallAlertStats, FoodRecallAlertsVersion } from "@/types/alert";
 import { ApiError } from "@/services/api/errors";
+// TODO: Remove this before final project delivery
 import {
   fetchMockAlertById,
   fetchMockAlerts,
@@ -20,11 +21,12 @@ export function getAlertsEventsUrl(): string {
   return `${API_BASE_URL}/alerts/events`;
 }
 
+// TODO: Remove this before final project delivery
 export function isMockDataMode(): boolean {
   return process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true";
 }
 
-// TODO: Remove mock data support before final project delivery
+// TODO: Remove this before final project delivery
 function useMockData(): boolean {
   return isMockDataMode();
 }
@@ -84,6 +86,7 @@ function buildQueryString(
 export async function getAlerts(
   params: GetAlertsParams = {},
 ): Promise<FoodRecallAlert[]> {
+  // TODO: Remove this before final project delivery
   if (useMockData()) {
     return fetchMockAlerts(params);
   }
@@ -100,6 +103,7 @@ export async function getAlerts(
 }
 
 export async function getAlertStats(): Promise<FoodRecallAlertStats> {
+  // TODO: Remove this before final project delivery
   if (useMockData()) {
     return fetchMockStats();
   }
@@ -108,6 +112,7 @@ export async function getAlertStats(): Promise<FoodRecallAlertStats> {
 }
 
 export async function getAlertsVersion(): Promise<FoodRecallAlertsVersion> {
+  // TODO: Remove this before final project delivery
   if (useMockData()) {
     return fetchMockAlertsVersion();
   }
@@ -116,6 +121,7 @@ export async function getAlertsVersion(): Promise<FoodRecallAlertsVersion> {
 }
 
 export async function getAlertById(id: string): Promise<FoodRecallAlert> {
+  // TODO: Remove this before final project delivery
   if (useMockData()) {
     return fetchMockAlertById(id);
   }

@@ -1,8 +1,7 @@
-// TODO: Remove --test mock data mode before final project delivery
-
 import { spawn } from "node:child_process";
 
 const args = process.argv.slice(2);
+// TODO: Remove this before final project delivery
 const testMode = args.includes("--test");
 const nextArgs = args.filter((arg) => arg !== "--test");
 
