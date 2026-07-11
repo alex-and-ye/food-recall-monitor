@@ -100,6 +100,75 @@ class ChromaClientSearchTests(unittest.TestCase):
             ["uk-high"],
         )
 
+    def test_search_alerts_filters_by_recall_date(self) -> None:
+        client = cast(Any, object.__new__(FoodRecallAlertsChromaClient))
+        client.collection = MagicMock()
+        client.collection.get.return_value = {
+            "metadatas": [
+                _metadata(
+                    alert_id="alert-june-22",
+                    api_source="uk",
+                    product_name="Cheese",
+                    risk_level="High",
+                    recall_date="2026-06-22",
+                ),
+                _metadata(
+                    alert_id="alert-june-21",
+                    api_source="uk",
+                    product_name="Milk",
+                    risk_level="Medium",
+                    recall_date="2026-06-21",
+                ),
+            ]
+        }
+
+        date_filtered = client.search_alerts(recall_date=date(2026, 6, 22))
+        self.assertEqual(
+            [alert.alert_id for alert in date_filtered],
+            ["alert-june-22"],
+        )
+
+    def test_search_alerts_sorts_by_recall_date(self) -> None:
+        client = cast(Any, object.__new__(FoodRecallAlertsChromaClient))
+        client.collection = MagicMock()
+        client.collection.get.return_value = {
+            "metadatas": [
+                _metadata(
+                    alert_id="alert-newest",
+                    api_source="uk",
+                    product_name="Cheese",
+                    risk_level="High",
+                    recall_date="2026-06-22",
+                ),
+                _metadata(
+                    alert_id="alert-middle",
+                    api_source="uk",
+                    product_name="Milk",
+                    risk_level="Medium",
+                    recall_date="2026-06-21",
+                ),
+                _metadata(
+                    alert_id="alert-oldest",
+                    api_source="uk",
+                    product_name="Bread",
+                    risk_level="Low",
+                    recall_date="2026-06-20",
+                ),
+            ]
+        }
+
+        latest_sorted = client.search_alerts(sort_by="latest")
+        self.assertEqual(
+            [alert.alert_id for alert in latest_sorted],
+            ["alert-newest", "alert-middle", "alert-oldest"],
+        )
+
+        oldest_sorted = client.search_alerts(sort_by="oldest")
+        self.assertEqual(
+            [alert.alert_id for alert in oldest_sorted],
+            ["alert-oldest", "alert-middle", "alert-newest"],
+        )
+
     def test_get_alerts_version_returns_count_and_fingerprint(self) -> None:
         client = cast(Any, object.__new__(FoodRecallAlertsChromaClient))
         client.collection = MagicMock()
@@ -141,6 +210,7 @@ def _metadata(
     api_source: str,
     product_name: str,
     risk_level: str,
+    recall_date: str = "2026-01-01",
 ) -> dict[str, str]:
     return {
         "alert_id": alert_id,
@@ -150,7 +220,7 @@ def _metadata(
         "product_category": "Produce",
         "recall_reason": "Reason",
         "summary": "Summary",
-        "recall_date": "2026-01-01",
+        "recall_date": recall_date,
         "risk_level": risk_level,
         "hazard_type": "Unknown",
         "consumer_action": "Discard",
