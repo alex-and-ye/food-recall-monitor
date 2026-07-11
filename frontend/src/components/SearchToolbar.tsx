@@ -71,6 +71,28 @@ export default function AlertSearchToolbar({
     [formState, hasFeeds, onApplyFilters],
   );
 
+  const handleSortByChange = useCallback(
+    (sortBy: AlertSearchFormState["sortBy"]) => {
+      const nextState = { ...formState, sortBy };
+      setFormState(nextState);
+      if (hasFeeds) {
+        onApplyFilters(nextState);
+      }
+    },
+    [formState, hasFeeds, onApplyFilters],
+  );
+
+  const handleRecallDateChange = useCallback(
+    (recallDate: AlertSearchFormState["recallDate"]) => {
+      const nextState = { ...formState, recallDate };
+      setFormState(nextState);
+      if (hasFeeds) {
+        onApplyFilters(nextState);
+      }
+    },
+    [formState, hasFeeds, onApplyFilters],
+  );
+
   return (
     <form
       onSubmit={handleSubmit}
@@ -143,6 +165,41 @@ export default function AlertSearchToolbar({
               </option>
             ))}
           </select>
+        </div>
+
+        <div className="min-w-0 sm:min-w-[10rem]">
+          <label htmlFor="alert-sort-by" className={formLabelClassName}>
+            Sort By
+          </label>
+          <select
+            id="alert-sort-by"
+            value={formState.sortBy}
+            onChange={(event) =>
+              handleSortByChange(
+                event.target.value as AlertSearchFormState["sortBy"],
+              )
+            }
+            disabled={!hasFeeds}
+            className={selectClassName}
+          >
+            <option value="">Default</option>
+            <option value="latest">Latest</option>
+            <option value="oldest">Oldest</option>
+          </select>
+        </div>
+
+        <div className="min-w-0 sm:min-w-[10rem]">
+          <label htmlFor="alert-recall-date" className={formLabelClassName}>
+            Recall Date
+          </label>
+          <input
+            id="alert-recall-date"
+            type="date"
+            value={formState.recallDate}
+            onChange={(event) => handleRecallDateChange(event.target.value)}
+            disabled={!hasFeeds}
+            className={inputClassName}
+          />
         </div>
 
         <div className="flex flex-wrap gap-2 lg:pb-0.5">
