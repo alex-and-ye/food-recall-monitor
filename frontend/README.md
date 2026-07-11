@@ -6,7 +6,7 @@ Next.js frontend for the Food Recall Monitor platform.
 
 - Node.js 20+
 - npm
-- Backend API running on port 8080 (see `backend/README.md`)
+- Backend API running (default port 8080; see `backend/README.md`)
 
 ## Setup
 
@@ -14,7 +14,25 @@ Next.js frontend for the Food Recall Monitor platform.
 npm install
 ```
 
-Optional: set `NEXT_PUBLIC_API_URL` in `.env.local` if the backend is not on `http://localhost:8080`.
+Create `.env.local` when you need non-default API routing:
+
+```bash
+# Browser-facing API base (use /api so the browser hits this Next server)
+NEXT_PUBLIC_API_URL=/api
+
+# Where Next rewrites /api/* on the server (change the port as needed)
+BACKEND_URL=http://localhost:8080
+```
+
+Examples:
+
+| Setup | `.env.local` |
+|-------|----------------|
+| Default local backend on 8080 | `NEXT_PUBLIC_API_URL=/api` and `BACKEND_URL=http://localhost:8080` (or omit `BACKEND_URL`) |
+| Second backend on 8081 | `NEXT_PUBLIC_API_URL=/api` and `BACKEND_URL=http://localhost:8081` |
+| Browser talks to backend directly | `NEXT_PUBLIC_API_URL=http://localhost:8080/api` (rewrites unused) |
+
+`NEXT_PUBLIC_API_URL` is for the browser. `BACKEND_URL` is server-only and must be the FastAPI origin **without** a trailing `/api`.
 
 ## Scripts
 
@@ -26,4 +44,4 @@ npm run start            # Serve production build
 npm run lint             # Run ESLint
 ```
 
-API requests from the browser can use `/api/*`; Next.js rewrites those to the FastAPI backend.
+With `NEXT_PUBLIC_API_URL=/api`, the browser calls `/api/*` on the Next server; Next rewrites those to `${BACKEND_URL}/api/*`.
