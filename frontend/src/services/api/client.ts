@@ -37,6 +37,8 @@ export interface GetAlertsParams {
   search?: string;
   risk_level?: string;
   country_source?: string;
+  recall_date?: string;
+  sort_by?: string;
 }
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -90,6 +92,8 @@ export async function getAlerts(
     search: params.search,
     risk_level: params.risk_level,
     country_source: params.country_source,
+    recall_date: params.recall_date,
+    sort_by: params.sort_by,
   });
   const data = await apiFetch<AlertsResponse>(`/alerts${query}`);
   return data.alerts;
