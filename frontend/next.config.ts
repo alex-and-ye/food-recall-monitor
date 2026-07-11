@@ -6,8 +6,15 @@ const backendUrl = (
   process.env.BACKEND_URL ?? "http://localhost:8080"
 ).replace(/\/$/, "");
 
+// Comma-separated hosts allowed to use Next.js dev assets (HMR) over LAN/Tailscale.
+// Keep real IPs in .env.local — never commit them.
+const allowedDevOrigins = (process.env.ALLOWED_DEV_ORIGINS ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["100.90.78.100"],
+  ...(allowedDevOrigins.length > 0 ? { allowedDevOrigins } : {}),
   async rewrites() {
     return [
       {
