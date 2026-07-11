@@ -1,4 +1,5 @@
 import hashlib
+from datetime import date
 from typing import List, Optional, cast
 from uuid import uuid4
 
@@ -115,8 +116,18 @@ class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
         
         return parsed_alerts
 
-    def search_alerts(self, search: str | None = None, risk_level: str | None = None, country_source: str | None = None) -> List[FoodRecallAlert]:
+    def search_alerts(
+        self,
+        search: str | None = None,
+        risk_level: str | None = None,
+        country_source: str | None = None,
+        recall_date: date | None = None,
+        sort_by: str | None = None,
+    ) -> List[FoodRecallAlert]:
         alerts = self.get_alerts()
+
+        if recall_date:
+            alerts = [alert for alert in alerts if alert.recall_date == recall_date]
 
         if risk_level:
             alerts = [alert for alert in alerts if alert.risk_level == risk_level]
@@ -126,6 +137,11 @@ class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
 
         if search and search.strip():
             alerts = [alert for alert in alerts if alert.matches_search(search)]
+
+        if sort_by == "oldest":
+            alerts.sort(key=lambda alert: alert.recall_date)
+        elif sort_by == "latest":
+            alerts.sort(key=lambda alert: alert.recall_date, reverse=True)
 
         return alerts
 
