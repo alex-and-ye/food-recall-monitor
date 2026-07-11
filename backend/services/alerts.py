@@ -18,11 +18,20 @@ class AlertsService:
     def get_alert_by_id(self, alert_id: str) -> Optional[FoodRecallAlert]:
         return self.db.get_alert_by_id(alert_id)
 
-    def search_alerts(self, search: str | None = None, risk_level: str | None = None, country_source: str | None = None) -> List[FoodRecallAlert]:
+    def search_alerts(
+        self,
+        search: str | None = None,
+        risk_level: str | None = None,
+        country_source: str | None = None,
+        recall_date: date | None = None,
+        sort_by: str | None = None,
+    ) -> List[FoodRecallAlert]:
         return self.db.search_alerts(
             search=search,
             risk_level=risk_level,
             country_source=country_source,
+            recall_date=recall_date,
+            sort_by=sort_by,
         )
 
     def get_alert_stats(self) -> FoodRecallAlertStats:
