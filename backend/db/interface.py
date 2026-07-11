@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from datetime import date
 from typing import List, Optional
 
 from models.food_recall_alert import FoodRecallAlert, FoodRecallAlertCreate, FoodRecallAlertsVersion
@@ -13,7 +14,14 @@ class FoodRecallAlertsDBInterface(ABC):
         pass
 
     @abstractmethod
-    def search_alerts(self, search: str | None = None, risk_level: str | None = None, country_source: str | None = None) -> List[FoodRecallAlert]:
+    def search_alerts(
+        self,
+        search: str | None = None,
+        risk_level: str | None = None,
+        country_source: str | None = None,
+        recall_date: date | None = None,
+        sort_by: str | None = None,
+    ) -> List[FoodRecallAlert]:
         pass
 
     @abstractmethod
