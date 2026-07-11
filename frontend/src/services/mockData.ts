@@ -108,6 +108,11 @@ function toSearchPayload(params: GetAlertsParams): AlertSearchPayload {
       params.country_source === "France"
         ? params.country_source
         : null,
+    recall_date: params.recall_date?.trim() || null,
+    sort_by:
+      params.sort_by === "latest" || params.sort_by === "oldest"
+        ? params.sort_by
+        : null,
   };
 }
 
