@@ -6,14 +6,17 @@ from typing import Any
 import httpx
 
 from agents.fetchers.crawler.orchestrator import crawl_source_pages
-from agents.fetchers.crawler.source_discovery import discover_source_config
+from agents.fetchers.crawler.source_discovery import (
+    discover_source_config,
+    prefer_unfiltered_listing_urls,
+)
 from agents.fetchers.extraction.cleaning import clean_detail_payload
 from agents.fetchers.extraction.date_candidates import select_recent_recall_date
 from db.source_config_interface import ScraperSourceConfigDBInterface
 from models.pipeline_progress import ProgressReporter
 from models.pipeline_result import FetchSourcesResult
 from models.scraped_record import ScrapedRecallRecord
-from models.scraper_config import ScraperSourceConfig
+from models.scraper_config import DEFAULT_LOOKBACK_DAYS, ScraperSourceConfig
 from models.source_registry import SourceRegistryDocument
 
 LOGGER = logging.getLogger(__name__)
@@ -97,6 +100,25 @@ async def fetch_source_records(
         source_db=db,
     )
     source_config = document.config
+    preferred_seeds = prefer_unfiltered_listing_urls(
+        source_config.seed_urls,
+        observed_urls=[document.homepage_url],
+    )
+    if preferred_seeds != source_config.seed_urls:
+        previous_seeds = list(source_config.seed_urls)
+        source_config = source_config.model_copy(update={"seed_urls": preferred_seeds})
+        document = document.model_copy(update={"config": source_config})
+        db.upsert_source(document)
+        if reporter is not None:
+            reporter.log(
+                stage="discovery",
+                source=source,
+                message="Broadened filtered listing seeds",
+                details={
+                    "previous_seed_urls": previous_seeds,
+                    "seed_urls": preferred_seeds,
+                },
+            )
     detail_payloads, records = await _crawl_and_filter(
         source=source,
         source_config=source_config,
@@ -178,10 +200,16 @@ async def _crawl_and_filter(
 
     records: list[ScrapedRecallRecord] = []
     dropped_by_date = 0
+    # Apply the current minimum policy to configs persisted by older discovery
+    # versions, which may still contain the former one-day value.
+    effective_lookback_days = max(source_config.lookback_days, DEFAULT_LOOKBACK_DAYS)
     for payload in detail_payloads:
         selected_date = select_recent_recall_date(
             payload.get("published_date_candidates", []),
-            lookback_days=source_config.lookback_days,
+            lookback_days=effective_lookback_days,
+            candidate_sources=payload.get("published_date_candidate_sources")
+            if isinstance(payload.get("published_date_candidate_sources"), dict)
+            else None,
         )
         if selected_date is None:
             dropped_by_date += 1
@@ -225,6 +253,7 @@ async def _crawl_and_filter(
                 "records_output": len(records),
                 "detail_payload_count": len(detail_payloads),
                 "dropped_by_date": dropped_by_date,
+                "lookback_days": effective_lookback_days,
             },
         )
     return detail_payloads, records

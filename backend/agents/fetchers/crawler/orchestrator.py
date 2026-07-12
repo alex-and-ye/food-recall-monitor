@@ -68,7 +68,10 @@ async def crawl_source_pages(
         visited.add(item.url)
         if item.depth > source_config.max_depth:
             continue
-        if not _is_allowed(item.url, source_config.allowed_domains, blocked_paths):
+        # Seeds are explicitly selected listing entry points. A discovered blocked
+        # path must never prevent the crawler from opening its own seed.
+        effective_blocked_paths = [] if item.depth == 0 else blocked_paths
+        if not _is_allowed(item.url, source_config.allowed_domains, effective_blocked_paths):
             continue
         if robots is not None and not robots.can_fetch("*", item.url):
             continue

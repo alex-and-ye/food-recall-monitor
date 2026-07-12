@@ -9,8 +9,11 @@ from agents.fetchers.crawler.source_discovery import (
     LinkCandidate,
     looks_like_detail_url,
     looks_like_listing_url,
+    prefer_unfiltered_listing_urls,
     score_recall_candidate,
     select_heuristic_seed_urls,
+    _filter_blocked_paths,
+    _filter_detail_keywords,
     _should_try_browser,
 )
 
@@ -29,6 +32,24 @@ class UrlNormalizeTests(unittest.TestCase):
 
 
 class HeuristicSeedTests(unittest.TestCase):
+    def test_prefers_observed_unfiltered_listing(self) -> None:
+        selected = prefer_unfiltered_listing_urls(
+            ["https://alerts.example.gov/news-alerts?type=allergy"],
+            observed_urls=[
+                "https://alerts.example.gov/news-alerts",
+                "https://alerts.example.gov/news-alerts?type=allergy",
+            ],
+        )
+        self.assertEqual(selected, ["https://alerts.example.gov/news-alerts"])
+
+    def test_keeps_query_when_canonical_listing_was_not_observed(self) -> None:
+        filtered = "https://example.gov/search?section=recalls"
+        selected = prefer_unfiltered_listing_urls(
+            [filtered],
+            observed_urls=[filtered],
+        )
+        self.assertEqual(selected, [filtered])
+
     def test_detail_urls_are_penalized_vs_listings(self) -> None:
         listing = score_recall_candidate(
             "https://rappel.conso.gouv.fr/categorie/1",
@@ -88,6 +109,108 @@ class BrowserFallbackPolicyTests(unittest.TestCase):
         response = httpx.Response(503, request=request)
         exc = httpx.HTTPStatusError("unavailable", request=request, response=response)
         self.assertTrue(_should_try_browser(static_error=exc, html=""))
+
+
+class DetailKeywordFilterTests(unittest.TestCase):
+    def test_rejects_blocked_paths_that_cover_seed_urls(self) -> None:
+        filtered = _filter_blocked_paths(
+            ["/categorie/", "/about", "/assets/"],
+            seed_urls=["https://example.com/categorie/1"],
+        )
+        self.assertEqual(filtered, ["/about", "/assets/"])
+
+    def test_rejects_keywords_that_match_seed_listing_urls(self) -> None:
+        filtered = _filter_detail_keywords(
+            ["/home_node.html", "/___", "/meldungen/"],
+            seed_urls=["https://www.example.com/DE/Home/home_node.html"],
+            child_links=[
+                LinkCandidate(
+                    url="https://www.example.com/___example.com/Meldungen/2026/item.html",
+                    anchor_text="item",
+                    score=1,
+                )
+            ],
+        )
+        self.assertNotIn("/home_node.html", filtered)
+        self.assertIn("/___", filtered)
+        self.assertIn("/meldungen/", filtered)
+
+    def test_rejects_keywords_absent_from_child_links(self) -> None:
+        filtered = _filter_detail_keywords(
+            ["/fiche-rappel/", "/___", "/meldungen/"],
+            seed_urls=["https://www.example.com/DE/Home/home_node.html"],
+            child_links=[
+                LinkCandidate(
+                    url="https://www.example.com/___example.com/Meldungen/2026/item.html",
+                    anchor_text="item",
+                    score=1,
+                )
+            ],
+        )
+        self.assertNotIn("/fiche-rappel/", filtered)
+        self.assertIn("/___", filtered)
+
+    def test_portal_detail_urls_are_recognized(self) -> None:
+        self.assertTrue(
+            looks_like_detail_url(
+                "https://www.lebensmittelwarnung.de/___lebensmittelwarnung.de/Meldungen/2026/07_Juli/item.html"
+            )
+        )
+
+    def test_infer_keywords_from_observed_detail_links(self) -> None:
+        from agents.fetchers.crawler.source_discovery import _infer_keywords_from_links
+
+        german_links = [
+            LinkCandidate(
+                url="https://www.lebensmittelwarnung.de/___lebensmittelwarnung.de/Meldungen/2026/a.html",
+                anchor_text="a",
+                score=1,
+            ),
+            LinkCandidate(
+                url="https://www.lebensmittelwarnung.de/___lebensmittelwarnung.de/Meldungen/2026/b.html",
+                anchor_text="b",
+                score=1,
+            ),
+        ]
+        french_links = [
+            LinkCandidate(
+                url="https://rappel.conso.gouv.fr/fiche-rappel/22774/Interne",
+                anchor_text="product",
+                score=1,
+            ),
+            LinkCandidate(
+                url="https://rappel.conso.gouv.fr/fiche-rappel/22775/Interne",
+                anchor_text="product 2",
+                score=1,
+            ),
+        ]
+        german = _infer_keywords_from_links(german_links)
+        french = _infer_keywords_from_links(french_links)
+        self.assertTrue(any("meldungen" in item or item.startswith("/___") for item in german))
+        self.assertIn("/fiche-rappel/", french)
+
+    def test_detail_pattern_ranking_prefers_notice_links(self) -> None:
+        from agents.fetchers.crawler.source_discovery import (
+            rank_detail_pattern_candidates,
+            score_detail_pattern_candidate,
+        )
+
+        listing = LinkCandidate(
+            url="https://example.com/recalls",
+            anchor_text="Recalls",
+            score=score_recall_candidate("https://example.com/recalls", "Recalls"),
+        )
+        detail = LinkCandidate(
+            url="https://example.com/fiche-rappel/123",
+            anchor_text="Milk",
+            score=score_recall_candidate("https://example.com/fiche-rappel/123", "Milk"),
+        )
+        ranked = rank_detail_pattern_candidates([listing, detail], limit=2)
+        self.assertEqual(ranked[0].url, detail.url)
+        self.assertGreater(
+            score_detail_pattern_candidate(detail.url, detail.anchor_text),
+            score_detail_pattern_candidate(listing.url, listing.anchor_text),
+        )
 
 
 if __name__ == "__main__":

@@ -39,11 +39,17 @@ def extract_detail_payload(
 
     structured_date_values.extend(_structured_dates_in_root(content_root))
     structured_candidates = extract_structured_dates(structured_date_values)
-    selector_candidates = extract_date_candidates(
-        " ".join(extra_date_text),
-        languages=document_languages,
-        excluded_context_markers=(),
-    )
+    # Parse each selector node separately so adjacent dates cannot form false
+    # fragments like "2026 07" that dateparser fills with today's day.
+    selector_candidates: list[str] = []
+    for date_text in extra_date_text:
+        selector_candidates.extend(
+            extract_date_candidates(
+                date_text,
+                languages=document_languages,
+            )
+        )
+    selector_candidates = _merge_date_candidates(selector_candidates)
     generic_candidates = extract_date_candidates(
         visible_text,
         languages=document_languages,

@@ -18,7 +18,7 @@ from agents.llm import chat_json
 from agents.prompts import DETAIL_PATTERN_DISCOVERY_SYSTEM_PROMPT, LISTING_DISCOVERY_SYSTEM_PROMPT
 from config.agents import CLASSIFICATION_MODEL
 from models.pipeline_progress import ProgressReporter
-from models.scraper_config import ScraperHints, ScraperSourceConfig
+from models.scraper_config import DEFAULT_LOOKBACK_DAYS, ScraperHints, ScraperSourceConfig
 from models.source_registry import SourceRegistryDocument
 
 LOGGER = logging.getLogger(__name__)
@@ -76,7 +76,9 @@ DETAIL_PATH_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"/fiche-rappel/\d+", re.IGNORECASE),
     re.compile(r"/news-alerts/alert/", re.IGNORECASE),
     re.compile(r"/alert/fsa-[a-z0-9-]+", re.IGNORECASE),
-    re.compile(r"/___[^/]+/\d+", re.IGNORECASE),
+    # Portal-style detail hosts often prefix content with /___<host>/...
+    re.compile(r"/___[^/]+/", re.IGNORECASE),
+    re.compile(r"/meldungen/", re.IGNORECASE),
 )
 
 DISCOVERY_MAX_CANDIDATES = 25
@@ -126,9 +128,57 @@ def score_recall_candidate(url: str, anchor_text: str = "") -> int:
     return score
 
 
+def score_detail_pattern_candidate(url: str, anchor_text: str = "") -> int:
+    """Prefer likely detail/notice links when sampling children for keyword discovery."""
+    haystack = f"{url} {anchor_text}".lower()
+    path = urlparse(url).path.lower()
+    score = 0
+    for token in RECALL_TOKENS:
+        if token in haystack:
+            score += 4
+    for token in NEGATIVE_TOKENS:
+        if token in haystack:
+            score -= 5
+    if looks_like_detail_url(url) or looks_like_probable_detail_url(url):
+        score += 20
+    elif looks_like_listing_url(url):
+        score -= 8
+    parts = [part for part in path.split("/") if part]
+    if len(parts) >= 3:
+        score += 3
+    if re.search(r"\d{3,}", path):
+        score += 4
+    return score
+
+
 def looks_like_detail_url(url: str) -> bool:
     path = urlparse(url).path.lower()
     return any(pattern.search(path) for pattern in DETAIL_PATH_PATTERNS)
+
+
+def looks_like_probable_detail_url(url: str) -> bool:
+    """Heuristic detail detection beyond known path patterns (source-agnostic)."""
+    if looks_like_detail_url(url):
+        return True
+    if looks_like_listing_url(url):
+        return False
+    path = urlparse(url).path.lower().rstrip("/")
+    parts = [part for part in path.split("/") if part]
+    if len(parts) < 2:
+        return False
+    basename = parts[-1]
+    if basename.endswith("_node.html") or basename in {"index.html", "home.html", "home_node.html"}:
+        return False
+    if re.search(r"\d{4,}", path):
+        return True
+    if basename.endswith(".html") and len(parts) >= 3:
+        return True
+    detailish_tokens = ("alert", "rappel", "meldung", "warnung", "recall", "notice", "withdrawal")
+    if len(parts) >= 3 and any(token in part for part in parts for token in detailish_tokens):
+        return True
+    if len(parts) >= 4:
+        return True
+    return False
 
 
 def looks_like_listing_url(url: str) -> bool:
@@ -137,10 +187,19 @@ def looks_like_listing_url(url: str) -> bool:
     path = urlparse(url).path.lower().rstrip("/")
     haystack = path + "/"
     if any(token in haystack for token in LISTING_PATH_TOKENS):
-        return True
+        # Tokens like "/recalls" also appear inside detail paths; only treat shallow
+        # roots (or known index pages) as listings.
+        parts = [part for part in path.split("/") if part]
+        if len(parts) <= 2:
+            return True
+        basename = parts[-1] if parts else ""
+        if basename.endswith("_node.html") or basename in {"index.html", "home.html"}:
+            return True
+        return False
     # Shallow recall-ish index pages without a long numeric id.
     if re.search(r"/(recalls?|alerts?|rappels?)(/|$)", path) and not re.search(r"/\d{4,}(/|$)", path):
-        return True
+        parts = [part for part in path.split("/") if part]
+        return len(parts) <= 2
     return False
 
 
@@ -155,6 +214,24 @@ def select_heuristic_seed_urls(
         return list(dict.fromkeys(listing_urls))[:limit]
     # Prefer the homepage over detail-like candidates when LLM discovery failed.
     return [homepage_url]
+
+
+def prefer_unfiltered_listing_urls(
+    selected_urls: list[str],
+    *,
+    observed_urls: list[str],
+) -> list[str]:
+    """Prefer an observed canonical listing over a filtered query variant."""
+    observed = {url.lower() for url in observed_urls}
+    preferred: list[str] = []
+    for url in selected_urls:
+        parsed = urlparse(url)
+        canonical = parsed._replace(query="", fragment="").geturl()
+        if parsed.query and canonical.lower() in observed and looks_like_listing_url(canonical):
+            preferred.append(canonical)
+        else:
+            preferred.append(url)
+    return list(dict.fromkeys(preferred))
 
 
 def extract_link_candidates(
@@ -200,6 +277,23 @@ def extract_link_candidates(
 
 def rank_candidates(candidates: list[LinkCandidate], *, limit: int = DISCOVERY_MAX_CANDIDATES) -> list[LinkCandidate]:
     return candidates[:limit]
+
+
+def rank_detail_pattern_candidates(
+    candidates: list[LinkCandidate],
+    *,
+    limit: int = CHILD_LINK_SAMPLE_SIZE,
+) -> list[LinkCandidate]:
+    rescored = [
+        LinkCandidate(
+            url=item.url,
+            anchor_text=item.anchor_text,
+            score=score_detail_pattern_candidate(item.url, item.anchor_text),
+        )
+        for item in candidates
+    ]
+    rescored.sort(key=lambda item: (-item.score, item.url))
+    return rescored[:limit]
 
 
 async def discover_source_config(
@@ -264,7 +358,13 @@ async def discover_source_config(
         # Drop accidental detail pages even when the model returns them.
         filtered_listings = [url for url in seed_urls if not looks_like_detail_url(url)]
         if filtered_listings:
-            seed_urls = filtered_listings
+            seed_urls = prefer_unfiltered_listing_urls(
+                filtered_listings,
+                observed_urls=[
+                    homepage_final_url,
+                    *[candidate.url for candidate in merged_candidates],
+                ],
+            )
         else:
             used_listing_fallback = True
             seed_urls = select_heuristic_seed_urls(
@@ -306,7 +406,11 @@ async def discover_source_config(
             )
         )
 
-    child_samples = rank_candidates(_merge_candidates([], child_samples), limit=CHILD_LINK_SAMPLE_SIZE)
+    all_child_links = _merge_candidates([], child_samples)
+    child_samples = rank_detail_pattern_candidates(
+        all_child_links,
+        limit=CHILD_LINK_SAMPLE_SIZE,
+    )
     pattern_payload, pattern_meta = _request_detail_patterns(
         seed_urls=seed_urls,
         child_links=child_samples,
@@ -314,14 +418,25 @@ async def discover_source_config(
     detail_keywords = _normalize_path_fragments(pattern_payload.get("detail_page_keywords"))
     blocked_paths = _normalize_path_fragments(pattern_payload.get("blocked_paths"))
     date_languages = _normalize_languages(pattern_payload.get("date_languages"))
+    blocked_paths = _filter_blocked_paths(blocked_paths, seed_urls=seed_urls)
 
     used_keyword_fallback = False
+    validation_links = all_child_links + ranked
+    detail_keywords = _filter_detail_keywords(
+        detail_keywords,
+        seed_urls=seed_urls,
+        child_links=validation_links,
+    )
     if not detail_keywords:
         used_keyword_fallback = True
         detail_keywords = (
-            _infer_keywords_from_links(child_samples)
+            _infer_keywords_from_links(all_child_links)
             or _infer_keywords_from_links(ranked)
-            or ["/recall/", "/alert/"]
+        )
+        detail_keywords = _filter_detail_keywords(
+            detail_keywords,
+            seed_urls=seed_urls,
+            child_links=validation_links,
         )
 
     if reporter is not None:
@@ -349,7 +464,7 @@ async def discover_source_config(
         seed_urls=seed_urls,
         max_depth=1,
         max_pages_per_run=30,
-        lookback_days=1,
+        lookback_days=DEFAULT_LOOKBACK_DAYS,
         hints=ScraperHints(
             detail_page_keywords=detail_keywords,
             blocked_paths=blocked_paths,
@@ -611,6 +726,52 @@ def _normalize_path_fragments(value: object) -> list[str]:
     return list(dict.fromkeys(normalized))
 
 
+def _filter_detail_keywords(
+    keywords: list[str],
+    *,
+    seed_urls: list[str],
+    child_links: list[LinkCandidate],
+) -> list[str]:
+    """Keep keywords that match observed child links and do not match listing seeds."""
+    seed_haystacks = [url.lower() for url in seed_urls]
+    seed_paths = [urlparse(url).path.lower().rstrip("/") for url in seed_urls]
+    seed_url_set = set(seed_haystacks)
+    filtered: list[str] = []
+
+    for keyword in keywords:
+        keyword_lower = keyword.lower()
+        keyword_key = keyword_lower.rstrip("/")
+        if not keyword_key:
+            continue
+        if any(keyword_key in haystack for haystack in seed_haystacks):
+            continue
+        if any(
+            keyword_key == path or path.endswith(keyword_key) or keyword_key in path
+            for path in seed_paths
+        ):
+            continue
+
+        matching_children = [
+            item
+            for item in child_links
+            if keyword_lower in item.url.lower() and item.url.lower() not in seed_url_set
+        ]
+        if not matching_children:
+            continue
+        filtered.append(keyword)
+    return filtered
+
+
+def _filter_blocked_paths(blocked_paths: list[str], *, seed_urls: list[str]) -> list[str]:
+    """Prevent discovered exclusions from blocking the listing pages themselves."""
+    seed_paths = [urlparse(url).path.lower() or "/" for url in seed_urls]
+    return [
+        blocked
+        for blocked in blocked_paths
+        if not any(seed_path.startswith(blocked.lower()) for seed_path in seed_paths)
+    ]
+
+
 def _normalize_languages(value: object) -> list[str]:
     if not isinstance(value, list):
         return []
@@ -624,26 +785,75 @@ def _normalize_languages(value: object) -> list[str]:
 
 def _infer_keywords_from_links(links: list[LinkCandidate]) -> list[str]:
     """Heuristic fallback: path prefixes shared by detail-like URLs."""
-    path_counts: dict[str, int] = {}
+    skip_markers = (
+        "/assets/",
+        "/static/",
+        "/files/",
+        "/media/",
+        "/css/",
+        "/js/",
+        "/image",
+        "/icon",
+        "/font",
+        "/siteglobals/",
+    )
+    confirmed_counts: dict[str, int] = {}
+    probable_counts: dict[str, int] = {}
+
     for item in links:
-        if not looks_like_detail_url(item.url):
+        confirmed = looks_like_detail_url(item.url)
+        probable = looks_like_probable_detail_url(item.url)
+        if not (confirmed or probable):
             continue
         path = urlparse(item.url).path.lower().rstrip("/")
         parts = [part for part in path.split("/") if part]
         if not parts:
             continue
+        fragments: list[str] = []
         if parts[0] == "fiche-rappel":
-            fragment = "/fiche-rappel/"
+            fragments.append("/fiche-rappel/")
         elif len(parts) >= 2 and parts[0] == "news-alerts" and parts[1] == "alert":
-            fragment = "/news-alerts/alert/"
+            fragments.append("/news-alerts/alert/")
+        elif parts[0].startswith("___"):
+            fragments.append(f"/{parts[0]}/")
+            if len(parts) >= 2:
+                fragments.append(f"/{parts[0]}/{parts[1]}/")
+                fragments.append(f"/{parts[1]}/")
         elif len(parts) >= 2:
-            fragment = "/" + "/".join(parts[:2]) + "/"
+            fragments.append("/" + "/".join(parts[:2]) + "/")
         else:
-            fragment = f"/{parts[0]}/"
-        path_counts[fragment] = path_counts.get(fragment, 0) + 1
+            fragments.append(f"/{parts[0]}/")
 
-    ranked = sorted(path_counts.items(), key=lambda pair: (-pair[1], pair[0]))
-    return [fragment for fragment, count in ranked if count >= 1][:5]
+        target = confirmed_counts if confirmed else probable_counts
+        for fragment in fragments:
+            if any(marker in fragment for marker in skip_markers):
+                continue
+            target[fragment] = target.get(fragment, 0) + 1
+
+    ranked_confirmed = _ranked_keyword_fragments(confirmed_counts, prefer_shared=True)
+    if ranked_confirmed:
+        ordered = list(ranked_confirmed)
+        ordered.extend(
+            fragment
+            for fragment in _ranked_keyword_fragments(probable_counts, prefer_shared=True)
+            if fragment not in ordered and probable_counts.get(fragment, 0) >= 2
+        )
+        return ordered[:5]
+
+    return _ranked_keyword_fragments(probable_counts, prefer_shared=True)[:5]
+
+
+def _ranked_keyword_fragments(
+    counts: dict[str, int],
+    *,
+    prefer_shared: bool = True,
+) -> list[str]:
+    ranked = sorted(counts.items(), key=lambda pair: (-pair[1], pair[0]))
+    if prefer_shared:
+        multi = [fragment for fragment, count in ranked if count >= 2]
+        if multi:
+            return multi
+    return [fragment for fragment, _count in ranked]
 
 
 def _looks_dynamic(html: str) -> bool:

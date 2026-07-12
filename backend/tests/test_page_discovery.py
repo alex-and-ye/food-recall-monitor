@@ -22,6 +22,15 @@ class PageDiscoveryTests(unittest.TestCase):
         )
         self.assertEqual(page_class, "listing")
 
+    def test_classify_does_not_treat_index_keyword_match_as_detail(self) -> None:
+        html = "<html><body>" + ("<a href='/item/1'>Item</a>" * 15) + "</body></html>"
+        page_class = classify_page(
+            url="https://example.com/DE/Home/home_node.html",
+            html=html,
+            detail_page_keywords=["/home_node.html"],
+        )
+        self.assertEqual(page_class, "listing")
+
     def test_classify_irrelevant_page(self) -> None:
         html = "<html><title>About us</title><body>Our history and team.</body></html>"
         page_class = classify_page(

@@ -59,8 +59,10 @@ Rules:
 2. Prefer dedicated recall listing/category pages over the homepage or generic hubs.
 3. Do not include product detail pages, FAQ, about, contact, privacy, cookies, or unrelated news.
 4. Prefer 1-3 high-quality listing URLs. Use an empty list if none are food-recall listings.
-5. confidence is a number from 0 to 1.
-6. Return JSON only. No markdown, comments, or explanation outside the JSON object.
+5. Prefer broad, unfiltered recall listings. Do not select query-filtered category views when
+   an unfiltered listing is available, because filters may hide other recall types.
+6. confidence is a number from 0 to 1.
+7. Return JSON only. No markdown, comments, or explanation outside the JSON object.
 """
 
 DETAIL_PATTERN_DISCOVERY_SYSTEM_PROMPT: str = """
@@ -80,11 +82,12 @@ Return only valid JSON matching this exact schema:
 
 Rules:
 1. detail_page_keywords must be lowercase URL path substrings that uniquely identify product/detail recall pages (not the listing itself).
-2. Prefer stable path fragments such as "/fiche-rappel/", "/news-alerts/alert/", "/recall/".
-3. blocked_paths should list path prefixes that are clearly non-recall (FAQ, about, legal, cookies, settings).
-4. date_languages should be ISO 639-1 codes likely used on the site for dates (e.g. en, fr, de). Use an empty list if unsure.
-5. Never invent domains. Keywords and blocked paths are path fragments only.
-6. Return JSON only. No markdown, comments, or explanation outside the JSON object.
+2. Prefer stable path fragments such as "/fiche-rappel/", "/news-alerts/alert/", "/recall/", "/meldungen/", "/___".
+3. Never reuse path fragments that appear in the listing URLs themselves (for example a listing ending in home_node.html must not become a detail keyword).
+4. blocked_paths should list path prefixes that are clearly non-recall (FAQ, about, legal, cookies, settings).
+5. date_languages should be ISO 639-1 codes likely used on the site for dates (e.g. en, fr, de). Use an empty list if unsure.
+6. Never invent domains. Keywords and blocked paths are path fragments only.
+7. Return JSON only. No markdown, comments, or explanation outside the JSON object.
 """
 
 STRUCTURING_SYSTEM_PROMPT: str = """

@@ -10,7 +10,7 @@ from agents.fetchers.scraper_ingestion import (
 )
 from db.chroma_source_client import InMemoryScraperSourceConfigStore
 from models.scraped_record import ScrapedRecallRecord
-from models.scraper_config import ScraperHints, ScraperSourceConfig
+from models.scraper_config import DEFAULT_LOOKBACK_DAYS, ScraperHints, ScraperSourceConfig
 from models.source_registry import SourceRegistryDocument
 
 
@@ -25,6 +25,56 @@ def _uk_document(source_config: ScraperSourceConfig) -> SourceRegistryDocument:
 
 
 class ScraperIngestionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_fetch_source_records_broadens_persisted_filtered_seed(self) -> None:
+        source_config = ScraperSourceConfig(
+            base_url="https://example.com",
+            allowed_domains=["example.com"],
+            seed_urls=["https://example.com/news-alerts?type=allergy"],
+            hints=ScraperHints(detail_page_keywords=["/news-alerts/alert/"]),
+        )
+        store = InMemoryScraperSourceConfigStore()
+        store.upsert_source(
+            SourceRegistryDocument(
+                source_name="uk",
+                homepage_url="https://example.com/news-alerts",
+                country_source="UK",
+                config=source_config,
+                discovery_status="ready",
+            )
+        )
+        payload = {
+            "source_url": "https://example.com/news-alerts/alert/1",
+            "headings": [],
+            "visible_text": "Recall",
+            "published_date_candidates": ["2026-07-11"],
+        }
+
+        with (
+            patch(
+                "agents.fetchers.scraper_ingestion.crawl_source_pages",
+                new=AsyncMock(return_value=[payload]),
+            ) as crawl,
+            patch(
+                "agents.fetchers.scraper_ingestion.select_recent_recall_date",
+                return_value="2026-07-11",
+            ),
+        ):
+            await fetch_source_records(
+                "uk",
+                limit=10,
+                client=AsyncMock(spec=httpx.AsyncClient),
+                source_db=store,
+            )
+
+        effective_config = crawl.call_args.kwargs["source_config"]
+        self.assertEqual(
+            effective_config.seed_urls,
+            ["https://example.com/news-alerts"],
+        )
+        stored = store.get_source("uk")
+        assert stored is not None
+        self.assertEqual(stored.config.seed_urls, ["https://example.com/news-alerts"])
+
     async def test_fetch_source_records_cleans_and_filters_to_recent(self) -> None:
         source_config = ScraperSourceConfig(
             base_url="https://example.com",
@@ -53,7 +103,7 @@ class ScraperIngestionTests(unittest.IsolatedAsyncioTestCase):
             patch(
                 "agents.fetchers.scraper_ingestion.select_recent_recall_date",
                 return_value="2026-06-09",
-            ),
+            ) as select_date,
         ):
             records = await fetch_source_records(
                 "uk",
@@ -62,6 +112,10 @@ class ScraperIngestionTests(unittest.IsolatedAsyncioTestCase):
                 source_db=store,
             )
 
+        self.assertEqual(
+            select_date.call_args.kwargs["lookback_days"],
+            DEFAULT_LOOKBACK_DAYS,
+        )
         self.assertEqual(len(records), 1)
         self.assertIsInstance(records[0], ScrapedRecallRecord)
         self.assertEqual(records[0].source_name, "uk")

@@ -111,6 +111,63 @@ class SourceDiscoveryAsyncTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(document.config.hints.detail_page_keywords, ["/recalls/alert/"])
         self.assertIn("/faq", document.config.hints.blocked_paths)
 
+    async def test_discover_source_config_falls_back_when_llm_keywords_miss_children(self) -> None:
+        homepage_html = """
+        <html><body>
+          <a href="/recalls">Food product recalls</a>
+        </body></html>
+        """
+        listing_html = """
+        <html><body>
+          <a href="/recalls/alert/abc">Milk recall</a>
+          <a href="/recalls/alert/def">Cheese recall</a>
+        </body></html>
+        """
+
+        async def fake_fetch(_client: httpx.AsyncClient, url: str, **_kwargs: object) -> tuple[str, str]:
+            if "/recalls" in url and "alert" not in url:
+                return listing_html, url
+            return homepage_html, url
+
+        with (
+            patch(
+                "agents.fetchers.crawler.source_discovery.fetch_static_html",
+                new=AsyncMock(side_effect=fake_fetch),
+            ),
+            patch(
+                "agents.fetchers.crawler.source_discovery.fetch_browser_html",
+                new=AsyncMock(side_effect=RuntimeError("browser should not be required")),
+            ),
+            patch(
+                "agents.fetchers.crawler.source_discovery.chat_json",
+                side_effect=[
+                    {
+                        "seed_urls": ["https://example.gov/recalls"],
+                        "confidence": 0.9,
+                        "reason": "listing",
+                    },
+                    {
+                        "detail_page_keywords": ["/fiche-rappel/", "/recall/"],
+                        "blocked_paths": ["/faq"],
+                        "date_languages": ["en"],
+                        "reason": "hallucinated patterns",
+                    },
+                ],
+            ),
+        ):
+            document = await discover_source_config(
+                source_name="example",
+                homepage_url="https://example.gov/",
+                country_source="Example",
+                client=AsyncMock(spec=httpx.AsyncClient),
+            )
+
+        self.assertTrue(
+            any("/recalls/alert" in keyword for keyword in document.config.hints.detail_page_keywords)
+        )
+        self.assertNotIn("/fiche-rappel/", document.config.hints.detail_page_keywords)
+        self.assertNotIn("/recall/", document.config.hints.detail_page_keywords)
+
 
 class SourceRegistryStoreTests(unittest.TestCase):
     def test_in_memory_store_roundtrip(self) -> None:

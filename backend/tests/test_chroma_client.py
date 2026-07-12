@@ -63,6 +63,22 @@ class ChromaClientDedupeTests(unittest.TestCase):
         self.assertEqual(inserted_count, 0)
         client.collection.add.assert_not_called()
 
+    def test_save_alerts_updates_corrected_alert_with_same_source_url(self) -> None:
+        client = cast(Any, object.__new__(FoodRecallAlertsChromaClient))
+        client.collection = FakeCollection()
+        original = _alert(recall_date=date(2026, 7, 11))
+        corrected = _alert(recall_date=date(2026, 7, 10))
+
+        self.assertEqual(client.save_alerts([original]), 1)
+        original_id = client.collection.added["ids"][0]
+        self.assertEqual(client.save_alerts([corrected]), 0)
+
+        self.assertEqual(client.collection.updated["ids"], [original_id])
+        self.assertEqual(
+            client.collection.updated["metadatas"][0]["recall_date"],
+            "2026-07-10",
+        )
+
     def test_get_alerts_returns_empty_when_collection_has_no_metadata(self) -> None:
         client = cast(Any, object.__new__(FoodRecallAlertsChromaClient))
         client.collection = MagicMock()
@@ -185,10 +201,31 @@ class FakeCollection:
             "documents": [],
             "metadatas": [],
         }
+        self.updated = {
+            "ids": [],
+            "documents": [],
+            "metadatas": [],
+        }
 
     def get(self, *, where=None, include=None):
+        source_urls = set((where or {}).get("source_url", {}).get("$in", []))
+        if source_urls:
+            matches = [
+                (record_id, metadata)
+                for record_id, metadata in zip(
+                    self.added["ids"],
+                    self.added["metadatas"],
+                    strict=True,
+                )
+                if metadata["source_url"] in source_urls
+            ]
+            return {
+                "ids": [record_id for record_id, _metadata in matches],
+                "metadatas": [metadata for _record_id, metadata in matches],
+            }
         requested_keys = set((where or {}).get("dedupe_key", {}).get("$in", []))
         return {
+            "ids": [],
             "metadatas": [
                 {"dedupe_key": key}
                 for key in self.existing_dedupe_keys.intersection(requested_keys)
@@ -201,7 +238,23 @@ class FakeCollection:
         self.added["metadatas"].extend(metadatas)
         self.existing_dedupe_keys.update(metadata["dedupe_key"] for metadata in metadatas)
 
-def _alert(source_url: str = "https://example.com/recall") -> FoodRecallAlertCreate:
+    def update(self, *, ids, documents, metadatas) -> None:
+        self.updated["ids"].extend(ids)
+        self.updated["documents"].extend(documents)
+        self.updated["metadatas"].extend(metadatas)
+        for record_id, metadata in zip(ids, metadatas, strict=True):
+            index = self.added["ids"].index(record_id)
+            old_key = self.added["metadatas"][index]["dedupe_key"]
+            self.existing_dedupe_keys.discard(old_key)
+            self.added["documents"][index] = documents[ids.index(record_id)]
+            self.added["metadatas"][index] = metadata
+            self.existing_dedupe_keys.add(metadata["dedupe_key"])
+
+
+def _alert(
+    source_url: str = "https://example.com/recall",
+    recall_date: date = date(2026, 6, 9),
+) -> FoodRecallAlertCreate:
     return FoodRecallAlertCreate(
         api_source="test-source",
         country_source=api_source_to_country_source("test-source"),
@@ -209,7 +262,7 @@ def _alert(source_url: str = "https://example.com/recall") -> FoodRecallAlertCre
         product_category="Produce",
         recall_reason="Possible contamination",
         summary="This product was recalled. It may be unsafe. Consumers should not eat it.",
-        recall_date=date(2026, 6, 9),
+        recall_date=recall_date,
         risk_level="High",
         hazard_type="Listeria",
         consumer_action="Do not consume it.",
