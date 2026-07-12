@@ -18,6 +18,15 @@ class PipelineRunOptions(BaseModel):
         return sources
 
 def _source_names() -> list[str]:
-    from config.agents import DEFAULT_SOURCE_NAMES
+    try:
+        from dependencies import get_source_config_db
 
-    return DEFAULT_SOURCE_NAMES
+        names = get_source_config_db().list_source_names()
+        if names:
+            return names
+    except Exception:
+        pass
+
+    from config.agents import BOOTSTRAP_SOURCE_NAMES
+
+    return list(BOOTSTRAP_SOURCE_NAMES)

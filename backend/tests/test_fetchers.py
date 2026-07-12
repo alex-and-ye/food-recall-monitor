@@ -8,8 +8,20 @@ from agents.fetchers.scraper_ingestion import (
     fetch_sources_sequentially,
     to_translator_envelope,
 )
+from db.chroma_source_client import InMemoryScraperSourceConfigStore
 from models.scraped_record import ScrapedRecallRecord
 from models.scraper_config import ScraperHints, ScraperSourceConfig
+from models.source_registry import SourceRegistryDocument
+
+
+def _uk_document(source_config: ScraperSourceConfig) -> SourceRegistryDocument:
+    return SourceRegistryDocument(
+        source_name="uk",
+        homepage_url=source_config.base_url,
+        country_source="UK",
+        config=source_config,
+        discovery_status="ready",
+    )
 
 
 class ScraperIngestionTests(unittest.IsolatedAsyncioTestCase):
@@ -23,6 +35,8 @@ class ScraperIngestionTests(unittest.IsolatedAsyncioTestCase):
             lookback_days=1,
             hints=ScraperHints(),
         )
+        store = InMemoryScraperSourceConfigStore()
+        store.upsert_source(_uk_document(source_config))
         payload = {
             "source_url": "https://example.com/recalls/abc?utm_source=test",
             "headings": ["<h2>Risk</h2>"],
@@ -32,7 +46,6 @@ class ScraperIngestionTests(unittest.IsolatedAsyncioTestCase):
         }
 
         with (
-            patch("agents.fetchers.scraper_ingestion.SCRAPER_SOURCES", {"uk": source_config}),
             patch(
                 "agents.fetchers.scraper_ingestion.crawl_source_pages",
                 new=AsyncMock(return_value=[payload]),
@@ -42,7 +55,12 @@ class ScraperIngestionTests(unittest.IsolatedAsyncioTestCase):
                 return_value="2026-06-09",
             ),
         ):
-            records = await fetch_source_records("uk", limit=10, client=AsyncMock(spec=httpx.AsyncClient))
+            records = await fetch_source_records(
+                "uk",
+                limit=10,
+                client=AsyncMock(spec=httpx.AsyncClient),
+                source_db=store,
+            )
 
         self.assertEqual(len(records), 1)
         self.assertIsInstance(records[0], ScrapedRecallRecord)
@@ -63,8 +81,9 @@ class ScraperIngestionTests(unittest.IsolatedAsyncioTestCase):
             lookback_days=1,
             hints=ScraperHints(),
         )
+        store = InMemoryScraperSourceConfigStore()
+        store.upsert_source(_uk_document(source_config))
         with (
-            patch("agents.fetchers.scraper_ingestion.SCRAPER_SOURCES", {"uk": source_config}),
             patch(
                 "agents.fetchers.scraper_ingestion.crawl_source_pages",
                 new=AsyncMock(
@@ -83,7 +102,12 @@ class ScraperIngestionTests(unittest.IsolatedAsyncioTestCase):
                 return_value=None,
             ),
         ):
-            records = await fetch_source_records("uk", limit=10, client=AsyncMock(spec=httpx.AsyncClient))
+            records = await fetch_source_records(
+                "uk",
+                limit=10,
+                client=AsyncMock(spec=httpx.AsyncClient),
+                source_db=store,
+            )
         self.assertEqual(records, [])
 
     async def test_fetch_sources_sequentially_collects_failures_and_continues(self) -> None:

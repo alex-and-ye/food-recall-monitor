@@ -43,17 +43,18 @@ async def crawl_source_pages(
         score = score_url_relevance(seed, detail_page_keywords)
         heapq.heappush(queue, _QueueItem(priority=-score, depth=0, order=enqueue_order, url=seed))
         enqueue_order += 1
-        if reporter is not None:
-            reporter.log(
-                stage="crawl",
-                source=source_name,
-                message="Seed URL queued",
-                details={
-                    "url": seed,
-                    "priority_score": score,
-                    "proxy_enabled": bool(source_config.proxy_url),
-                },
-            )
+    if reporter is not None:
+        reporter.log(
+            stage="crawl",
+            source=source_name,
+            message="Starting crawl queue",
+            details={
+                "seed_urls": list(source_config.seed_urls),
+                "seed_count": len(source_config.seed_urls),
+                "detail_page_keywords": detail_page_keywords,
+                "proxy_enabled": bool(source_config.proxy_url),
+            },
+        )
 
     detail_pages: list[dict[str, object]] = []
     visited: set[str] = set()
@@ -87,22 +88,31 @@ async def crawl_source_pages(
                     )
                 except httpx.HTTPError as exc:
                     static_error = exc
-                    if reporter is not None:
-                        reporter.log(
-                            stage="crawl",
-                            source=source_name,
-                            message="Static fetch failed, attempting browser fallback",
-                            details={"url": item.url, "error": str(exc)},
-                        )
 
-            should_try_browser = source_config.hints.force_browser or static_error is not None or _looks_dynamic(html)
+            should_try_browser = source_config.hints.force_browser or _should_try_browser(
+                static_error=static_error,
+                html=html,
+                force_browser=source_config.hints.force_browser,
+            )
             if should_try_browser:
-                html, final_url = await fetch_browser_html(
-                    item.url,
-                    headers=source_config.request_headers or None,
-                    proxy_url=source_config.proxy_url,
-                )
-                render_mode = "browser"
+                if reporter is not None and static_error is not None and not source_config.hints.force_browser:
+                    reporter.log(
+                        stage="crawl",
+                        source=source_name,
+                        message="Static fetch failed, attempting browser fallback",
+                        details={"url": item.url, "error": str(static_error)},
+                    )
+                try:
+                    html, final_url = await fetch_browser_html(
+                        item.url,
+                        headers=source_config.request_headers or None,
+                        proxy_url=source_config.proxy_url,
+                    )
+                    render_mode = "browser"
+                except RuntimeError as browser_exc:
+                    if static_error is not None:
+                        raise static_error from browser_exc
+                    raise
 
             if not html.strip():
                 if static_error is not None:
@@ -137,7 +147,6 @@ async def crawl_source_pages(
                     "page_class": page_class,
                     "render_mode": render_mode,
                     "pages_seen": pages_seen,
-                    "html_excerpt": html[:500],
                 },
             )
         if page_class == "detail":
@@ -149,14 +158,16 @@ async def crawl_source_pages(
             )
             detail_pages.append(payload)
             if reporter is not None:
+                date_candidates = list(payload.get("published_date_candidates", []))
                 reporter.log(
                     stage="crawl",
                     source=source_name,
                     message="Detail payload extracted",
                     details={
                         "url": final_url,
-                        "date_candidates": len(list(payload.get("published_date_candidates", []))),
-                        "extracted_payload": _to_jsonable(payload),
+                        "date_candidate_count": len(date_candidates),
+                        "date_candidates": date_candidates[:5],
+                        "heading_count": len(list(payload.get("headings", []))),
                     },
                 )
 
@@ -169,18 +180,24 @@ async def crawl_source_pages(
             allowed_domains=source_config.allowed_domains,
             blocked_paths=blocked_paths,
         )
+        detail_links = [
+            link
+            for link in links
+            if link not in visited and matches_detail_url(link, detail_page_keywords)
+        ]
         if reporter is not None:
             reporter.log(
                 stage="crawl",
                 source=source_name,
                 message="Discovered internal links",
-                details={"url": final_url, "link_count": len(links), "links": links},
+                details={
+                    "url": final_url,
+                    "link_count": len(links),
+                    "detail_link_count": len(detail_links),
+                    "detail_links_sample": detail_links[:8],
+                },
             )
-        for link in links:
-            if link in visited:
-                continue
-            if not matches_detail_url(link, detail_page_keywords):
-                continue
+        for link in detail_links:
             score = score_page_relevance(link, "", detail_page_keywords)
             heapq.heappush(
                 queue,
@@ -244,15 +261,21 @@ def _looks_dynamic(html: str) -> bool:
     return script_tags > 20 and text_like < 3_000
 
 
-def _to_jsonable(value: object) -> object:
-    if isinstance(value, (str, int, float, bool)) or value is None:
-        return value
-    if isinstance(value, dict):
-        return {str(key): _to_jsonable(child) for key, child in value.items()}
-    if isinstance(value, list):
-        return [_to_jsonable(child) for child in value]
-    if isinstance(value, tuple):
-        return [_to_jsonable(child) for child in value]
-    if isinstance(value, set):
-        return [_to_jsonable(child) for child in sorted(value, key=str)]
-    return str(value)
+def _should_try_browser(
+    *,
+    static_error: Exception | None,
+    html: str,
+    force_browser: bool = False,
+) -> bool:
+    if force_browser:
+        return True
+    if isinstance(static_error, httpx.HTTPStatusError):
+        try:
+            status = int(static_error.response.status_code)
+        except (TypeError, ValueError):
+            status = 0
+        if 400 <= status < 500:
+            return False
+    if static_error is not None:
+        return True
+    return _looks_dynamic(html)

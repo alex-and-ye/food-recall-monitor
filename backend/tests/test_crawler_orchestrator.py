@@ -41,7 +41,7 @@ class CrawlerOrchestratorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(pages), 1)
         self.assertEqual(pages[0]["source_url"], "https://example.com/recalls/1")
 
-    async def test_orchestrator_falls_back_to_browser_on_static_403(self) -> None:
+    async def test_orchestrator_falls_back_to_browser_on_static_503(self) -> None:
         source_config = ScraperSourceConfig(
             base_url="https://example.com",
             allowed_domains=["example.com"],
@@ -50,14 +50,15 @@ class CrawlerOrchestratorTests(unittest.IsolatedAsyncioTestCase):
             max_pages_per_run=1,
             hints=ScraperHints(detail_page_keywords=["/recalls/"]),
         )
+        request = httpx.Request("GET", "https://example.com/recalls")
         with (
             patch(
                 "agents.fetchers.crawler.orchestrator.fetch_static_html",
                 new=AsyncMock(
                     side_effect=httpx.HTTPStatusError(
-                        "403",
-                        request=AsyncMock(),
-                        response=AsyncMock(),
+                        "503",
+                        request=request,
+                        response=httpx.Response(503, request=request),
                     )
                 ),
             ),
@@ -83,6 +84,41 @@ class CrawlerOrchestratorTests(unittest.IsolatedAsyncioTestCase):
 
         browser_fetch.assert_awaited_once()
         self.assertEqual(len(pages), 1)
+
+    async def test_orchestrator_skips_browser_on_static_404(self) -> None:
+        source_config = ScraperSourceConfig(
+            base_url="https://example.com",
+            allowed_domains=["example.com"],
+            seed_urls=["https://example.com/missing"],
+            max_depth=0,
+            max_pages_per_run=1,
+            hints=ScraperHints(detail_page_keywords=["/recalls/"]),
+        )
+        request = httpx.Request("GET", "https://example.com/missing")
+        with (
+            patch(
+                "agents.fetchers.crawler.orchestrator.fetch_static_html",
+                new=AsyncMock(
+                    side_effect=httpx.HTTPStatusError(
+                        "404",
+                        request=request,
+                        response=httpx.Response(404, request=request),
+                    )
+                ),
+            ),
+            patch(
+                "agents.fetchers.crawler.orchestrator.fetch_browser_html",
+                new=AsyncMock(),
+            ) as browser_fetch,
+        ):
+            with self.assertRaises(RuntimeError):
+                await crawl_source_pages(
+                    source_name="us",
+                    source_config=source_config,
+                    client=AsyncMock(spec=httpx.AsyncClient),
+                )
+
+        browser_fetch.assert_not_awaited()
 
     async def test_orchestrator_processes_detail_links_in_document_order(self) -> None:
         source_config = ScraperSourceConfig(
