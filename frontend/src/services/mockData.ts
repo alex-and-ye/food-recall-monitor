@@ -22,6 +22,8 @@ const MOCK_ALERTS: FoodRecallAlert[] = [
     affected_regions: ["England", "Scotland", "Wales"],
     recall_date: "2026-06-22",
     source_url: "https://www.food.gov.uk/",
+    latitude: 52.4862,
+    longitude: -1.8904,
   },
   {
     alert_id: "mock-alert-002",
@@ -39,6 +41,8 @@ const MOCK_ALERTS: FoodRecallAlert[] = [
     affected_regions: ["Bavaria", "Berlin", "Hamburg"],
     recall_date: "2026-06-21",
     source_url: "https://www.bvl.bund.de/",
+    latitude: 48.7904,
+    longitude: 11.4979,
   },
   {
     alert_id: "mock-alert-003",
@@ -56,6 +60,8 @@ const MOCK_ALERTS: FoodRecallAlert[] = [
     affected_regions: ["Île-de-France", "Provence"],
     recall_date: "2026-06-20",
     source_url: "https://rappel.conso.gouv.fr/",
+    latitude: 48.8566,
+    longitude: 2.3522,
   },
   {
     alert_id: "mock-alert-004",
@@ -73,6 +79,8 @@ const MOCK_ALERTS: FoodRecallAlert[] = [
     affected_regions: ["Northern Ireland", "England"],
     recall_date: "2026-06-19",
     source_url: "https://www.food.gov.uk/",
+    latitude: 54.7877,
+    longitude: -6.4923,
   },
   {
     alert_id: "mock-alert-005",
@@ -90,6 +98,8 @@ const MOCK_ALERTS: FoodRecallAlert[] = [
     affected_regions: ["North Rhine-Westphalia", "Lower Saxony"],
     recall_date: "2026-06-18",
     source_url: "https://www.bvl.bund.de/",
+    latitude: 51.4332,
+    longitude: 7.6616,
   },
 ];
 
