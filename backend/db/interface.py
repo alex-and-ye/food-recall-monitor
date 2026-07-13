@@ -25,7 +25,11 @@ class FoodRecallAlertsDBInterface(ABC):
         pass
 
     @abstractmethod
-    def save_alerts(self, alerts: List[FoodRecallAlertCreate]) -> int:
+    def save_alerts(self, alerts: List[FoodRecallAlertCreate]) -> List[FoodRecallAlert]:
+        pass
+
+    @abstractmethod
+    def update_alert_coordinates(self, alert_id: str, latitude: float, longitude: float) -> bool:
         pass
 
     @abstractmethod
