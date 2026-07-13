@@ -1,6 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 
+from settings import get_settings
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -11,6 +12,7 @@ from routes.alerts import router as alerts_router
 from routes.pipeline import router as pipeline_router
 from scheduler import start_daily_pipeline_scheduler, stop_daily_pipeline_scheduler
 
+get_settings()
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 @asynccontextmanager
