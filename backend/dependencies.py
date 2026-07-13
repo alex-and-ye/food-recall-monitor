@@ -1,7 +1,6 @@
-import os
-
 from fastapi import Depends
 
+from settings import get_settings
 from db.interface import FoodRecallAlertsDBInterface
 from db.chroma_client import FoodRecallAlertsChromaClient
 from services.alert_events import AlertChangeBroadcaster
@@ -9,9 +8,10 @@ from services.alerts import AlertsService
 from services.pipeline_progress import PipelineProgressTracker
 from services.pipeline import PipelineService
 
+_settings = get_settings()
 _chroma_client: FoodRecallAlertsDBInterface = FoodRecallAlertsChromaClient(
-    host=os.getenv("CHROMA_HOST", "localhost"),
-    port=int(os.getenv("CHROMA_PORT", "8000")),
+    host=_settings.chroma_host,
+    port=_settings.chroma_port,
 )
 _pipeline_progress_tracker = PipelineProgressTracker()
 _alert_change_broadcaster = AlertChangeBroadcaster()
