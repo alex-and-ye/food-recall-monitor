@@ -38,22 +38,15 @@ def to_translator_envelope(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _get_source_db() -> ScraperSourceConfigDBInterface:
-    from dependencies import get_source_config_db
-
-    return get_source_config_db()
-
-
 async def resolve_source_config(
     source: str,
     *,
     client: httpx.AsyncClient,
+    source_db: ScraperSourceConfigDBInterface,
     reporter: ProgressReporter | None = None,
-    source_db: ScraperSourceConfigDBInterface | None = None,
     allow_rediscovery: bool = True,
 ) -> SourceRegistryDocument:
-    db = source_db or _get_source_db()
-    document = db.get_source(source)
+    document = source_db.get_source(source)
     needs_discovery = (
         document is None
         or document.discovery_status in {"failed", "stale", "pending"}
@@ -77,7 +70,7 @@ async def resolve_source_config(
             client=client,
             reporter=reporter,
         )
-        return db.upsert_source(discovered)
+        return source_db.upsert_source(discovered)
 
     if document is None:
         raise KeyError(f"Unknown scraper source: {source}")
@@ -89,15 +82,14 @@ async def fetch_source_records(
     *,
     limit: int,
     client: httpx.AsyncClient,
+    source_db: ScraperSourceConfigDBInterface,
     reporter: ProgressReporter | None = None,
-    source_db: ScraperSourceConfigDBInterface | None = None,
 ) -> list[ScrapedRecallRecord]:
-    db = source_db or _get_source_db()
     document = await resolve_source_config(
         source,
         client=client,
         reporter=reporter,
-        source_db=db,
+        source_db=source_db,
     )
     source_config = document.config
     preferred_seeds = prefer_unfiltered_listing_urls(
@@ -108,7 +100,7 @@ async def fetch_source_records(
         previous_seeds = list(source_config.seed_urls)
         source_config = source_config.model_copy(update={"seed_urls": preferred_seeds})
         document = document.model_copy(update={"config": source_config})
-        db.upsert_source(document)
+        source_db.upsert_source(document)
         if reporter is not None:
             reporter.log(
                 stage="discovery",
@@ -130,7 +122,7 @@ async def fetch_source_records(
     if not detail_payloads and document.discovery_status == "ready":
         # Zero details: mark stale, rediscover once, retry crawl.
         stale = document.touch(status="stale", reason="zero detail payloads after crawl")
-        db.upsert_source(stale)
+        source_db.upsert_source(stale)
         if reporter is not None:
             reporter.log(
                 stage="discovery",
@@ -145,7 +137,7 @@ async def fetch_source_records(
             client=client,
             reporter=reporter,
         )
-        db.upsert_source(rediscovered)
+        source_db.upsert_source(rediscovered)
         _detail_payloads, records = await _crawl_and_filter(
             source=source,
             source_config=rediscovered.config,
@@ -263,8 +255,8 @@ async def fetch_sources_sequentially(
     sources: list[str],
     *,
     limit: int,
+    source_db: ScraperSourceConfigDBInterface,
     reporter: ProgressReporter | None = None,
-    source_db: ScraperSourceConfigDBInterface | None = None,
 ) -> FetchSourcesResult:
     records: list[ScrapedRecallRecord] = []
     failures: dict[str, str] = {}

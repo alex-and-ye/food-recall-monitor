@@ -16,6 +16,7 @@ from services.pipeline_progress import PipelineProgressTracker
 from services.source_bootstrap import ensure_bootstrap_sources
 from services.sources import SourcesService
 from models.food_recall_alert import set_country_source_lookup
+from models.pipeline_options import set_source_names_provider
 
 LOGGER = logging.getLogger(__name__)
 
@@ -51,6 +52,7 @@ def _country_source_from_registry(source_name: str) -> str | None:
 
 
 set_country_source_lookup(_country_source_from_registry)
+set_source_names_provider(_source_config_db.list_source_names)
 
 
 def get_db() -> FoodRecallAlertsDBInterface:
@@ -77,10 +79,12 @@ def get_sources_service(
 
 def get_pipeline_service(
     db: FoodRecallAlertsDBInterface = Depends(get_db),
+    source_db: ScraperSourceConfigDBInterface = Depends(get_source_config_db),
     alert_broadcaster: AlertChangeBroadcaster = Depends(get_alert_change_broadcaster),
 ) -> PipelineService:
     return PipelineService(
         db,
+        source_db,
         progress_tracker=_pipeline_progress_tracker,
         alert_broadcaster=alert_broadcaster,
     )

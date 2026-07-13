@@ -148,7 +148,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
             ),
             patch("agents.graph.chat_text", return_value=_valid_summary()),
         ):
-            result = await run_pipeline(options)
+            result = await run_pipeline(options, source_db=_source_db())
 
         self.assertEqual(len(result.alerts), 1)
         self.assertEqual(result.alerts[0].api_source, "uk")
@@ -157,6 +157,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_run_pipeline_uses_supplied_sources_and_limit(self) -> None:
         options = _options(sources=["ca", "uk"], limit=7)
+        source_db = _source_db()
 
         with (
             patch(
@@ -166,9 +167,14 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
             patch("agents.graph.chat_json", side_effect=[{"record": _scraped_record().payload}, _valid_structured_json()]),
             patch("agents.graph.chat_text", return_value=_valid_summary()),
         ):
-            await run_pipeline(options)
+            await run_pipeline(options, source_db=source_db)
 
-        fetch_sources.assert_awaited_once_with(["ca", "uk"], limit=7)
+        fetch_sources.assert_awaited_once_with(
+            ["ca", "uk"],
+            limit=7,
+            source_db=source_db,
+            reporter=None,
+        )
 
     def test_structure_node_omits_original_source_json_from_prompt(self) -> None:
         scraped_record = _scraped_record()
@@ -260,7 +266,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
             new=AsyncMock(return_value=FetchSourcesResult(records=[], failures={"us": "403"})),
         ):
             with self.assertRaises(SourceFetchError):
-                await run_pipeline(options)
+                await run_pipeline(options, source_db=_source_db())
 
     async def test_run_pipeline_keeps_source_failures_when_records_exist(self) -> None:
         options = _options(sources=["uk", "us"], limit=2)
@@ -274,7 +280,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
             patch("agents.graph.chat_json", side_effect=[{"record": _scraped_record().payload}, _valid_structured_json()]),
             patch("agents.graph.chat_text", return_value=_valid_summary()),
         ):
-            result = await run_pipeline(options)
+            result = await run_pipeline(options, source_db=_source_db())
 
         self.assertEqual(result.records_fetched, 1)
         self.assertEqual(result.source_failures, {"us": "Timeout"})
@@ -285,7 +291,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
             "agents.graph.fetch_sources_sequentially",
             new=AsyncMock(return_value=FetchSourcesResult(records=[], failures={})),
         ):
-            result = await run_pipeline(options)
+            result = await run_pipeline(options, source_db=_source_db())
         self.assertEqual(result.records_fetched, 0)
         self.assertEqual(result.alerts, [])
 
@@ -301,7 +307,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
             ),
             patch("agents.graph.create_pipeline_graph", return_value=fake_graph),
         ):
-            result = await run_pipeline(_options(["uk", "ca"], limit=2))
+            result = await run_pipeline(_options(["uk", "ca"], limit=2), source_db=_source_db())
         self.assertEqual(result.records_fetched, 2)
         self.assertEqual(len(result.alerts), 1)
         self.assertEqual(result.alerts[0].api_source, "ca")
@@ -322,6 +328,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
         ):
             result = await run_pipeline(
                 _options(["uk", "ca"], limit=2),
+                source_db=_source_db(),
                 on_alert_processed=on_alert_processed,
             )
 
@@ -346,6 +353,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
         ):
             result = await run_pipeline(
                 _options(["uk", "ca"], limit=2),
+                source_db=_source_db(),
                 on_alert_processed=on_alert_processed,
             )
 
@@ -356,6 +364,10 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
 
 def _options(sources: list[str], limit: int) -> PipelineRunOptions:
     return PipelineRunOptions.model_construct(sources=sources, limit=limit)
+
+
+def _source_db() -> Mock:
+    return Mock()
 
 
 def _valid_summary() -> str:

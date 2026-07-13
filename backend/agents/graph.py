@@ -24,6 +24,7 @@ from agents.validators import (
     validate_translated_structure,
 )
 from config.agents import TRANSLATION_MODEL
+from db.source_config_interface import ScraperSourceConfigDBInterface
 from models.food_recall_alert import FoodRecallAlertCreate
 from models.pipeline_options import PipelineRunOptions
 from models.pipeline_progress import ProgressReporter
@@ -64,6 +65,7 @@ def create_pipeline_graph(*, reporter: ProgressReporter | None = None):
 async def run_pipeline(
     options: PipelineRunOptions,
     *,
+    source_db: ScraperSourceConfigDBInterface,
     reporter: ProgressReporter | None = None,
     on_alert_processed: Callable[[FoodRecallAlertCreate], int] | None = None,
 ) -> AgentPipelineResult:
@@ -74,16 +76,12 @@ async def run_pipeline(
             message="Starting source fetch",
             details={"sources": options.sources, "limit": options.limit},
         )
-        fetch_result = await fetch_sources_sequentially(
-            options.sources,
-            limit=options.limit,
-            reporter=reporter,
-        )
-    else:
-        fetch_result = await fetch_sources_sequentially(
-            options.sources,
-            limit=options.limit,
-        )
+    fetch_result = await fetch_sources_sequentially(
+        options.sources,
+        limit=options.limit,
+        source_db=source_db,
+        reporter=reporter,
+    )
 
     if not fetch_result.records and fetch_result.failures:
         raise SourceFetchError(fetch_result.failures)

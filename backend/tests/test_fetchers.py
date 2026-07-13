@@ -175,7 +175,11 @@ class ScraperIngestionTests(unittest.IsolatedAsyncioTestCase):
                 ]
             ),
         ):
-            result = await fetch_sources_sequentially(["a", "b", "c"], limit=10)
+            result = await fetch_sources_sequentially(
+                ["a", "b", "c"],
+                limit=10,
+                source_db=InMemoryScraperSourceConfigStore(),
+            )
 
         self.assertEqual(len(result.records), 1)
         self.assertIn("b", result.failures)
@@ -188,7 +192,11 @@ class ScraperIngestionTests(unittest.IsolatedAsyncioTestCase):
             "agents.fetchers.scraper_ingestion.fetch_source_records",
             new=AsyncMock(side_effect=httpx.HTTPStatusError("403", request=AsyncMock(), response=AsyncMock())),
         ):
-            result = await fetch_sources_sequentially(["us"], limit=5)
+            result = await fetch_sources_sequentially(
+                ["us"],
+                limit=5,
+                source_db=InMemoryScraperSourceConfigStore(),
+            )
 
         self.assertEqual(result.records, [])
         self.assertIn("us", result.failures)

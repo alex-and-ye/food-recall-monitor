@@ -27,7 +27,11 @@ async def lifespan(_: FastAPI):
     ensure_bootstrap_sources(get_source_config_db())
 
     db = get_db()
-    pipeline_service = get_pipeline_service(db, get_alert_change_broadcaster())
+    pipeline_service = get_pipeline_service(
+        db,
+        get_source_config_db(),
+        get_alert_change_broadcaster(),
+    )
     alerts_service = get_alerts_service(db)
 
     await run_state_aware_bootstrap(alerts_service, pipeline_service)
