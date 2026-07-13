@@ -20,6 +20,8 @@ export interface FoodRecallAlert {
   affected_regions: string[];
   recall_date: string;
   source_url: string;
+  latitude: number;
+  longitude: number;
 }
 
 export interface FoodRecallAlertStats {
