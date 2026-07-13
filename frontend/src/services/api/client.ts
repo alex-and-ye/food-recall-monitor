@@ -10,8 +10,7 @@ import {
 
 export { ApiError } from "@/services/api/errors";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 
 export function getApiBaseUrl(): string {
   return API_BASE_URL;

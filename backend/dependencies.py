@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import logging
-import os
 
 from fastapi import Depends
 
+from settings import get_settings
 from db.chroma_client import FoodRecallAlertsChromaClient
 from db.chroma_source_client import InMemoryScraperSourceConfigStore, ScraperSourceConfigChromaClient
 from db.interface import FoodRecallAlertsDBInterface
@@ -20,12 +20,15 @@ from models.pipeline_options import set_source_names_provider
 
 LOGGER = logging.getLogger(__name__)
 
+_settings = get_settings()
+
 
 def _build_source_config_db() -> ScraperSourceConfigDBInterface:
-    host = os.getenv("CHROMA_HOST", "localhost")
-    port = int(os.getenv("CHROMA_PORT", "8000"))
     try:
-        client = ScraperSourceConfigChromaClient(host=host, port=port)
+        client = ScraperSourceConfigChromaClient(
+            host=_settings.chroma_host,
+            port=_settings.chroma_port,
+        )
         ensure_bootstrap_sources(client)
         return client
     except Exception as exc:  # noqa: BLE001 - fall back so local tests/dev can start
@@ -36,8 +39,8 @@ def _build_source_config_db() -> ScraperSourceConfigDBInterface:
 
 
 _chroma_client: FoodRecallAlertsDBInterface = FoodRecallAlertsChromaClient(
-    host=os.getenv("CHROMA_HOST", "localhost"),
-    port=int(os.getenv("CHROMA_PORT", "8000")),
+    host=_settings.chroma_host,
+    port=_settings.chroma_port,
 )
 _source_config_db: ScraperSourceConfigDBInterface = _build_source_config_db()
 _pipeline_progress_tracker = PipelineProgressTracker()

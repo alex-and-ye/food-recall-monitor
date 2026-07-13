@@ -7,6 +7,7 @@ const nextArgs = args.filter((arg) => arg !== "--test");
 
 const env = { ...process.env };
 if (testMode) {
+  // TODO: Remove NEXT_PUBLIC_USE_MOCK_DATA before final project delivery
   env.NEXT_PUBLIC_USE_MOCK_DATA = "true";
 }
 
