@@ -25,17 +25,24 @@ class SourceDiscoveryUnitTests(unittest.TestCase):
         self.assertEqual(base_url, "https://www.example.gov")
         self.assertEqual(domains, ["www.example.gov", "example.gov"])
 
-    def test_score_recall_candidate_prefers_recall_paths(self) -> None:
-        high = score_recall_candidate("https://example.gov/food-alerts/recall", "Product recalls")
-        low = score_recall_candidate("https://example.gov/about/contact", "Contact us")
-        self.assertGreater(high, low)
+    def test_score_recall_candidate_prefers_shallow_hubs_over_deep_details(self) -> None:
+        hub = score_recall_candidate("https://example.gov/food-alerts")
+        detail = score_recall_candidate("https://example.gov/food-alerts/notice/12345/full")
+        self.assertGreater(hub, detail)
+
+    def test_score_recall_candidate_penalizes_assets(self) -> None:
+        page = score_recall_candidate("https://example.gov/recalls")
+        asset = score_recall_candidate("https://example.gov/assets/logo.png")
+        self.assertGreater(page, asset)
 
     def test_extract_and_rank_candidates(self) -> None:
         html = """
         <html><body>
           <a href="/about">About</a>
           <a href="/recalls">Food recalls</a>
-          <a href="/news-alerts/alert/1">Alert one</a>
+          <a href="/recalls/alert/12345">Alert one</a>
+          <a href="/recalls/alert/12346">Alert two</a>
+          <a href="/recalls/alert/12347">Alert three</a>
         </body></html>
         """
         candidates = extract_link_candidates(
@@ -45,9 +52,8 @@ class SourceDiscoveryUnitTests(unittest.TestCase):
         )
         ranked = rank_candidates(candidates, limit=2)
         self.assertEqual(len(ranked), 2)
-        ranked_urls = " ".join(item.url for item in ranked)
-        self.assertTrue("/recalls" in ranked_urls or "/news-alerts/alert/" in ranked_urls)
-        self.assertNotIn("/about", ranked_urls)
+        # Peer density under /recalls/ should surface the listing hub.
+        self.assertEqual(ranked[0].url, "https://example.gov/recalls")
 
 
 class SourceDiscoveryAsyncTests(unittest.IsolatedAsyncioTestCase):

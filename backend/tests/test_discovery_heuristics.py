@@ -9,7 +9,9 @@ from agents.fetchers.crawler.source_discovery import (
     LinkCandidate,
     looks_like_detail_url,
     looks_like_listing_url,
+    max_listing_density,
     prefer_unfiltered_listing_urls,
+    score_detail_pattern_candidate,
     score_recall_candidate,
     select_heuristic_seed_urls,
     _filter_blocked_paths,
@@ -61,7 +63,24 @@ class HeuristicSeedTests(unittest.TestCase):
         )
         self.assertGreater(listing, detail)
         self.assertTrue(looks_like_listing_url("https://alerts.food.gov.uk/news-alerts"))
-        self.assertTrue(looks_like_detail_url("https://alerts.food.gov.uk/news-alerts/alert/FSA-AA-1"))
+        self.assertTrue(
+            looks_like_detail_url("https://alerts.food.gov.uk/news-alerts/alert/FSA-AA-1")
+        )
+
+    def test_peer_density_boosts_listing_hub(self) -> None:
+        peers = [
+            "https://example.gov/alerts/item/1001",
+            "https://example.gov/alerts/item/1002",
+            "https://example.gov/alerts/item/1003",
+            "https://example.gov/about",
+        ]
+        hub = score_recall_candidate(
+            "https://example.gov/alerts",
+            peer_urls=peers,
+        )
+        alone = score_recall_candidate("https://example.gov/alerts")
+        self.assertGreater(hub, alone)
+        self.assertGreaterEqual(max_listing_density(peers), 3)
 
     def test_select_heuristic_seeds_prefers_listings_or_homepage(self) -> None:
         ranked = [
@@ -190,10 +209,7 @@ class DetailKeywordFilterTests(unittest.TestCase):
         self.assertIn("/fiche-rappel/", french)
 
     def test_detail_pattern_ranking_prefers_notice_links(self) -> None:
-        from agents.fetchers.crawler.source_discovery import (
-            rank_detail_pattern_candidates,
-            score_detail_pattern_candidate,
-        )
+        from agents.fetchers.crawler.source_discovery import rank_detail_pattern_candidates
 
         listing = LinkCandidate(
             url="https://example.com/recalls",
@@ -201,9 +217,9 @@ class DetailKeywordFilterTests(unittest.TestCase):
             score=score_recall_candidate("https://example.com/recalls", "Recalls"),
         )
         detail = LinkCandidate(
-            url="https://example.com/fiche-rappel/123",
+            url="https://example.com/fiche-rappel/12345",
             anchor_text="Milk",
-            score=score_recall_candidate("https://example.com/fiche-rappel/123", "Milk"),
+            score=score_recall_candidate("https://example.com/fiche-rappel/12345", "Milk"),
         )
         ranked = rank_detail_pattern_candidates([listing, detail], limit=2)
         self.assertEqual(ranked[0].url, detail.url)

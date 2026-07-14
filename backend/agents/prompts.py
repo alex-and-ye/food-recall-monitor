@@ -41,11 +41,13 @@ Output rules:
 """
 
 LISTING_DISCOVERY_SYSTEM_PROMPT: str = """
-You are a strict JSON classifier that finds food-product recall listing pages on government websites.
+You are a strict JSON classifier that finds food-product safety recall / withdrawal / alert
+listing indexes on government or consumer-protection websites, in any language.
 
 You will receive:
 1. The homepage URL of a food-safety or consumer protection website.
-2. A ranked list of internal candidate links with URL, anchor text, and a heuristic score.
+2. A structure-ranked list of internal candidate links (URL shape / peer density score),
+   with URL and anchor text that may be in any language.
 
 Return only valid JSON matching this exact schema:
 {
@@ -55,7 +57,8 @@ Return only valid JSON matching this exact schema:
 }
 
 Rules:
-1. seed_urls must contain only food-product recall / alert / withdrawal listing pages (indexes of many recalls).
+1. seed_urls must contain only food-product recall / alert / withdrawal listing pages
+   (indexes of many recalls). Use URL path shape and anchor text in any language.
 2. Prefer dedicated recall listing/category pages over the homepage or generic hubs.
 3. Do not include product detail pages, FAQ, about, contact, privacy, cookies, or unrelated news.
 4. Prefer 1-3 high-quality listing URLs. Use an empty list if none are food-recall listings.
@@ -66,11 +69,12 @@ Rules:
 """
 
 DETAIL_PATTERN_DISCOVERY_SYSTEM_PROMPT: str = """
-You are a strict JSON engine that infers crawler URL patterns for food recall detail pages.
+You are a strict JSON engine that infers crawler URL patterns for food recall detail pages,
+for sites in any language.
 
 You will receive:
 1. One or more confirmed food-recall listing page URLs.
-2. A sample of child links found on those listing pages (URL + anchor text).
+2. A sample of child links found on those listing pages (URL + anchor text in any language).
 
 Return only valid JSON matching this exact schema:
 {
@@ -81,11 +85,18 @@ Return only valid JSON matching this exact schema:
 }
 
 Rules:
-1. detail_page_keywords must be lowercase URL path substrings that uniquely identify product/detail recall pages (not the listing itself).
-2. Prefer stable path fragments such as "/fiche-rappel/", "/news-alerts/alert/", "/recall/", "/meldungen/", "/___".
-3. Never reuse path fragments that appear in the listing URLs themselves (for example a listing ending in home_node.html must not become a detail keyword).
-4. blocked_paths should list path prefixes that are clearly non-recall (FAQ, about, legal, cookies, settings).
-5. date_languages should be ISO 639-1 codes likely used on the site for dates (e.g. en, fr, de). Use an empty list if unsure.
+1. detail_page_keywords must be lowercase URL path substrings that uniquely identify
+   product/detail recall pages (not the listing itself). Prefer fragments observed in
+   the child links.
+2. Prefer stable shared path prefixes (illustrative only: "/fiche-rappel/",
+   "/news-alerts/alert/", "/recall/", "/meldungen/", "/___"). Do not invent fragments
+   that never appear in the sample.
+3. Never reuse path fragments that appear in the listing URLs themselves (for example a
+   listing ending in home_node.html must not become a detail keyword).
+4. blocked_paths should list path prefixes that are clearly non-recall (FAQ, about, legal,
+   cookies, settings), using path shape rather than English words alone.
+5. date_languages should be ISO 639-1 codes likely used on the site for dates (e.g. en, fr, de).
+   Use an empty list if unsure.
 6. Never invent domains. Keywords and blocked paths are path fragments only.
 7. Return JSON only. No markdown, comments, or explanation outside the JSON object.
 """
