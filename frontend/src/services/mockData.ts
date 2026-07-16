@@ -19,6 +19,7 @@ const MOCK_ALERTS: FoodRecallAlert[] = [
       "Routine sampling detected Listeria in packaged organic baby spinach distributed to major grocery chains.",
     consumer_action:
       "Discard immediately and contact the retailer for a full refund.",
+    batch_id: "LOT-OBS-22618; Best before 2026-07-05",
     affected_regions: ["England", "Scotland", "Wales"],
     recall_date: "2026-06-22",
     source_url: "https://www.food.gov.uk/",
@@ -38,6 +39,7 @@ const MOCK_ALERTS: FoodRecallAlert[] = [
       "A cleaning agent trace was found in a limited production batch of whole milk bottled at a regional dairy facility.",
     consumer_action:
       "Return unopened or partially used containers to the place of purchase for a refund.",
+    batch_id: "LPK1WA046; LPK1WA048; LPK1WA050",
     affected_regions: ["Bavaria", "Berlin", "Hamburg"],
     recall_date: "2026-06-21",
     source_url: "https://www.bvl.bund.de/",
@@ -57,6 +59,7 @@ const MOCK_ALERTS: FoodRecallAlert[] = [
       "Packaging error led to cashew inclusion in a nut-free labeled trail mix variant sold in club stores.",
     consumer_action:
       "Consumers with cashew allergies should not consume this product. Return for a full refund.",
+    batch_id: "STM-340-0612",
     affected_regions: ["Île-de-France", "Provence"],
     recall_date: "2026-06-20",
     source_url: "https://rappel.conso.gouv.fr/",
@@ -76,6 +79,7 @@ const MOCK_ALERTS: FoodRecallAlert[] = [
       "Testing confirmed E. coli in ground beef produced on June 18. Products were shipped to retail locations.",
     consumer_action:
       "Do not eat. Return to store or destroy. Cook all ground beef to 160°F if from an uncertain source.",
+    batch_id: "Est. 12345; Packed 2026-06-18",
     affected_regions: ["Northern Ireland", "England"],
     recall_date: "2026-06-19",
     source_url: "https://www.food.gov.uk/",
@@ -95,6 +99,7 @@ const MOCK_ALERTS: FoodRecallAlert[] = [
       "An outbreak investigation traced Salmonella illnesses to romaine hearts harvested from a single grower.",
     consumer_action:
       "Throw away all affected packages. Sanitize refrigerator drawers that held the product.",
+    batch_id: "",
     affected_regions: ["North Rhine-Westphalia", "Lower Saxony"],
     recall_date: "2026-06-18",
     source_url: "https://www.bvl.bund.de/",

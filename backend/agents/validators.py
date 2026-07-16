@@ -12,6 +12,7 @@ REQUIRED_STRUCTURED_FIELDS: set[str] = {
     "hazard_type",
     "consumer_action",
     "source_url",
+    "batch_id",
     "affected_regions",
 }
 

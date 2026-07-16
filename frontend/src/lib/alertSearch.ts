@@ -172,6 +172,7 @@ export function filterAlerts(
     const searchableText = [
       alert.product_name,
       alert.product_category,
+      alert.batch_id,
       alert.recall_reason,
       alert.hazard_type,
       alert.summary,

@@ -34,18 +34,33 @@ class AlertSearchModelTests(unittest.TestCase):
         )
 
         self.assertEqual(alert.country_source, "UK")
+        self.assertEqual(alert.batch_id, "")
+
+    def test_to_metadata_omits_empty_batch_id_and_round_trips(self) -> None:
+        with_batch = _alert(batch_id="LOT-42")
+        without_batch = _alert(batch_id="")
+
+        with_meta = with_batch.to_metadata()
+        without_meta = without_batch.to_metadata()
+
+        self.assertEqual(with_meta["batch_id"], "LOT-42")
+        self.assertNotIn("batch_id", without_meta)
+        self.assertEqual(FoodRecallAlert.from_metadata(with_meta).batch_id, "LOT-42")
+        self.assertEqual(FoodRecallAlert.from_metadata(without_meta).batch_id, "")
 
     def test_matches_search_checks_all_fields(self) -> None:
         alert = _alert(
             alert_id="batch-search-id",
             product_name="Chocolate Bar",
             source_url="https://example.com/recall/chocolate",
+            batch_id="LOT-CHOC-99",
         )
 
         self.assertTrue(alert.matches_search("UK"))
         self.assertTrue(alert.matches_search("chocolate"))
         self.assertTrue(alert.matches_search("2026-06-09"))
         self.assertTrue(alert.matches_search("Ontario"))
+        self.assertTrue(alert.matches_search("LOT-CHOC-99"))
         self.assertFalse(alert.matches_search("peanut butter"))
 
 class ChromaClientSearchTests(unittest.TestCase):
@@ -187,6 +202,7 @@ def _alert(
     api_source: str = "uk",
     product_name: str = "Sample Product",
     source_url: str = "https://example.com/recall",
+    batch_id: str = "",
 ) -> FoodRecallAlert:
     return FoodRecallAlert(
         alert_id=alert_id,
@@ -201,6 +217,7 @@ def _alert(
         hazard_type="Listeria",
         consumer_action="Do not consume it.",
         source_url=source_url,
+        batch_id=batch_id,
         affected_regions=["Ontario"],
     )
 

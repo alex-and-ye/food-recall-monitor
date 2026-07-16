@@ -25,6 +25,7 @@ def structured_json_to_alert_create(
         hazard_type=_required_text(structured_json, "hazard_type"),
         consumer_action=_required_text(structured_json, "consumer_action"),
         source_url=_required_text(structured_json, "source_url"),
+        batch_id=clean_text(str(structured_json.get("batch_id", ""))),
         affected_regions=_string_list(structured_json.get("affected_regions")),
     )
 

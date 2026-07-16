@@ -17,6 +17,7 @@ export interface FoodRecallAlert {
   hazard_type: string;
   summary: string;
   consumer_action: string;
+  batch_id: string;
   affected_regions: string[];
   recall_date: string;
   source_url: string;

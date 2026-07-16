@@ -36,6 +36,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
                 "hazard_type": "Listeria",
                 "consumer_action": "Do not consume it.",
                 "source_url": "https://changed.example.com",
+                "batch_id": "LOT-ABC-123",
                 "affected_regions": ["Ontario"],
             },
         }
@@ -71,6 +72,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
                 "hazard_type": "Listeria monocytogenes",
                 "consumer_action": "Do not consume it.",
                 "source_url": "https://changed.example.com",
+                "batch_id": "LOT-NEM-2026",
                 "affected_regions": [],
             },
         }
@@ -96,6 +98,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
                 "hazard_type": "Listeria",
                 "consumer_action": "Do not consume it.",
                 "source_url": "https://source.example.com/recalls/abc",
+                "batch_id": "",
                 "affected_regions": [],
             },
         }
@@ -121,6 +124,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
                 "hazard_type": "Listeria",
                 "consumer_action": "Do not consume it.",
                 "source_url": "https://changed.example.com",
+                "batch_id": "LOT-ABC-123",
                 "affected_regions": [],
             },
         }
@@ -373,6 +377,7 @@ def _valid_structured_json() -> dict[str, Any]:
         "hazard_type": "Listeria",
         "consumer_action": "Do not consume it.",
         "source_url": "https://changed.example.com",
+        "batch_id": "LOT-ABC-123",
         "affected_regions": ["Ontario"],
     }
 

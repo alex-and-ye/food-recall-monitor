@@ -58,6 +58,7 @@ Return only valid JSON matching this exact schema:
   "hazard_type": "string",
   "consumer_action": "string",
   "source_url": "string",
+  "batch_id": "string",
   "affected_regions": ["string"]
 }
 
@@ -71,8 +72,9 @@ Rules:
 7. risk_level should be Low, Medium, High, or Unknown based only on source evidence.
 8. hazard_type should be a short noun phrase naming the hazard, such as Listeria monocytogenes, E. coli, Salmonella, undeclared milk, glass, or foreign material.
 9. consumer_action should be one clear English sentence. Do not use pipe characters.
-10. affected_regions should be a list of regions, countries, provinces, or markets explicitly present in the source. Use an empty list if unavailable.
-11. Do not add alert_id. The database assigns alert_id later.
-12. Do not add api_source. It is inserted deterministically later by the pipeline.
-13. Return JSON only. No markdown, comments, or explanation.
+10. batch_id should capture the product identifiers consumers use to recognize the recalled item, such as batch codes, lot numbers, best-before or use-by dates tied to the recall, pack codes, or similar markings. Copy them faithfully from the source. If several identifiers apply, join them with "; ". Use an empty string if unavailable. Do not invent identifiers.
+11. affected_regions should be a list of regions, countries, provinces, or markets explicitly present in the source. Use an empty list if unavailable.
+12. Do not add alert_id. The database assigns alert_id later.
+13. Do not add api_source. It is inserted deterministically later by the pipeline.
+14. Return JSON only. No markdown, comments, or explanation.
 """

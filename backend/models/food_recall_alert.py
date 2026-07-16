@@ -41,18 +41,21 @@ class FoodRecallAlertCreate(BaseModel):
     hazard_type: str
     consumer_action: str
     source_url: str
+    batch_id: str = ""
     affected_regions: list[str] = Field(default_factory=list)
     latitude: float = Field(default=0.0, ge=-90.0, le=90.0)
     longitude: float = Field(default=0.0, ge=-180.0, le=180.0)
 
     def to_document(self) -> str:
         regions = ", ".join(self.affected_regions) if self.affected_regions else "unspecified"
+        batch_id = self.batch_id.strip() or "unspecified"
         return "\n".join(
             [
                 f"API source: {self.api_source}",
                 f"Country source: {self.country_source}",
                 f"Product: {self.product_name}",
                 f"Category: {self.product_category}",
+                f"Batch ID: {batch_id}",
                 f"Summary: {self.summary}",
                 f"Reason: {self.recall_reason}",
                 f"Hazard: {self.hazard_type}",
@@ -78,6 +81,7 @@ class FoodRecallAlert(FoodRecallAlertCreate):
             self.country_source,
             self.product_name,
             self.product_category,
+            self.batch_id,
             self.recall_reason,
             self.summary,
             self.recall_date.isoformat(),
@@ -99,7 +103,7 @@ class FoodRecallAlert(FoodRecallAlertCreate):
         return search_term in searchable_text
 
     def to_metadata(self) -> dict[str, str | int | float | bool]:
-        return {
+        metadata: dict[str, str | int | float | bool] = {
             "alert_id": self.alert_id,
             "api_source": self.api_source,
             "country_source": self.country_source,
@@ -116,6 +120,11 @@ class FoodRecallAlert(FoodRecallAlertCreate):
             "latitude": float(self.latitude),
             "longitude": float(self.longitude),
         }
+        # Chroma rejects empty string metadata values.
+        batch_id = self.batch_id.strip()
+        if batch_id:
+            metadata["batch_id"] = batch_id
+        return metadata
 
     @classmethod
     def from_metadata(cls, metadata: dict[str, Any]) -> FoodRecallAlert:
@@ -154,6 +163,7 @@ class FoodRecallAlert(FoodRecallAlertCreate):
             hazard_type=str(metadata["hazard_type"]),
             consumer_action=str(metadata["consumer_action"]),
             source_url=str(metadata["source_url"]),
+            batch_id=str(metadata.get("batch_id", "") or "").strip(),
             affected_regions=affected_regions,
             latitude=_parse_coordinate(metadata.get("latitude"), default=0.0),
             longitude=_parse_coordinate(metadata.get("longitude"), default=0.0),
