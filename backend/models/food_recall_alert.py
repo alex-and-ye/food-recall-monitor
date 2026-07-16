@@ -58,6 +58,8 @@ class FoodRecallAlertCreate(BaseModel):
     consumer_action: str
     source_url: str
     affected_regions: list[str] = Field(default_factory=list)
+    latitude: float = Field(default=0.0, ge=-90.0, le=90.0)
+    longitude: float = Field(default=0.0, ge=-180.0, le=180.0)
 
     def to_document(self) -> str:
         regions = ", ".join(self.affected_regions) if self.affected_regions else "unspecified"
@@ -73,9 +75,10 @@ class FoodRecallAlertCreate(BaseModel):
                 f"Risk level: {self.risk_level}",
                 f"Consumer action: {self.consumer_action}",
                 f"Affected regions: {regions}",
+                f"Latitude: {self.latitude}",
+                f"Longitude: {self.longitude}",
             ]
         )
-
 
 class FoodRecallAlert(FoodRecallAlertCreate):
     """Recall alert after the database assigns a stable identifier."""
@@ -126,6 +129,8 @@ class FoodRecallAlert(FoodRecallAlertCreate):
             "consumer_action": self.consumer_action,
             "source_url": self.source_url,
             "affected_regions": json.dumps(self.affected_regions),
+            "latitude": float(self.latitude),
+            "longitude": float(self.longitude),
         }
 
     @classmethod
@@ -166,4 +171,14 @@ class FoodRecallAlert(FoodRecallAlertCreate):
             consumer_action=str(metadata["consumer_action"]),
             source_url=str(metadata["source_url"]),
             affected_regions=affected_regions,
+            latitude=_parse_coordinate(metadata.get("latitude"), default=0.0),
+            longitude=_parse_coordinate(metadata.get("longitude"), default=0.0),
         )
+
+def _parse_coordinate(value: Any, *, default: float) -> float:
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default

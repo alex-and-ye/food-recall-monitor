@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import inspect
 import json
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from langgraph.graph import END, START, StateGraph
@@ -67,7 +68,9 @@ async def run_pipeline(
     *,
     source_db: ScraperSourceConfigDBInterface,
     reporter: ProgressReporter | None = None,
-    on_alert_processed: Callable[[FoodRecallAlertCreate], int] | None = None,
+    on_alert_processed: (
+        Callable[[FoodRecallAlertCreate], Awaitable[int] | int] | None
+    ) = None,
 ) -> AgentPipelineResult:
     graph = create_pipeline_graph(reporter=reporter)
     if reporter is not None:
@@ -138,7 +141,9 @@ async def run_pipeline(
             continue
         alerts.append(result["alert"])
         if on_alert_processed is not None:
-            on_alert_processed(result["alert"])
+            callback_result = on_alert_processed(result["alert"])
+            if inspect.isawaitable(callback_result):
+                await callback_result
         if reporter is not None:
             reporter.log(
                 stage="record",

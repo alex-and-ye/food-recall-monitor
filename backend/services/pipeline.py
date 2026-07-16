@@ -5,6 +5,7 @@ from models.food_recall_alert import FoodRecallAlertCreate
 from models.pipeline_options import PipelineRunOptions
 from models.pipeline_result import PipelineRunResult
 from services.alert_events import AlertChangeBroadcaster
+from services.geocoding import geocode_alert_location
 from services.pipeline_progress import PipelineProgressTracker
 
 class PipelineService:
@@ -31,10 +32,20 @@ class PipelineService:
         try:
             saved_count = 0
 
-            def save_alert_incrementally(alert: FoodRecallAlertCreate) -> int:
+            async def save_alert_incrementally(alert: FoodRecallAlertCreate) -> int:
                 nonlocal saved_count
-                inserted_count = self.db.save_alerts([alert])
+                saved_alerts = self.db.save_alerts([alert])
+                inserted_count = len(saved_alerts)
                 saved_count += inserted_count
+
+                for saved_alert in saved_alerts:
+                    coordinates = await geocode_alert_location(alert)
+                    self.db.update_alert_coordinates(
+                        saved_alert.alert_id,
+                        coordinates.latitude,
+                        coordinates.longitude,
+                    )
+
                 if reporter is not None:
                     reporter.log(
                         stage="db",
