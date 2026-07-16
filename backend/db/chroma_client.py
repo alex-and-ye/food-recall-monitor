@@ -18,9 +18,9 @@ class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
             name=FoodRecallAlertsChromaClient.COLLECTION_NAME
         )
 
-    def save_alerts(self, alerts: List[FoodRecallAlertCreate]) -> int:
+    def save_alerts(self, alerts: List[FoodRecallAlertCreate]) -> List[FoodRecallAlert]:
         if not alerts:
-            return 0
+            return []
 
         incoming_keys = [self._build_dedupe_key(alert) for alert in alerts]
         existing_keys = self._get_existing_dedupe_keys(incoming_keys)
@@ -40,7 +40,7 @@ class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
             )
 
         if not new_alerts:
-            return 0
+            return []
 
         insert_ids = [alert.get_id() for alert in new_alerts]
         insert_documents = [alert.to_document() for alert in new_alerts]
@@ -55,7 +55,25 @@ class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
             metadatas=insert_metadatas
         )
 
-        return len(new_alerts)
+        return new_alerts
+
+    def update_alert_coordinates(self, alert_id: str, latitude: float, longitude: float) -> bool:
+        existing = self.get_alert_by_id(alert_id)
+        if existing is None:
+            return False
+
+        updated = existing.model_copy(
+            update={
+                "latitude": latitude,
+                "longitude": longitude,
+            }
+        )
+        self.collection.update(
+            ids=[alert_id],
+            documents=[updated.to_document()],
+            metadatas=[cast(Metadata, self._build_metadata(updated))],
+        )
+        return True
 
     def _get_existing_dedupe_keys(self, dedupe_keys: List[str]) -> set[str]:
         if not dedupe_keys:

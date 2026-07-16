@@ -26,18 +26,20 @@ class ChromaClientDedupeTests(unittest.TestCase):
         client.collection = FakeCollection()
         alert = _alert()
 
-        inserted_count = client.save_alerts([alert, alert])
+        inserted = client.save_alerts([alert, alert])
 
-        self.assertEqual(inserted_count, 1)
+        self.assertEqual(len(inserted), 1)
         self.assertEqual(len(client.collection.added["ids"]), 1)
         self.assertTrue(client.collection.added["ids"][0])
         self.assertEqual(client.collection.added["metadatas"][0]["api_source"], "test-source")
         self.assertEqual(client.collection.added["metadatas"][0]["product_name"], "Sample Product")
+        self.assertEqual(client.collection.added["metadatas"][0]["latitude"], 0.0)
+        self.assertEqual(client.collection.added["metadatas"][0]["longitude"], 0.0)
         self.assertIn("dedupe_key", client.collection.added["metadatas"][0])
 
-        second_insert_count = client.save_alerts([alert])
+        second_insert = client.save_alerts([alert])
 
-        self.assertEqual(second_insert_count, 0)
+        self.assertEqual(len(second_insert), 0)
         self.assertEqual(len(client.collection.added["ids"]), 1)
 
     def test_dedupe_key_uses_product_name_recall_date_and_source_url(self) -> None:
@@ -58,9 +60,9 @@ class ChromaClientDedupeTests(unittest.TestCase):
         client = cast(Any, object.__new__(FoodRecallAlertsChromaClient))
         client.collection = MagicMock()
 
-        inserted_count = client.save_alerts([])
+        inserted = client.save_alerts([])
 
-        self.assertEqual(inserted_count, 0)
+        self.assertEqual(inserted, [])
         client.collection.add.assert_not_called()
 
     def test_get_alerts_returns_empty_when_collection_has_no_metadata(self) -> None:
