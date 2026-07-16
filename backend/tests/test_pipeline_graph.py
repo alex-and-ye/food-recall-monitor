@@ -13,7 +13,7 @@ from agents.graph import (
 )
 from agents.llm import AgentOutputError
 from agents.validators import AgentValidationError
-from models.food_recall_alert import FoodRecallAlertCreate, api_source_to_country_source
+from models.food_recall_alert import FoodRecallAlertCreate, web_source_to_country_source
 from models.pipeline_options import PipelineRunOptions
 from models.pipeline_result import FetchSourcesResult
 from models.pipeline_state import PipelineRecordState
@@ -44,7 +44,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
 
         result = repair_and_convert_node(state)
         alert = result["alert"]
-        self.assertEqual(alert.api_source, "uk")
+        self.assertEqual(alert.web_source, "uk")
         self.assertEqual(alert.product_name, "LLM changed name")
         self.assertEqual(alert.recall_date.isoformat(), "2026-06-09")
         self.assertEqual(alert.source_url, "https://source.example.com/recalls/abc")
@@ -84,13 +84,13 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["alert"].product_name, "NEM CHUA and NEM CHUA La Tam Ruot")
         self.assertEqual(result["structured_json"]["source_url"], "https://rappel.conso.gouv.fr/fiche-rappel/22622/Interne")
 
-    def test_repair_and_convert_always_uses_source_context_for_api_source(self) -> None:
+    def test_repair_and_convert_always_uses_source_context_for_web_source(self) -> None:
         scraped_record = _scraped_record(source_name="ca")
         state: PipelineRecordState = {
             "record": scraped_record,
             "summary": "Pipeline summary.",
             "structured_json": {
-                "api_source": "malicious-override",
+                "web_source": "malicious-override",
                 "product_name": "Original Product",
                 "product_category": "Produce",
                 "recall_reason": "Possible contamination",
@@ -107,8 +107,8 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
         }
 
         result = repair_and_convert_node(state)
-        self.assertEqual(result["structured_json"]["api_source"], "ca")
-        self.assertEqual(result["alert"].api_source, "ca")
+        self.assertEqual(result["structured_json"]["web_source"], "ca")
+        self.assertEqual(result["alert"].web_source, "ca")
         self.assertEqual(result["alert"].country_source, "Canada")
 
     def test_repair_and_convert_uses_agent_country_source(self) -> None:
@@ -133,7 +133,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
         }
 
         result = repair_and_convert_node(state)
-        self.assertEqual(result["alert"].api_source, "uk")
+        self.assertEqual(result["alert"].web_source, "uk")
         self.assertEqual(result["alert"].country_source, "United Kingdom")
 
     def test_repair_and_convert_keeps_valid_llm_recall_date_when_scraper_date_is_generic(self) -> None:
@@ -185,7 +185,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
             result = await run_pipeline(options, source_db=_source_db())
 
         self.assertEqual(len(result.alerts), 1)
-        self.assertEqual(result.alerts[0].api_source, "uk")
+        self.assertEqual(result.alerts[0].web_source, "uk")
         self.assertEqual(result.alerts[0].country_source, "UK")
         self.assertEqual(result.alerts[0].source_url, "https://source.example.com/recalls/abc")
 
@@ -254,7 +254,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
             result = structure_node(state)
 
         structured = result["structured_json"]
-        self.assertEqual(structured["api_source"], "uk")
+        self.assertEqual(structured["web_source"], "uk")
         self.assertEqual(structured["product_name"], "Original Product")
         self.assertEqual(structured["recall_date"], "2026-06-09")
         self.assertEqual(structured["country_source"], "Unknown")
@@ -345,7 +345,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
             result = await run_pipeline(_options(["uk", "ca"], limit=2), source_db=_source_db())
         self.assertEqual(result.records_fetched, 2)
         self.assertEqual(len(result.alerts), 1)
-        self.assertEqual(result.alerts[0].api_source, "ca")
+        self.assertEqual(result.alerts[0].web_source, "ca")
 
     async def test_run_pipeline_invokes_callback_for_each_processed_alert(self) -> None:
         fake_graph = AsyncMock()
@@ -428,8 +428,8 @@ def _valid_structured_json() -> dict[str, Any]:
 
 def _alert_for_source(source: str) -> FoodRecallAlertCreate:
     return FoodRecallAlertCreate(
-        api_source=source,
-        country_source=api_source_to_country_source(source),
+        web_source=source,
+        country_source=web_source_to_country_source(source),
         product_name="Original Product",
         product_category="Produce",
         recall_reason="Possible contamination",

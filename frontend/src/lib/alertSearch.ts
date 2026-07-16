@@ -177,7 +177,7 @@ export function filterAlerts(
       alert.hazard_type,
       alert.summary,
       alert.consumer_action,
-      alert.api_source,
+      alert.web_source,
       ...alert.affected_regions,
     ]
       .join(" ")

@@ -4,7 +4,7 @@ from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 from db.chroma_client import FoodRecallAlertsChromaClient
-from models.food_recall_alert import FoodRecallAlertCreate, api_source_to_country_source
+from models.food_recall_alert import FoodRecallAlertCreate, web_source_to_country_source
 
 class ChromaClientDedupeTests(unittest.TestCase):
     def test_init_uses_server_based_http_client(self) -> None:
@@ -31,7 +31,7 @@ class ChromaClientDedupeTests(unittest.TestCase):
         self.assertEqual(len(inserted), 1)
         self.assertEqual(len(client.collection.added["ids"]), 1)
         self.assertTrue(client.collection.added["ids"][0])
-        self.assertEqual(client.collection.added["metadatas"][0]["api_source"], "test-source")
+        self.assertEqual(client.collection.added["metadatas"][0]["web_source"], "test-source")
         self.assertEqual(client.collection.added["metadatas"][0]["product_name"], "Sample Product")
         self.assertEqual(client.collection.added["metadatas"][0]["latitude"], 0.0)
         self.assertEqual(client.collection.added["metadatas"][0]["longitude"], 0.0)
@@ -71,9 +71,9 @@ class ChromaClientDedupeTests(unittest.TestCase):
         original = _alert(recall_date=date(2026, 7, 11))
         corrected = _alert(recall_date=date(2026, 7, 10))
 
-        self.assertEqual(client.save_alerts([original]), 1)
+        self.assertEqual(len(client.save_alerts([original])), 1)
         original_id = client.collection.added["ids"][0]
-        self.assertEqual(client.save_alerts([corrected]), 0)
+        self.assertEqual(len(client.save_alerts([corrected])), 0)
 
         self.assertEqual(client.collection.updated["ids"], [original_id])
         self.assertEqual(
@@ -97,7 +97,7 @@ class ChromaClientDedupeTests(unittest.TestCase):
             "metadatas": [
                 {
                     "alert_id": "older",
-                    "api_source": "test-source",
+                    "web_source": "test-source",
                     "product_name": "Old Product",
                     "product_category": "Produce",
                     "recall_reason": "Reason",
@@ -112,7 +112,7 @@ class ChromaClientDedupeTests(unittest.TestCase):
                 None,
                 {
                     "alert_id": "newer",
-                    "api_source": "test-source",
+                    "web_source": "test-source",
                     "product_name": "New Product",
                     "product_category": "Produce",
                     "recall_reason": "Reason",
@@ -138,7 +138,7 @@ class ChromaClientDedupeTests(unittest.TestCase):
             "metadatas": [
                 {
                     "alert_id": "alert-123",
-                    "api_source": "test-source",
+                    "web_source": "test-source",
                     "product_name": "Sample Product",
                     "product_category": "Produce",
                     "recall_reason": "Reason",
@@ -258,8 +258,8 @@ def _alert(
     recall_date: date = date(2026, 6, 9),
 ) -> FoodRecallAlertCreate:
     return FoodRecallAlertCreate(
-        api_source="test-source",
-        country_source=api_source_to_country_source("test-source"),
+        web_source="test-source",
+        country_source=web_source_to_country_source("test-source"),
         product_name="Sample Product",
         product_category="Produce",
         recall_reason="Possible contamination",

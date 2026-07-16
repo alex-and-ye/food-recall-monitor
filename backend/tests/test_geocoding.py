@@ -124,7 +124,7 @@ def _alert(
     country_source: str = "UK",
 ) -> FoodRecallAlertCreate:
     return FoodRecallAlertCreate(
-        api_source="uk",
+        web_source="uk",
         country_source=country_source,
         product_name="Sample Product",
         product_category="Produce",

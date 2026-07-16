@@ -8,7 +8,7 @@ export const COUNTRY_SOURCES = ["UK", "Germany", "France"] as const satisfies re
 
 export interface FoodRecallAlert {
   alert_id: string;
-  api_source: string;
+  web_source: string;
   country_source: CountrySource;
   product_name: string;
   product_category: string;

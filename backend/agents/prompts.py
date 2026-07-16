@@ -138,6 +138,6 @@ Rules:
 11. country_source should be the country (or clearly named jurisdiction) that issued or hosts the recall notice. Infer it from the source JSON context only: source_url domain and path, agency or authority names, language cues, and any explicit country or market names in the text. Prefer a short English country name such as UK, France, Germany, Canada, or United States. Use Unknown if the country cannot be determined from the provided data. Do not invent a country.
 12. affected_regions should be a list of regions, countries, provinces, or markets explicitly present in the source. Use an empty list if unavailable.
 13. Do not add alert_id. The database assigns alert_id later.
-14. Do not add api_source. It is inserted deterministically later by the pipeline.
+14. Do not add web_source. It is inserted deterministically later by the pipeline.
 15. Return JSON only. No markdown, comments, or explanation.
 """

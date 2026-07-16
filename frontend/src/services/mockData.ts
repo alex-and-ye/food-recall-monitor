@@ -8,7 +8,7 @@ import type { FoodRecallAlert, FoodRecallAlertStats, FoodRecallAlertsVersion } f
 const MOCK_ALERTS: FoodRecallAlert[] = [
   {
     alert_id: "mock-alert-001",
-    api_source: "uk",
+    web_source: "uk",
     country_source: "UK",
     product_name: "Organic Baby Spinach",
     product_category: "Produce",
@@ -28,7 +28,7 @@ const MOCK_ALERTS: FoodRecallAlert[] = [
   },
   {
     alert_id: "mock-alert-002",
-    api_source: "germany",
+    web_source: "germany",
     country_source: "Germany",
     product_name: "Valley Fresh Whole Milk (1L)",
     product_category: "Dairy",
@@ -48,7 +48,7 @@ const MOCK_ALERTS: FoodRecallAlert[] = [
   },
   {
     alert_id: "mock-alert-003",
-    api_source: "france",
+    web_source: "france",
     country_source: "France",
     product_name: "Sunrise Trail Mix (340g)",
     product_category: "Packaged Goods",
@@ -68,7 +68,7 @@ const MOCK_ALERTS: FoodRecallAlert[] = [
   },
   {
     alert_id: "mock-alert-004",
-    api_source: "uk",
+    web_source: "uk",
     country_source: "UK",
     product_name: "Premium Ground Beef (80/20)",
     product_category: "Meat",
@@ -88,7 +88,7 @@ const MOCK_ALERTS: FoodRecallAlert[] = [
   },
   {
     alert_id: "mock-alert-005",
-    api_source: "germany",
+    web_source: "germany",
     country_source: "Germany",
     product_name: "Romaine Hearts (3-Pack)",
     product_category: "Produce",

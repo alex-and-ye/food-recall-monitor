@@ -268,7 +268,7 @@ def _fallback_structured_json(state: PipelineRecordState) -> dict[str, object]:
     record = state["record"]
 
     return {
-        "api_source": record.source_name,
+        "web_source": record.source_name,
         "product_name": _best_payload_value("product_name", "", record.payload),
         "product_category": "Other",
         "recall_reason": "Recall reason unavailable",
@@ -292,11 +292,11 @@ def repair_and_convert_node(state: PipelineRecordState) -> PipelineRecordState:
         raise ValueError("Pipeline state is missing required key: summary")
     record = state["record"]
     structured_json = {
-        "api_source": record.source_name,
+        "web_source": record.source_name,
         **{
             key: value
             for key, value in dict(state["structured_json"]).items()
-            if key != "api_source"
+            if key not in {"web_source", "api_source"}
         },
     }
 

@@ -11,10 +11,10 @@ def structured_json_to_alert_create(
 ) -> FoodRecallAlertCreate:
     validate_structured_json(structured_json)
 
-    api_source = _required_text(structured_json, "api_source")
+    web_source = _required_text(structured_json, "web_source")
 
     return FoodRecallAlertCreate(
-        api_source=api_source,
+        web_source=web_source,
         country_source=_required_text(structured_json, "country_source"),
         product_name=_required_text(structured_json, "product_name"),
         product_category=_optional_text(structured_json, "product_category", "Other"),

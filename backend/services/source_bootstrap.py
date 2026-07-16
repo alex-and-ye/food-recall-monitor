@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from agents.fetchers.crawler.source_discovery import derive_base_url_and_domains
 from config.agents import BOOTSTRAP_SCRAPER_SOURCES
 from db.source_config_interface import ScraperSourceConfigDBInterface
-from models.food_recall_alert import API_SOURCE_TO_COUNTRY_SOURCE
+from models.food_recall_alert import WEB_SOURCE_TO_COUNTRY_SOURCE
 from models.scraper_config import ScraperHints, ScraperSourceConfig
 from models.source_registry import SourceRegistryDocument
 
@@ -19,7 +19,7 @@ def ensure_bootstrap_sources(source_db: ScraperSourceConfigDBInterface) -> int:
     inserted = 0
     for source_name, homepage_url in BOOTSTRAP_SCRAPER_SOURCES.items():
         base_url, allowed_domains = derive_base_url_and_domains(homepage_url)
-        country_source = API_SOURCE_TO_COUNTRY_SOURCE.get(source_name, source_name.title())
+        country_source = WEB_SOURCE_TO_COUNTRY_SOURCE.get(source_name, source_name.title())
         # Placeholder config until LLM discovery runs (status=pending triggers it).
         config = ScraperSourceConfig(
             base_url=base_url,
