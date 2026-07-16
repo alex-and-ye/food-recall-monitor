@@ -16,9 +16,11 @@ class PipelineServiceTests(unittest.IsolatedAsyncioTestCase):
         db = Mock()
         db.save_alerts.side_effect = [[first_saved], []]
         db.update_alert_coordinates.return_value = True
-        service = PipelineService(db)
+        source_db = Mock()
+        service = PipelineService(db, source_db)
 
-        async def fake_run_agent_pipeline(options, *, reporter=None, on_alert_processed=None):
+        async def fake_run_agent_pipeline(options, *, source_db=None, reporter=None, on_alert_processed=None):
+            assert source_db is service.source_db
             assert on_alert_processed is not None
             await on_alert_processed(first_alert)
             await on_alert_processed(second_alert)
@@ -58,10 +60,12 @@ class PipelineServiceTests(unittest.IsolatedAsyncioTestCase):
         db = Mock()
         db.save_alerts.side_effect = [[saved_alerts[0]], [], [saved_alerts[1]]]
         db.update_alert_coordinates.return_value = True
+        source_db = Mock()
         broadcaster = Mock()
-        service = PipelineService(db, alert_broadcaster=broadcaster)
+        service = PipelineService(db, source_db, alert_broadcaster=broadcaster)
 
-        async def fake_run_agent_pipeline(options, *, reporter=None, on_alert_processed=None):
+        async def fake_run_agent_pipeline(options, *, source_db=None, reporter=None, on_alert_processed=None):
+            assert source_db is service.source_db
             assert on_alert_processed is not None
             for alert in alerts:
                 await on_alert_processed(alert)

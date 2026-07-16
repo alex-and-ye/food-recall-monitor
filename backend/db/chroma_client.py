@@ -24,10 +24,31 @@ class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
 
         incoming_keys = [self._build_dedupe_key(alert) for alert in alerts]
         existing_keys = self._get_existing_dedupe_keys(incoming_keys)
+        existing_by_url = self._get_existing_alerts_by_source_url(
+            [alert.source_url for alert in alerts]
+        )
         seen_keys: set[str] = set()
+        seen_urls: set[str] = set()
         new_alerts: list[FoodRecallAlert] = []
+        updated_alerts: list[FoodRecallAlert] = []
 
         for alert, dedupe_key in zip(alerts, incoming_keys, strict=True):
+            if alert.source_url in seen_urls:
+                continue
+            seen_urls.add(alert.source_url)
+
+            existing = existing_by_url.get(alert.source_url)
+            if existing is not None:
+                existing_id, existing_key = existing
+                if existing_key != dedupe_key:
+                    updated_alerts.append(
+                        FoodRecallAlert(
+                            alert_id=existing_id,
+                            **alert.model_dump(),
+                        )
+                    )
+                continue
+
             if dedupe_key in existing_keys or dedupe_key in seen_keys:
                 continue
 
@@ -39,21 +60,25 @@ class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
                 )
             )
 
-        if not new_alerts:
-            return []
+        if updated_alerts:
+            self.collection.update(
+                ids=[alert.get_id() for alert in updated_alerts],
+                documents=[alert.to_document() for alert in updated_alerts],
+                metadatas=[
+                    cast(Metadata, self._build_metadata(alert))
+                    for alert in updated_alerts
+                ],
+            )
 
-        insert_ids = [alert.get_id() for alert in new_alerts]
-        insert_documents = [alert.to_document() for alert in new_alerts]
-        insert_metadatas = [
-            cast(Metadata, self._build_metadata(alert))
-            for alert in new_alerts
-        ]
-
-        self.collection.add(
-            ids=insert_ids,
-            documents=insert_documents,
-            metadatas=insert_metadatas
-        )
+        if new_alerts:
+            self.collection.add(
+                ids=[alert.get_id() for alert in new_alerts],
+                documents=[alert.to_document() for alert in new_alerts],
+                metadatas=[
+                    cast(Metadata, self._build_metadata(alert))
+                    for alert in new_alerts
+                ],
+            )
 
         return new_alerts
 
@@ -90,6 +115,29 @@ class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
             for metadata in metadatas
             if metadata is not None and metadata.get("dedupe_key")
         }
+
+    def _get_existing_alerts_by_source_url(
+        self,
+        source_urls: List[str],
+    ) -> dict[str, tuple[str, str]]:
+        if not source_urls:
+            return {}
+
+        records = self.collection.get(
+            where=cast(Where, {"source_url": {"$in": list(dict.fromkeys(source_urls))}}),
+            include=["metadatas"],
+        )
+        ids = records.get("ids") or []
+        metadatas = records.get("metadatas") or []
+        existing: dict[str, tuple[str, str]] = {}
+        for record_id, metadata in zip(ids, metadatas, strict=False):
+            if metadata is None or not metadata.get("source_url"):
+                continue
+            existing[str(metadata["source_url"])] = (
+                str(record_id),
+                str(metadata.get("dedupe_key", "")),
+            )
+        return existing
 
     def _build_metadata(self, alert: FoodRecallAlert) -> dict[str, str | int | float | bool]:
         metadata = alert.to_metadata()

@@ -1,5 +1,6 @@
 from agents.graph import run_pipeline as run_agent_pipeline
 from db.interface import FoodRecallAlertsDBInterface
+from db.source_config_interface import ScraperSourceConfigDBInterface
 from models.food_recall_alert import FoodRecallAlertCreate
 from models.pipeline_options import PipelineRunOptions
 from models.pipeline_result import PipelineRunResult
@@ -11,10 +12,12 @@ class PipelineService:
     def __init__(
         self,
         db: FoodRecallAlertsDBInterface,
+        source_db: ScraperSourceConfigDBInterface,
         progress_tracker: PipelineProgressTracker | None = None,
         alert_broadcaster: AlertChangeBroadcaster | None = None,
     ) -> None:
         self.db = db
+        self.source_db = source_db
         self.progress_tracker = progress_tracker
         self.alert_broadcaster = alert_broadcaster
 
@@ -59,6 +62,7 @@ class PipelineService:
 
             pipeline_result = await run_agent_pipeline(
                 run_options,
+                source_db=self.source_db,
                 reporter=reporter,
                 on_alert_processed=save_alert_incrementally,
             )
