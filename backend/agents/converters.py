@@ -4,7 +4,7 @@ from typing import Any
 
 from agents.normalizers.protected_fields import clean_text, parse_source_date
 from agents.validators import validate_structured_json
-from models.food_recall_alert import FoodRecallAlertCreate, api_source_to_country_source
+from models.food_recall_alert import FoodRecallAlertCreate
 
 def structured_json_to_alert_create(
     structured_json: dict[str, Any],
@@ -15,7 +15,7 @@ def structured_json_to_alert_create(
 
     return FoodRecallAlertCreate(
         api_source=api_source,
-        country_source=api_source_to_country_source(api_source),
+        country_source=_required_text(structured_json, "country_source"),
         product_name=_required_text(structured_json, "product_name"),
         product_category=_optional_text(structured_json, "product_category", "Other"),
         recall_reason=_required_text(structured_json, "recall_reason"),

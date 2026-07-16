@@ -37,6 +37,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
                 "consumer_action": "Do not consume it.",
                 "source_url": "https://changed.example.com",
                 "batch_id": "LOT-ABC-123",
+                "country_source": "UK",
                 "affected_regions": ["Ontario"],
             },
         }
@@ -73,6 +74,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
                 "consumer_action": "Do not consume it.",
                 "source_url": "https://changed.example.com",
                 "batch_id": "LOT-NEM-2026",
+                "country_source": "France",
                 "affected_regions": [],
             },
         }
@@ -99,6 +101,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
                 "consumer_action": "Do not consume it.",
                 "source_url": "https://source.example.com/recalls/abc",
                 "batch_id": "",
+                "country_source": "Canada",
                 "affected_regions": [],
             },
         }
@@ -106,6 +109,32 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
         result = repair_and_convert_node(state)
         self.assertEqual(result["structured_json"]["api_source"], "ca")
         self.assertEqual(result["alert"].api_source, "ca")
+        self.assertEqual(result["alert"].country_source, "Canada")
+
+    def test_repair_and_convert_uses_agent_country_source(self) -> None:
+        scraped_record = _scraped_record(source_name="uk")
+        state: PipelineRecordState = {
+            "record": scraped_record,
+            "summary": _valid_summary(),
+            "structured_json": {
+                "product_name": "Original Product",
+                "product_category": "Produce",
+                "recall_reason": "Possible contamination",
+                "summary": "LLM summary",
+                "recall_date": "2026-06-09",
+                "risk_level": "High",
+                "hazard_type": "Listeria",
+                "consumer_action": "Do not consume it.",
+                "source_url": "https://source.example.com/recalls/abc",
+                "batch_id": "",
+                "country_source": "United Kingdom",
+                "affected_regions": [],
+            },
+        }
+
+        result = repair_and_convert_node(state)
+        self.assertEqual(result["alert"].api_source, "uk")
+        self.assertEqual(result["alert"].country_source, "United Kingdom")
 
     def test_repair_and_convert_keeps_valid_llm_recall_date_when_scraper_date_is_generic(self) -> None:
         scraped_record = _scraped_record()
@@ -125,6 +154,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
                 "consumer_action": "Do not consume it.",
                 "source_url": "https://changed.example.com",
                 "batch_id": "LOT-ABC-123",
+                "country_source": "UK",
                 "affected_regions": [],
             },
         }
@@ -227,6 +257,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(structured["api_source"], "uk")
         self.assertEqual(structured["product_name"], "Original Product")
         self.assertEqual(structured["recall_date"], "2026-06-09")
+        self.assertEqual(structured["country_source"], "Unknown")
 
     def test_translate_values_node_falls_back_to_envelope_on_validation_error(self) -> None:
         scraped_record = _scraped_record()
@@ -390,6 +421,7 @@ def _valid_structured_json() -> dict[str, Any]:
         "consumer_action": "Do not consume it.",
         "source_url": "https://changed.example.com",
         "batch_id": "LOT-ABC-123",
+        "country_source": "UK",
         "affected_regions": ["Ontario"],
     }
 

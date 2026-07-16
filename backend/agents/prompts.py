@@ -120,6 +120,7 @@ Return only valid JSON matching this exact schema:
   "consumer_action": "string",
   "source_url": "string",
   "batch_id": "string",
+  "country_source": "string",
   "affected_regions": ["string"]
 }
 
@@ -134,8 +135,9 @@ Rules:
 8. hazard_type should be a short noun phrase naming the hazard, such as Listeria monocytogenes, E. coli, Salmonella, undeclared milk, glass, or foreign material.
 9. consumer_action should be one clear English sentence. Do not use pipe characters.
 10. batch_id should capture the product identifiers consumers use to recognize the recalled item, such as batch codes, lot numbers, best-before or use-by dates tied to the recall, pack codes, or similar markings. Copy them faithfully from the source. If several identifiers apply, join them with "; ". Use an empty string if unavailable. Do not invent identifiers.
-11. affected_regions should be a list of regions, countries, provinces, or markets explicitly present in the source. Use an empty list if unavailable.
-12. Do not add alert_id. The database assigns alert_id later.
-13. Do not add api_source. It is inserted deterministically later by the pipeline.
-14. Return JSON only. No markdown, comments, or explanation.
+11. country_source should be the country (or clearly named jurisdiction) that issued or hosts the recall notice. Infer it from the source JSON context only: source_url domain and path, agency or authority names, language cues, and any explicit country or market names in the text. Prefer a short English country name such as UK, France, Germany, Canada, or United States. Use Unknown if the country cannot be determined from the provided data. Do not invent a country.
+12. affected_regions should be a list of regions, countries, provinces, or markets explicitly present in the source. Use an empty list if unavailable.
+13. Do not add alert_id. The database assigns alert_id later.
+14. Do not add api_source. It is inserted deterministically later by the pipeline.
+15. Return JSON only. No markdown, comments, or explanation.
 """

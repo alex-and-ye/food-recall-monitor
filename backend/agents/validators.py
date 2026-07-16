@@ -13,6 +13,7 @@ REQUIRED_STRUCTURED_FIELDS: set[str] = {
     "consumer_action",
     "source_url",
     "batch_id",
+    "country_source",
     "affected_regions",
 }
 

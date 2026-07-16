@@ -279,6 +279,7 @@ def _fallback_structured_json(state: PipelineRecordState) -> dict[str, object]:
         "consumer_action": "Follow the source recall notice.",
         "source_url": _best_payload_value("source_url", "", record.payload),
         "batch_id": _best_payload_value("batch_id", "", record.payload),
+        "country_source": "Unknown",
         "affected_regions": [],
     }
 

@@ -22,6 +22,8 @@ class PromptContractTests(unittest.TestCase):
         self.assertIn('"batch_id"', STRUCTURING_SYSTEM_PROMPT)
         self.assertIn("batch codes, lot numbers", STRUCTURING_SYSTEM_PROMPT)
         self.assertIn("Use an empty string if unavailable", STRUCTURING_SYSTEM_PROMPT)
+        self.assertIn('"country_source"', STRUCTURING_SYSTEM_PROMPT)
+        self.assertIn("Infer it from the source JSON context only", STRUCTURING_SYSTEM_PROMPT)
 
 
 if __name__ == "__main__":
