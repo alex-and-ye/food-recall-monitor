@@ -11,6 +11,9 @@ DATE_ORDERS: tuple[str, ...] = ("DMY", "MDY", "YMD")
 NUMERIC_DATE_PATTERN = re.compile(
     r"\b(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4})\b",
 )
+ISO_DATE_PATTERN = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
+COMPLETE_NUMERIC_DATE_PATTERN = re.compile(r"^\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}$")
+COMPLETE_ISO_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 HTML_LANG_PATTERN = re.compile(r"^[a-z]{2}")
 
 
@@ -55,7 +58,7 @@ def search_adaptive_dates(
     def _add_candidate(parsed: datetime, matched_text: str) -> None:
         if _is_excluded_date_context(text, matched_text, markers):
             return
-        as_date = parsed.astimezone(UTC).date().isoformat()
+        as_date = _calendar_date(parsed)
         if not _is_plausible_recall_date(as_date, reference=current.date()):
             return
         if as_date in seen:
@@ -66,7 +69,7 @@ def search_adaptive_dates(
     base_settings = {
         "RETURN_AS_TIMEZONE_AWARE": True,
         "PREFER_DATES_FROM": "past",
-        "STRICT_PARSING": False,
+        "STRICT_PARSING": True,
     }
 
     for date_order in DATE_ORDERS:
@@ -75,6 +78,8 @@ def search_adaptive_dates(
         if not matches:
             continue
         for matched_text, parsed in matches:
+            if not _is_complete_date_match(matched_text):
+                continue
             _add_candidate(parsed, matched_text)
 
     for matched_text in _unique_matches(NUMERIC_DATE_PATTERN.findall(text)):
@@ -87,6 +92,13 @@ def search_adaptive_dates(
             if parsed is not None:
                 _add_candidate(parsed, matched_text)
 
+    for matched_text in _unique_matches(ISO_DATE_PATTERN.findall(text)):
+        try:
+            parsed = datetime.fromisoformat(matched_text).replace(tzinfo=UTC)
+        except ValueError:
+            continue
+        _add_candidate(parsed, matched_text)
+
     return candidates
 
 
@@ -94,11 +106,11 @@ def extract_structured_dates(values: Iterable[str]) -> list[str]:
     seen: set[str] = set()
     candidates: list[str] = []
     for raw_value in values:
-        normalized = _normalize_structured_date(raw_value)
-        if normalized is None or normalized in seen:
-            continue
-        seen.add(normalized)
-        candidates.append(normalized)
+        for normalized in _normalize_structured_date_values(raw_value):
+            if normalized in seen:
+                continue
+            seen.add(normalized)
+            candidates.append(normalized)
     return candidates
 
 
@@ -112,23 +124,76 @@ def _normalize_language_code(value: str | None) -> str | None:
     return match.group(0) if match else None
 
 
-def _normalize_structured_date(value: str) -> str | None:
+def _normalize_structured_date_values(value: str) -> list[str]:
     text = value.strip()
     if not text:
-        return None
+        return []
 
-    if text.endswith("Z"):
-        text = f"{text[:-1]}+00:00"
+    iso_text = text
+    if iso_text.endswith("Z"):
+        iso_text = f"{iso_text[:-1]}+00:00"
 
     try:
-        parsed = datetime.fromisoformat(text)
+        parsed = datetime.fromisoformat(iso_text)
     except ValueError:
-        return None
+        parsed = None
 
-    as_date = parsed.astimezone(UTC).date().isoformat()
-    if not _is_plausible_recall_date(as_date):
-        return None
-    return as_date
+    if parsed is not None:
+        as_date = _calendar_date(parsed)
+        if _is_plausible_recall_date(as_date):
+            return [as_date]
+        return []
+
+    # Isolated numeric attributes: dotted values are almost always DMY on recall portals.
+    # Slash-separated values stay ambiguous across locales.
+    if COMPLETE_NUMERIC_DATE_PATTERN.fullmatch(text):
+        orders = ("DMY",) if "." in text else DATE_ORDERS
+        seen: set[str] = set()
+        candidates: list[str] = []
+        base_settings = {
+            "RETURN_AS_TIMEZONE_AWARE": True,
+            "PREFER_DATES_FROM": "past",
+            "STRICT_PARSING": True,
+        }
+        for date_order in orders:
+            parsed_value = parse_date(
+                text,
+                settings={**base_settings, "DATE_ORDER": date_order},
+            )
+            if parsed_value is None:
+                continue
+            as_date = _calendar_date(parsed_value)
+            if not _is_plausible_recall_date(as_date) or as_date in seen:
+                continue
+            seen.add(as_date)
+            candidates.append(as_date)
+        return candidates
+
+    # Named months and other non-ISO attributes.
+    return search_adaptive_dates(text)
+
+
+def _calendar_date(parsed: datetime) -> str:
+    """Preserve the source's calendar date instead of shifting it through UTC.
+
+    Recall publication values represent civil dates. Converting a timezone-less
+    evening timestamp (or an offset timestamp near midnight) can change the day.
+    """
+    return parsed.date().isoformat()
+
+
+def _is_complete_date_match(matched_text: str) -> bool:
+    """Reject incomplete fragments like '2026 07' that borrow today's day."""
+    text = matched_text.strip()
+    if not text:
+        return False
+    if COMPLETE_NUMERIC_DATE_PATTERN.fullmatch(text) or COMPLETE_ISO_DATE_PATTERN.fullmatch(text):
+        return True
+    # Named months such as "4 June 2026" / "July 10, 2026".
+    if re.search(r"[A-Za-zÀ-ÿ]{3,}", text) and re.search(r"\d{4}", text):
+        return True
+    digit_groups = re.findall(r"\d+", text)
+    return len(digit_groups) >= 3
 
 
 def _is_plausible_recall_date(value: str, *, reference: date | None = None) -> bool:

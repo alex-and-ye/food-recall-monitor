@@ -6,12 +6,18 @@ from typing import Any
 import httpx
 
 from agents.fetchers.crawler.orchestrator import crawl_source_pages
+from agents.fetchers.crawler.source_discovery import (
+    discover_source_config,
+    prefer_unfiltered_listing_urls,
+)
 from agents.fetchers.extraction.cleaning import clean_detail_payload
 from agents.fetchers.extraction.date_candidates import select_recent_recall_date
-from config.agents import SCRAPER_SOURCES
+from db.source_config_interface import ScraperSourceConfigDBInterface
 from models.pipeline_progress import ProgressReporter
 from models.pipeline_result import FetchSourcesResult
 from models.scraped_record import ScrapedRecallRecord
+from models.scraper_config import DEFAULT_LOOKBACK_DAYS, ScraperSourceConfig
+from models.source_registry import SourceRegistryDocument
 
 LOGGER = logging.getLogger(__name__)
 
@@ -32,14 +38,125 @@ def to_translator_envelope(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+async def resolve_source_config(
+    source: str,
+    *,
+    client: httpx.AsyncClient,
+    source_db: ScraperSourceConfigDBInterface,
+    reporter: ProgressReporter | None = None,
+    allow_rediscovery: bool = True,
+) -> SourceRegistryDocument:
+    document = source_db.get_source(source)
+    needs_discovery = (
+        document is None
+        or document.discovery_status in {"failed", "stale", "pending"}
+        or not document.config.seed_urls
+    )
+    if needs_discovery and allow_rediscovery:
+        homepage = document.homepage_url if document is not None else None
+        if homepage is None:
+            raise KeyError(f"Unknown scraper source: {source}")
+        if reporter is not None:
+            reporter.log(
+                stage="discovery",
+                source=source,
+                message="Starting source rediscovery",
+                details={"reason": document.discovery_status if document else "missing"},
+            )
+        discovered = await discover_source_config(
+            source_name=source,
+            homepage_url=homepage,
+            country_source=document.country_source if document else source,
+            client=client,
+            reporter=reporter,
+        )
+        return source_db.upsert_source(discovered)
+
+    if document is None:
+        raise KeyError(f"Unknown scraper source: {source}")
+    return document
+
+
 async def fetch_source_records(
     source: str,
     *,
     limit: int,
     client: httpx.AsyncClient,
+    source_db: ScraperSourceConfigDBInterface,
     reporter: ProgressReporter | None = None,
 ) -> list[ScrapedRecallRecord]:
-    source_config = SCRAPER_SOURCES[source]
+    document = await resolve_source_config(
+        source,
+        client=client,
+        reporter=reporter,
+        source_db=source_db,
+    )
+    source_config = document.config
+    preferred_seeds = prefer_unfiltered_listing_urls(
+        source_config.seed_urls,
+        observed_urls=[document.homepage_url],
+    )
+    if preferred_seeds != source_config.seed_urls:
+        previous_seeds = list(source_config.seed_urls)
+        source_config = source_config.model_copy(update={"seed_urls": preferred_seeds})
+        document = document.model_copy(update={"config": source_config})
+        source_db.upsert_source(document)
+        if reporter is not None:
+            reporter.log(
+                stage="discovery",
+                source=source,
+                message="Broadened filtered listing seeds",
+                details={
+                    "previous_seed_urls": previous_seeds,
+                    "seed_urls": preferred_seeds,
+                },
+            )
+    detail_payloads, records = await _crawl_and_filter(
+        source=source,
+        source_config=source_config,
+        limit=limit,
+        client=client,
+        reporter=reporter,
+    )
+
+    if not detail_payloads and document.discovery_status == "ready":
+        # Zero details: mark stale, rediscover once, retry crawl.
+        stale = document.touch(status="stale", reason="zero detail payloads after crawl")
+        source_db.upsert_source(stale)
+        if reporter is not None:
+            reporter.log(
+                stage="discovery",
+                source=source,
+                message="Starting source rediscovery",
+                details={"reason": "zero_detail_payloads"},
+            )
+        rediscovered = await discover_source_config(
+            source_name=source,
+            homepage_url=document.homepage_url,
+            country_source=document.country_source,
+            client=client,
+            reporter=reporter,
+        )
+        source_db.upsert_source(rediscovered)
+        _detail_payloads, records = await _crawl_and_filter(
+            source=source,
+            source_config=rediscovered.config,
+            limit=limit,
+            client=client,
+            reporter=reporter,
+        )
+
+    return records
+
+
+async def _crawl_and_filter(
+    *,
+    source: str,
+    source_config: ScraperSourceConfig,
+    limit: int,
+    client: httpx.AsyncClient,
+    reporter: ProgressReporter | None,
+) -> tuple[list[dict[str, object]], list[ScrapedRecallRecord]]:
     effective_limit = min(limit, source_config.max_pages_per_run)
     if reporter is not None:
         reporter.log(
@@ -50,6 +167,7 @@ async def fetch_source_records(
                 "effective_limit": effective_limit,
                 "max_depth": source_config.max_depth,
                 "max_pages_per_run": source_config.max_pages_per_run,
+                "seed_urls": source_config.seed_urls,
             },
         )
     detail_payloads = await crawl_source_pages(
@@ -62,20 +180,31 @@ async def fetch_source_records(
         reporter.log(
             stage="source",
             source=source,
-            message="Detail payload extraction finished",
+            message="Detail payloads collected",
             details={
                 "detail_payload_count": len(detail_payloads),
-                "detail_payloads": _to_jsonable(detail_payloads),
+                "detail_urls": [
+                    str(payload.get("source_url", ""))
+                    for payload in detail_payloads[:10]
+                ],
             },
         )
 
     records: list[ScrapedRecallRecord] = []
+    dropped_by_date = 0
+    # Apply the current minimum policy to configs persisted by older discovery
+    # versions, which may still contain the former one-day value.
+    effective_lookback_days = max(source_config.lookback_days, DEFAULT_LOOKBACK_DAYS)
     for payload in detail_payloads:
         selected_date = select_recent_recall_date(
             payload.get("published_date_candidates", []),
-            lookback_days=source_config.lookback_days,
+            lookback_days=effective_lookback_days,
+            candidate_sources=payload.get("published_date_candidate_sources")
+            if isinstance(payload.get("published_date_candidate_sources"), dict)
+            else None,
         )
         if selected_date is None:
+            dropped_by_date += 1
             if reporter is not None:
                 reporter.log(
                     stage="source",
@@ -83,8 +212,7 @@ async def fetch_source_records(
                     message="Dropped detail payload after date filter",
                     details={
                         "source_url": str(payload.get("source_url", "")),
-                        "published_date_candidates": list(payload.get("published_date_candidates", [])),
-                        "payload": _to_jsonable(payload),
+                        "published_date_candidates": list(payload.get("published_date_candidates", []))[:5],
                     },
                 )
             continue
@@ -103,7 +231,6 @@ async def fetch_source_records(
                     "selected_recall_date": selected_date,
                     "selected_recall_date_source": payload.get("selected_recall_date_source", "generic"),
                     "records_collected": len(records),
-                    "cleaned_payload": _to_jsonable(cleaned_payload),
                 },
             )
         if len(records) >= effective_limit:
@@ -117,15 +244,18 @@ async def fetch_source_records(
             details={
                 "records_output": len(records),
                 "detail_payload_count": len(detail_payloads),
+                "dropped_by_date": dropped_by_date,
+                "lookback_days": effective_lookback_days,
             },
         )
-    return records
+    return detail_payloads, records
 
 
 async def fetch_sources_sequentially(
     sources: list[str],
     *,
     limit: int,
+    source_db: ScraperSourceConfigDBInterface,
     reporter: ProgressReporter | None = None,
 ) -> FetchSourcesResult:
     records: list[ScrapedRecallRecord] = []
@@ -139,6 +269,7 @@ async def fetch_sources_sequentially(
                         limit=limit,
                         client=client,
                         reporter=reporter,
+                        source_db=source_db,
                     )
                 )
             except (KeyError, httpx.HTTPError, ValueError, RuntimeError) as exc:
@@ -160,17 +291,3 @@ def _date_candidate_source(payload: dict[str, Any], selected_date: str) -> str:
         return "generic"
     source = str(sources.get(selected_date, "")).strip()
     return source or "generic"
-
-
-def _to_jsonable(value: Any) -> Any:
-    if isinstance(value, (str, int, float, bool)) or value is None:
-        return value
-    if isinstance(value, dict):
-        return {str(key): _to_jsonable(child) for key, child in value.items()}
-    if isinstance(value, list):
-        return [_to_jsonable(child) for child in value]
-    if isinstance(value, tuple):
-        return [_to_jsonable(child) for child in value]
-    if isinstance(value, set):
-        return [_to_jsonable(child) for child in sorted(value, key=str)]
-    return str(value)

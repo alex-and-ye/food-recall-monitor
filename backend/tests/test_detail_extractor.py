@@ -69,6 +69,31 @@ class DetailExtractorTests(unittest.TestCase):
         self.assertEqual(payload["published_date_candidate_sources"]["2026-06-24"], "selector")
         self.assertEqual(payload["published_date_candidate_sources"]["2026-06-23"], "generic")
 
+    def test_detail_extractor_does_not_invent_today_from_adjacent_card_dates(self) -> None:
+        html = """
+        <html lang="de">
+          <body>
+            <main>
+              <h1>Listing</h1>
+              <time datetime="10.07.2026">10.07.2026</time>
+              <time datetime="08.07.2026">08.07.2026</time>
+              <time datetime="07.07.2026">07.07.2026</time>
+            </main>
+          </body>
+        </html>
+        """
+
+        payload = extract_detail_payload(
+            source_url="https://example.com/list",
+            html=html,
+            date_selectors=["time", "[datetime]"],
+            date_languages=["de"],
+        )
+
+        self.assertIn("2026-07-10", payload["published_date_candidates"])
+        self.assertNotIn("2026-07-12", payload["published_date_candidates"])
+        self.assertEqual(payload["published_date_candidate_sources"]["2026-07-10"], "structured")
+
 
 if __name__ == "__main__":
     unittest.main()

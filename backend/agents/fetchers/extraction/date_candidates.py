@@ -1,20 +1,40 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from typing import Iterable
+from typing import Iterable, Mapping
 
 from agents.fetchers.extraction.date_parser import search_adaptive_dates
 
 DEFAULT_EXCLUDED_DATE_CONTEXT_MARKERS: tuple[str, ...] = (
     "last modified",
     "best before",
+    "use by",
+    "mindesthaltbar",
+    "mhd",
     "prev :",
     "prev:",
     "previous :",
     "previous:",
     "next :",
     "next:",
+    "last 24 hours",
+    "last 7 days",
+    "last 4 weeks",
+    "last 6 months",
+    "letzte 24 stunden",
+    "letzte 7 tage",
+    "letzte 4 wochen",
+    "letzte 6 monate",
+    "time period",
+    "zeitraum",
+    "detailed time period",
 )
+
+_SOURCE_RANK: dict[str, int] = {
+    "structured": 0,
+    "selector": 1,
+    "generic": 2,
+}
 
 
 def extract_date_candidates(
@@ -37,12 +57,20 @@ def select_recent_recall_date(
     *,
     lookback_days: int,
     now: datetime | None = None,
+    candidate_sources: Mapping[str, str] | None = None,
 ) -> str | None:
+    """Pick a publication date within the lookback window.
+
+    Prefer higher-trust sources (structured > selector > generic) and earlier
+    document order over the chronologically latest candidate. Picking "latest"
+    incorrectly favors UI chrome dates such as "today" on listing pages.
+    """
     current = now or datetime.now(tz=UTC)
     oldest_allowed = current.date() - timedelta(days=lookback_days)
-    latest: datetime | None = None
+    sources = candidate_sources or {}
 
-    for candidate in candidates:
+    scored: list[tuple[int, int, str]] = []
+    for index, candidate in enumerate(candidates):
         try:
             parsed = datetime.fromisoformat(candidate)
         except ValueError:
@@ -51,9 +79,10 @@ def select_recent_recall_date(
             continue
         if parsed.date() > current.date():
             continue
-        if latest is None or parsed > latest:
-            latest = parsed
+        source_name = str(sources.get(candidate, "generic"))
+        scored.append((_SOURCE_RANK.get(source_name, 2), index, parsed.date().isoformat()))
 
-    if latest is None:
+    if not scored:
         return None
-    return latest.date().isoformat()
+    scored.sort(key=lambda item: (item[0], item[1]))
+    return scored[0][2]

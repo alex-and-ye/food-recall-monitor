@@ -12,8 +12,24 @@ API_SOURCE_TO_COUNTRY_SOURCE: dict[str, str] = {
     "france": "France",
 }
 
+_country_source_lookup: Any | None = None
+
+
+def set_country_source_lookup(lookup: Any) -> None:
+    global _country_source_lookup
+    _country_source_lookup = lookup
+
+
 def api_source_to_country_source(api_source: str) -> str:
-    return API_SOURCE_TO_COUNTRY_SOURCE.get(api_source.strip().lower(), api_source)
+    key = api_source.strip().lower()
+    if _country_source_lookup is not None:
+        try:
+            resolved = _country_source_lookup(key)
+        except Exception:
+            resolved = None
+        if isinstance(resolved, str) and resolved.strip():
+            return resolved.strip()
+    return API_SOURCE_TO_COUNTRY_SOURCE.get(key, api_source)
 
 class FoodRecallAlertStats(BaseModel):
     total_alerts: int
