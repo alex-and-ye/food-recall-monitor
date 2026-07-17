@@ -2,7 +2,7 @@ import unittest
 from datetime import date
 from unittest.mock import AsyncMock, Mock, patch
 
-from models.food_recall_alert import FoodRecallAlert, FoodRecallAlertCreate, api_source_to_country_source
+from models.food_recall_alert import FoodRecallAlert, FoodRecallAlertCreate, web_source_to_country_source
 from models.pipeline_options import PipelineRunOptions
 from models.pipeline_result import AgentPipelineResult
 from services.geocoding import Coordinates
@@ -93,8 +93,8 @@ class PipelineServiceTests(unittest.IsolatedAsyncioTestCase):
 
 def _alert_for_source(source: str) -> FoodRecallAlertCreate:
     return FoodRecallAlertCreate(
-        api_source=source,
-        country_source=api_source_to_country_source(source),
+        web_source=source,
+        country_source=web_source_to_country_source(source),
         product_name="Original Product",
         product_category="Produce",
         recall_reason="Possible contamination",

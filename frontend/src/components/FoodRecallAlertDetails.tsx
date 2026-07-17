@@ -48,6 +48,11 @@ export default function FoodRecallAlertDetails({
       </div>
 
       <div>
+        <span className={detailLabelClassName}>Batch / Lot ID:</span>
+        <p className={detailValueClassName}>{formatText(alert.batch_id)}</p>
+      </div>
+
+      <div>
         <span className={`block ${detailLabelClassName}`}>Risk Level:</span>
         <span
           className={`mt-1 inline-block rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${getRiskBadgeClassName(alert.risk_level)}`}

@@ -6,7 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-API_SOURCE_TO_COUNTRY_SOURCE: dict[str, str] = {
+WEB_SOURCE_TO_COUNTRY_SOURCE: dict[str, str] = {
     "uk": "UK",
     "germany": "Germany",
     "france": "France",
@@ -20,8 +20,8 @@ def set_country_source_lookup(lookup: Any) -> None:
     _country_source_lookup = lookup
 
 
-def api_source_to_country_source(api_source: str) -> str:
-    key = api_source.strip().lower()
+def web_source_to_country_source(web_source: str) -> str:
+    key = web_source.strip().lower()
     if _country_source_lookup is not None:
         try:
             resolved = _country_source_lookup(key)
@@ -29,7 +29,7 @@ def api_source_to_country_source(api_source: str) -> str:
             resolved = None
         if isinstance(resolved, str) and resolved.strip():
             return resolved.strip()
-    return API_SOURCE_TO_COUNTRY_SOURCE.get(key, api_source)
+    return WEB_SOURCE_TO_COUNTRY_SOURCE.get(key, web_source)
 
 class FoodRecallAlertStats(BaseModel):
     total_alerts: int
@@ -46,7 +46,7 @@ class FoodRecallAlertsVersion(BaseModel):
 class FoodRecallAlertCreate(BaseModel):
     """Recall alert produced by the pipeline before database persistence."""
 
-    api_source: str
+    web_source: str
     country_source: str
     product_name: str
     product_category: str
@@ -57,18 +57,21 @@ class FoodRecallAlertCreate(BaseModel):
     hazard_type: str
     consumer_action: str
     source_url: str
+    batch_id: str = ""
     affected_regions: list[str] = Field(default_factory=list)
     latitude: float = Field(default=0.0, ge=-90.0, le=90.0)
     longitude: float = Field(default=0.0, ge=-180.0, le=180.0)
 
     def to_document(self) -> str:
         regions = ", ".join(self.affected_regions) if self.affected_regions else "unspecified"
+        batch_id = self.batch_id.strip() or "unspecified"
         return "\n".join(
             [
-                f"API source: {self.api_source}",
+                f"Web source: {self.web_source}",
                 f"Country source: {self.country_source}",
                 f"Product: {self.product_name}",
                 f"Category: {self.product_category}",
+                f"Batch ID: {batch_id}",
                 f"Summary: {self.summary}",
                 f"Reason: {self.recall_reason}",
                 f"Hazard: {self.hazard_type}",
@@ -90,10 +93,11 @@ class FoodRecallAlert(FoodRecallAlertCreate):
 
     def search_values(self) -> list[str]:
         return [
-            self.api_source,
+            self.web_source,
             self.country_source,
             self.product_name,
             self.product_category,
+            self.batch_id,
             self.recall_reason,
             self.summary,
             self.recall_date.isoformat(),
@@ -115,9 +119,9 @@ class FoodRecallAlert(FoodRecallAlertCreate):
         return search_term in searchable_text
 
     def to_metadata(self) -> dict[str, str | int | float | bool]:
-        return {
+        metadata: dict[str, str | int | float | bool] = {
             "alert_id": self.alert_id,
-            "api_source": self.api_source,
+            "web_source": self.web_source,
             "country_source": self.country_source,
             "product_name": self.product_name,
             "product_category": self.product_category,
@@ -132,6 +136,11 @@ class FoodRecallAlert(FoodRecallAlertCreate):
             "latitude": float(self.latitude),
             "longitude": float(self.longitude),
         }
+        # Chroma rejects empty string metadata values.
+        batch_id = self.batch_id.strip()
+        if batch_id:
+            metadata["batch_id"] = batch_id
+        return metadata
 
     @classmethod
     def from_metadata(cls, metadata: dict[str, Any]) -> FoodRecallAlert:
@@ -149,17 +158,22 @@ class FoodRecallAlert(FoodRecallAlertCreate):
         else:
             recall_date = date.fromisoformat(str(recall_date_raw))
 
-        api_source = str(metadata.get("api_source", "unknown"))
+        # Prefer web_source; accept legacy api_source for older Chroma records.
+        web_source = str(
+            metadata.get("web_source")
+            or metadata.get("api_source")
+            or "unknown"
+        )
         country_source_raw = metadata.get("country_source")
         country_source = (
             str(country_source_raw)
             if country_source_raw
-            else api_source_to_country_source(api_source)
+            else web_source_to_country_source(web_source)
         )
 
         return cls(
             alert_id=str(metadata["alert_id"]),
-            api_source=api_source,
+            web_source=web_source,
             country_source=country_source,
             product_name=str(metadata["product_name"]),
             product_category=str(metadata["product_category"]),
@@ -170,6 +184,7 @@ class FoodRecallAlert(FoodRecallAlertCreate):
             hazard_type=str(metadata["hazard_type"]),
             consumer_action=str(metadata["consumer_action"]),
             source_url=str(metadata["source_url"]),
+            batch_id=str(metadata.get("batch_id", "") or "").strip(),
             affected_regions=affected_regions,
             latitude=_parse_coordinate(metadata.get("latitude"), default=0.0),
             longitude=_parse_coordinate(metadata.get("longitude"), default=0.0),

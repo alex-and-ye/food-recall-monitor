@@ -4,18 +4,18 @@ from typing import Any
 
 from agents.normalizers.protected_fields import clean_text, parse_source_date
 from agents.validators import validate_structured_json
-from models.food_recall_alert import FoodRecallAlertCreate, api_source_to_country_source
+from models.food_recall_alert import FoodRecallAlertCreate
 
 def structured_json_to_alert_create(
     structured_json: dict[str, Any],
 ) -> FoodRecallAlertCreate:
     validate_structured_json(structured_json)
 
-    api_source = _required_text(structured_json, "api_source")
+    web_source = _required_text(structured_json, "web_source")
 
     return FoodRecallAlertCreate(
-        api_source=api_source,
-        country_source=api_source_to_country_source(api_source),
+        web_source=web_source,
+        country_source=_required_text(structured_json, "country_source"),
         product_name=_required_text(structured_json, "product_name"),
         product_category=_optional_text(structured_json, "product_category", "Other"),
         recall_reason=_required_text(structured_json, "recall_reason"),
@@ -25,6 +25,7 @@ def structured_json_to_alert_create(
         hazard_type=_required_text(structured_json, "hazard_type"),
         consumer_action=_required_text(structured_json, "consumer_action"),
         source_url=_required_text(structured_json, "source_url"),
+        batch_id=clean_text(str(structured_json.get("batch_id", ""))),
         affected_regions=_string_list(structured_json.get("affected_regions")),
     )
 
