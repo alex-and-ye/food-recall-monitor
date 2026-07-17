@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from agents.fetchers.crawler.source_discovery import derive_base_url_and_domains
-from config.agents import BOOTSTRAP_SCRAPER_SOURCES
+from config.sources import BOOTSTRAP_SCRAPER_SOURCES
 from db.source_config_interface import ScraperSourceConfigDBInterface
 from models.food_recall_alert import WEB_SOURCE_TO_COUNTRY_SOURCE
 from models.scraper_config import ScraperHints, ScraperSourceConfig
