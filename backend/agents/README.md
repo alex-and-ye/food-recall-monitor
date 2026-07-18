@@ -5,7 +5,7 @@ This package contains the recall ingestion and AI agent pipeline.
 ## Web sources
 
 Scraper sources are stored in the source registry (bootstrapped from
-`BOOTSTRAP_SCRAPER_SOURCES` in `config/agents.py`). The pipeline accepts those
+`BOOTSTRAP_SCRAPER_SOURCES` in `config/sources.py`). The pipeline accepts those
 source keys as `sources` values in `POST /api/pipeline/run`.
 
 Each processed alert stores `web_source` (the scraper source key, inserted
