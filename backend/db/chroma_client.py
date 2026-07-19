@@ -8,11 +8,12 @@ from chromadb.api.types import Metadata, Where
 
 from db.interface import FoodRecallAlertsDBInterface
 from models.food_recall_alert import FoodRecallAlert, FoodRecallAlertCreate, FoodRecallAlertsVersion
+from models.sort_options import SortBy
 
 class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
     COLLECTION_NAME = "food_recall_alerts_collection"
 
-    def __init__(self, host: str = "localhost", port: int = 8000) -> None:
+    def __init__(self, host: str, port: int) -> None:
         self.client = chromadb.HttpClient(host=host, port=port)
         self.collection = self.client.get_or_create_collection(
             name=FoodRecallAlertsChromaClient.COLLECTION_NAME
@@ -204,9 +205,9 @@ class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
         if search and search.strip():
             alerts = [alert for alert in alerts if alert.matches_search(search)]
 
-        if sort_by == "oldest":
+        if sort_by == SortBy.OLDEST:
             alerts.sort(key=lambda alert: alert.recall_date)
-        elif sort_by == "latest":
+        elif sort_by == SortBy.LATEST:
             alerts.sort(key=lambda alert: alert.recall_date, reverse=True)
 
         return alerts

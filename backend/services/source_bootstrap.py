@@ -7,7 +7,7 @@ from config.sources import BOOTSTRAP_SCRAPER_SOURCES
 from db.source_config_interface import ScraperSourceConfigDBInterface
 from models.food_recall_alert import WEB_SOURCE_TO_COUNTRY_SOURCE
 from models.scraper_config import ScraperHints, ScraperSourceConfig
-from models.source_registry import SourceRegistryDocument
+from models.source_registry import DiscoveryStatus, SourceRegistryDocument
 
 
 def ensure_bootstrap_sources(source_db: ScraperSourceConfigDBInterface) -> int:
@@ -32,7 +32,7 @@ def ensure_bootstrap_sources(source_db: ScraperSourceConfigDBInterface) -> int:
             homepage_url=homepage_url,
             country_source=country_source,
             config=config,
-            discovery_status="pending",
+            discovery_status=DiscoveryStatus.PENDING,
             discovery_reason="bootstrapped homepage only; awaiting LLM discovery",
             discovered_at=now,
             updated_at=now,

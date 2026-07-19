@@ -7,10 +7,11 @@ import httpx
 
 from agents.fetchers.crawler.source_discovery import derive_base_url_and_domains, discover_source_config
 from agents.fetchers.scraper_ingestion import SOURCE_REQUEST_HEADERS
+from constants import HTTP_CLIENT_TIMEOUT_SECONDS
 from db.source_config_interface import ScraperSourceConfigDBInterface
 from models.pipeline_progress import ProgressReporter
 from models.scraper_config import ScraperHints, ScraperSourceConfig
-from models.source_registry import SourceCreateRequest, SourceRegistryDocument
+from models.source_registry import DiscoveryStatus, SourceCreateRequest, SourceRegistryDocument
 
 LOGGER = logging.getLogger(__name__)
 
@@ -75,7 +76,7 @@ class SourcesService:
         existing = self._source_db.get_source(source_name)
         if existing is None:
             return None
-        updated = existing.touch(status="stale", reason=reason)
+        updated = existing.touch(status=DiscoveryStatus.STALE, reason=reason)
         return self._source_db.upsert_source(updated)
 
     async def _run_discovery(
@@ -87,7 +88,7 @@ class SourcesService:
         reporter: ProgressReporter | None,
     ) -> SourceRegistryDocument:
         async with httpx.AsyncClient(
-            timeout=30.0,
+            timeout=HTTP_CLIENT_TIMEOUT_SECONDS,
             headers=SOURCE_REQUEST_HEADERS,
             follow_redirects=True,
         ) as client:
@@ -116,7 +117,7 @@ class SourcesService:
                         seed_urls=[homepage_url],
                         hints=ScraperHints(),
                     ),
-                    discovery_status="failed",
+                    discovery_status=DiscoveryStatus.FAILED,
                     discovery_reason=str(exc),
                     discovered_at=now,
                     updated_at=now,

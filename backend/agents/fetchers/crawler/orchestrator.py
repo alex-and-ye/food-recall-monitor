@@ -13,7 +13,7 @@ from agents.fetchers.crawler.scoring import score_page_relevance, score_url_rele
 from agents.fetchers.extraction.detail_extractor import extract_detail_payload
 from agents.fetchers.rendering.browser_fetch import fetch_browser_html
 from agents.fetchers.rendering.static_fetch import fetch_static_html
-from models.pipeline_progress import ProgressReporter
+from models.pipeline_progress import PipelineStage, ProgressReporter
 from models.scraper_config import ScraperSourceConfig
 
 LOGGER = logging.getLogger(__name__)
@@ -45,7 +45,7 @@ async def crawl_source_pages(
         enqueue_order += 1
     if reporter is not None:
         reporter.log(
-            stage="crawl",
+            stage=PipelineStage.CRAWL,
             source=source_name,
             message="Starting crawl queue",
             details={
@@ -100,7 +100,7 @@ async def crawl_source_pages(
             if should_try_browser:
                 if reporter is not None and static_error is not None and not source_config.hints.force_browser:
                     reporter.log(
-                        stage="crawl",
+                        stage=PipelineStage.CRAWL,
                         source=source_name,
                         message="Static fetch failed, attempting browser fallback",
                         details={"url": item.url, "error": str(static_error)},
@@ -126,7 +126,7 @@ async def crawl_source_pages(
             fetch_failures += 1
             if reporter is not None:
                 reporter.log(
-                    stage="crawl",
+                    stage=PipelineStage.CRAWL,
                     source=source_name,
                     message="Page fetch failed",
                     details={"url": item.url, "error": str(exc)},
@@ -141,7 +141,7 @@ async def crawl_source_pages(
         )
         if reporter is not None:
             reporter.log(
-                stage="crawl",
+                stage=PipelineStage.CRAWL,
                 source=source_name,
                 message="Page classified",
                 details={
@@ -163,7 +163,7 @@ async def crawl_source_pages(
             if reporter is not None:
                 date_candidates = list(payload.get("published_date_candidates", []))
                 reporter.log(
-                    stage="crawl",
+                    stage=PipelineStage.CRAWL,
                     source=source_name,
                     message="Detail payload extracted",
                     details={
@@ -190,7 +190,7 @@ async def crawl_source_pages(
         ]
         if reporter is not None:
             reporter.log(
-                stage="crawl",
+                stage=PipelineStage.CRAWL,
                 source=source_name,
                 message="Discovered internal links",
                 details={
@@ -214,7 +214,7 @@ async def crawl_source_pages(
             enqueue_order += 1
     if reporter is not None:
         reporter.log(
-            stage="crawl",
+            stage=PipelineStage.CRAWL,
             source=source_name,
             message="Source crawl finished",
             details={

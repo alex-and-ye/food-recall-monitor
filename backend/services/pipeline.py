@@ -4,7 +4,9 @@ from db.interface import FoodRecallAlertsDBInterface
 from db.source_config_interface import ScraperSourceConfigDBInterface
 from models.food_recall_alert import FoodRecallAlertCreate
 from models.pipeline_options import PipelineRunOptions
+from models.pipeline_progress import PipelineStage
 from models.pipeline_result import PipelineRunResult
+from models.pipeline_warning import WarningCategory
 from services.alert_events import AlertChangeBroadcaster
 from services.geocoding import geocode_alert_location
 from services.pipeline_progress import PipelineProgressTracker
@@ -52,7 +54,7 @@ class PipelineService:
 
                 if reporter is not None:
                     reporter.log(
-                        stage="db",
+                        stage=PipelineStage.DB,
                         message="Alert persisted to database",
                         details={
                             "saved_for_alert": inserted_count,
@@ -94,7 +96,7 @@ class PipelineService:
     def _emit_warning(
         self,
         *,
-        category: str,
+        category: WarningCategory | str,
         message: str,
         source: str | None = None,
         run_id: str | None = None,
@@ -102,7 +104,7 @@ class PipelineService:
         if self.warnings_service is None:
             return
         self.warnings_service.emit(
-            category=category,  # type: ignore[arg-type]
+            category=WarningCategory(category),
             message=message,
             source=source,
             run_id=run_id,
@@ -114,14 +116,14 @@ class PipelineService:
         if isinstance(exc, SourceFetchError):
             for source_name, error in exc.failures.items():
                 self.warnings_service.emit(
-                    category="source_skipped",
+                    category=WarningCategory.SOURCE_SKIPPED,
                     message=f'Source "{source_name}" was skipped during scraping: {error}',
                     source=source_name,
                     run_id=run_id,
                 )
             return
         self.warnings_service.emit(
-            category="pipeline_failed",
+            category=WarningCategory.PIPELINE_FAILED,
             message=f"Pipeline run failed: {exc}",
             run_id=run_id,
         )

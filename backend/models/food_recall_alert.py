@@ -2,15 +2,33 @@ from __future__ import annotations
 
 import json
 from datetime import date
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field
 
+class WebSource(StrEnum):
+    UK = "uk"
+    GERMANY = "germany"
+    FRANCE = "france"
+
+class CountrySource(StrEnum):
+    UK = "UK"
+    GERMANY = "Germany"
+    FRANCE = "France"
+
 WEB_SOURCE_TO_COUNTRY_SOURCE: dict[str, str] = {
-    "uk": "UK",
-    "germany": "Germany",
-    "france": "France",
+    WebSource.UK: CountrySource.UK,
+    WebSource.GERMANY: CountrySource.GERMANY,
+    WebSource.FRANCE: CountrySource.FRANCE,
 }
+
+COUNTRY_SOURCES: frozenset[str] = frozenset(WEB_SOURCE_TO_COUNTRY_SOURCE.values())
+WEB_SOURCE_KEYS: frozenset[str] = frozenset(WEB_SOURCE_TO_COUNTRY_SOURCE.keys())
+
+# Legacy Chroma metadata key accepted when reading older alert records.
+LEGACY_WEB_SOURCE_METADATA_KEY = "api_source"
+WEB_SOURCE_METADATA_KEY = "web_source"
 
 _country_source_lookup: Any | None = None
 
@@ -158,10 +176,10 @@ class FoodRecallAlert(FoodRecallAlertCreate):
         else:
             recall_date = date.fromisoformat(str(recall_date_raw))
 
-        # Prefer web_source; accept legacy api_source for older Chroma records.
+        # Prefer web_source; accept legacy key for older Chroma records.
         web_source = str(
-            metadata.get("web_source")
-            or metadata.get("api_source")
+            metadata.get(WEB_SOURCE_METADATA_KEY)
+            or metadata.get(LEGACY_WEB_SOURCE_METADATA_KEY)
             or "unknown"
         )
         country_source_raw = metadata.get("country_source")

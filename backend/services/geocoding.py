@@ -9,7 +9,7 @@ from geopy.exc import GeocoderServiceError, GeocoderTimedOut
 from geopy.geocoders import Nominatim
 from geopy.location import Location
 
-from models.food_recall_alert import FoodRecallAlertCreate
+from models.food_recall_alert import CountrySource, FoodRecallAlertCreate
 
 LOGGER: logging.Logger = logging.getLogger(__name__)
 
@@ -17,9 +17,9 @@ NOMINATIM_REQUEST_DELAY_SECONDS: float = 1.5
 COORDINATE_JITTER_DEGREES: float = 0.1
 
 COUNTRY_CENTER_COORDINATES: dict[str, tuple[float, float]] = {
-    "France": (46.2276, 2.2137),
-    "Germany": (51.1657, 10.4515),
-    "UK": (55.3781, -3.4360),
+    CountrySource.FRANCE: (46.2276, 2.2137),
+    CountrySource.GERMANY: (51.1657, 10.4515),
+    CountrySource.UK: (55.3781, -3.4360),
     "United Kingdom": (55.3781, -3.4360),
 }
 

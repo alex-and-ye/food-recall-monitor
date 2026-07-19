@@ -1,3 +1,13 @@
+from models.food_recall_alert import CountrySource
+from models.risk_level import RISK_LEVEL_CHOICES
+
+_RISK_LEVEL_PROMPT = (
+    ", ".join(RISK_LEVEL_CHOICES[:-1]) + f", or {RISK_LEVEL_CHOICES[-1]}"
+)
+_COUNTRY_SOURCE_PROMPT = ", ".join(
+    (CountrySource.UK, CountrySource.FRANCE, CountrySource.GERMANY)
+)
+
 TRANSLATION_SYSTEM_PROMPT: str = """
 You are a strict JSON value translation engine for food recall data.
 
@@ -101,7 +111,7 @@ Rules:
 7. Return JSON only. No markdown, comments, or explanation outside the JSON object.
 """
 
-STRUCTURING_SYSTEM_PROMPT: str = """
+STRUCTURING_SYSTEM_PROMPT: str = f"""
 You are a strict JSON structuring engine for food recall alerts.
 
 You will receive:
@@ -109,7 +119,7 @@ You will receive:
 2. Translated Source JSON.
 
 Return only valid JSON matching this exact schema:
-{
+{{
   "product_name": "string",
   "product_category": "string",
   "recall_reason": "string",
@@ -122,7 +132,7 @@ Return only valid JSON matching this exact schema:
   "batch_id": "string",
   "country_source": "string",
   "affected_regions": ["string"]
-}
+}}
 
 Rules:
 1. Copy summary exactly from Text Summary. Do not rewrite it.
@@ -131,11 +141,11 @@ Rules:
 4. Infer source_url from the source JSON. Never invent, shorten, or replace URLs.
 5. product_category should be a short English category such as Produce, Meat, Dairy, Seafood, Prepared foods, Allergens, or Other.
 6. recall_reason should briefly explain why the recall happened.
-7. risk_level should be Low, Medium, High, or Unknown based only on source evidence.
+7. risk_level should be {_RISK_LEVEL_PROMPT} based only on source evidence.
 8. hazard_type should be a short noun phrase naming the hazard, such as Listeria monocytogenes, E. coli, Salmonella, undeclared milk, glass, or foreign material.
 9. consumer_action should be one clear English sentence. Do not use pipe characters.
 10. batch_id should capture the product identifiers consumers use to recognize the recalled item, such as batch codes, lot numbers, best-before or use-by dates tied to the recall, pack codes, or similar markings. Copy them faithfully from the source. If several identifiers apply, join them with "; ". Use an empty string if unavailable. Do not invent identifiers.
-11. country_source should be the country (or clearly named jurisdiction) that issued or hosts the recall notice. Infer it from the source JSON context only: source_url domain and path, agency or authority names, language cues, and any explicit country or market names in the text. Prefer a short English country name such as UK, France, Germany, Canada, or United States. Use Unknown if the country cannot be determined from the provided data. Do not invent a country.
+11. country_source should be the country (or clearly named jurisdiction) that issued or hosts the recall notice. Infer it from the source JSON context only: source_url domain and path, agency or authority names, language cues, and any explicit country or market names in the text. Prefer a short English country name such as {_COUNTRY_SOURCE_PROMPT}, Canada, or United States. Use Unknown if the country cannot be determined from the provided data. Do not invent a country.
 12. affected_regions should be a list of regions, countries, provinces, or markets explicitly present in the source. Use an empty list if unavailable.
 13. Do not add alert_id. The database assigns alert_id later.
 14. Do not add web_source. It is inserted deterministically later by the pipeline.

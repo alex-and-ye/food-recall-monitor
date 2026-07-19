@@ -11,15 +11,17 @@ from chromadb.api.types import Metadata
 from db.warnings_interface import PipelineWarningsDBInterface
 from models.pipeline_warning import (
     MAX_WARNINGS_RETAINED,
+    WARNING_CATEGORIES,
     PipelineWarning,
     PipelineWarningCreate,
+    WarningCategory,
 )
 
 
 class PipelineWarningsChromaClient(PipelineWarningsDBInterface):
     COLLECTION_NAME = "pipeline_warnings_collection"
 
-    def __init__(self, host: str = "localhost", port: int = 8000) -> None:
+    def __init__(self, host: str, port: int) -> None:
         self.client = chromadb.HttpClient(host=host, port=port)
         self.collection = self.client.get_or_create_collection(
             name=PipelineWarningsChromaClient.COLLECTION_NAME
@@ -147,7 +149,7 @@ class PipelineWarningsChromaClient(PipelineWarningsDBInterface):
             return None
 
         category = str(metadata.get("category") or "")
-        if category not in {"source_skipped", "record_skipped", "pipeline_failed"}:
+        if category not in WARNING_CATEGORIES:
             return None
 
         source_raw = str(metadata.get("source") or "").strip()
@@ -157,7 +159,7 @@ class PipelineWarningsChromaClient(PipelineWarningsDBInterface):
         return PipelineWarning(
             warning_id=str(metadata.get("warning_id") or warning_id),
             created_at=created_at,
-            category=category,  # type: ignore[arg-type]
+            category=WarningCategory(category),
             message=str(metadata.get("message") or "Pipeline warning"),
             source=source_raw or None,
             acknowledged=acknowledged_raw in {"true", "1", "yes"},

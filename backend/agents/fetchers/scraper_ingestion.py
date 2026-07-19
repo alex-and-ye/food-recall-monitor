@@ -12,12 +12,13 @@ from agents.fetchers.crawler.source_discovery import (
 )
 from agents.fetchers.extraction.cleaning import clean_detail_payload
 from agents.fetchers.extraction.date_candidates import select_recent_recall_date
+from constants import HTTP_CLIENT_TIMEOUT_SECONDS
 from db.source_config_interface import ScraperSourceConfigDBInterface
-from models.pipeline_progress import ProgressReporter
+from models.pipeline_progress import PipelineStage, ProgressReporter
 from models.pipeline_result import FetchSourcesResult
 from models.scraped_record import ScrapedRecallRecord
 from models.scraper_config import DEFAULT_LOOKBACK_DAYS, ScraperSourceConfig
-from models.source_registry import SourceRegistryDocument
+from models.source_registry import DISCOVERY_STATUSES_NEEDING_REFRESH, DiscoveryStatus, SourceRegistryDocument
 
 LOGGER = logging.getLogger(__name__)
 
@@ -49,7 +50,7 @@ async def resolve_source_config(
     document = source_db.get_source(source)
     needs_discovery = (
         document is None
-        or document.discovery_status in {"failed", "stale", "pending"}
+        or document.discovery_status in DISCOVERY_STATUSES_NEEDING_REFRESH
         or not document.config.seed_urls
     )
     if needs_discovery and allow_rediscovery:
@@ -58,7 +59,7 @@ async def resolve_source_config(
             raise KeyError(f"Unknown scraper source: {source}")
         if reporter is not None:
             reporter.log(
-                stage="discovery",
+                stage=PipelineStage.DISCOVERY,
                 source=source,
                 message="Starting source rediscovery",
                 details={"reason": document.discovery_status if document else "missing"},
@@ -103,7 +104,7 @@ async def fetch_source_records(
         source_db.upsert_source(document)
         if reporter is not None:
             reporter.log(
-                stage="discovery",
+                stage=PipelineStage.DISCOVERY,
                 source=source,
                 message="Broadened filtered listing seeds",
                 details={
@@ -119,13 +120,13 @@ async def fetch_source_records(
         reporter=reporter,
     )
 
-    if not detail_payloads and document.discovery_status == "ready":
+    if not detail_payloads and document.discovery_status == DiscoveryStatus.READY:
         # Zero details: mark stale, rediscover once, retry crawl.
-        stale = document.touch(status="stale", reason="zero detail payloads after crawl")
+        stale = document.touch(status=DiscoveryStatus.STALE, reason="zero detail payloads after crawl")
         source_db.upsert_source(stale)
         if reporter is not None:
             reporter.log(
-                stage="discovery",
+                stage=PipelineStage.DISCOVERY,
                 source=source,
                 message="Starting source rediscovery",
                 details={"reason": "zero_detail_payloads"},
@@ -160,7 +161,7 @@ async def _crawl_and_filter(
     effective_limit = min(limit, source_config.max_pages_per_run)
     if reporter is not None:
         reporter.log(
-            stage="source",
+            stage=PipelineStage.SOURCE,
             source=source,
             message="Starting source crawl",
             details={
@@ -178,7 +179,7 @@ async def _crawl_and_filter(
     )
     if reporter is not None:
         reporter.log(
-            stage="source",
+            stage=PipelineStage.SOURCE,
             source=source,
             message="Detail payloads collected",
             details={
@@ -207,7 +208,7 @@ async def _crawl_and_filter(
             dropped_by_date += 1
             if reporter is not None:
                 reporter.log(
-                    stage="source",
+                    stage=PipelineStage.SOURCE,
                     source=source,
                     message="Dropped detail payload after date filter",
                     details={
@@ -223,7 +224,7 @@ async def _crawl_and_filter(
         records.append(ScrapedRecallRecord(source_name=source, payload=cleaned_payload))
         if reporter is not None:
             reporter.log(
-                stage="source",
+                stage=PipelineStage.SOURCE,
                 source=source,
                 message="Accepted cleaned payload",
                 details={
@@ -238,7 +239,7 @@ async def _crawl_and_filter(
 
     if reporter is not None:
         reporter.log(
-            stage="source",
+            stage=PipelineStage.SOURCE,
             source=source,
             message="Completed source processing",
             details={
@@ -260,7 +261,11 @@ async def fetch_sources_sequentially(
 ) -> FetchSourcesResult:
     records: list[ScrapedRecallRecord] = []
     failures: dict[str, str] = {}
-    async with httpx.AsyncClient(timeout=30.0, headers=SOURCE_REQUEST_HEADERS, follow_redirects=True) as client:
+    async with httpx.AsyncClient(
+        timeout=HTTP_CLIENT_TIMEOUT_SECONDS,
+        headers=SOURCE_REQUEST_HEADERS,
+        follow_redirects=True,
+    ) as client:
         for source in sources:
             try:
                 records.extend(
@@ -277,7 +282,7 @@ async def fetch_sources_sequentially(
                 LOGGER.warning("Skipping %s scraper source after fetch failure: %s", source, exc)
                 if reporter is not None:
                     reporter.log(
-                        stage="source",
+                        stage=PipelineStage.SOURCE,
                         source=source,
                         message="Source processing failed",
                         details={"error": str(exc)},
