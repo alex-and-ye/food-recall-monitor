@@ -12,11 +12,13 @@ from dependencies import (
     get_db,
     get_pipeline_service,
     get_source_config_db,
+    get_warnings_service,
 )
 from paths import ensure_backend_data_dirs
 from routes.alerts import router as alerts_router
 from routes.pipeline import router as pipeline_router
 from routes.sources import router as sources_router
+from routes.warnings import router as warnings_router
 from scheduler import start_daily_pipeline_scheduler, stop_daily_pipeline_scheduler
 from services.source_bootstrap import ensure_bootstrap_sources
 
@@ -33,6 +35,7 @@ async def lifespan(_: FastAPI):
         db,
         get_source_config_db(),
         get_alert_change_broadcaster(),
+        get_warnings_service(),
     )
     alerts_service = get_alerts_service(db)
 
@@ -60,6 +63,7 @@ app.add_middleware(
 app.include_router(alerts_router)
 app.include_router(pipeline_router)
 app.include_router(sources_router)
+app.include_router(warnings_router)
 
 
 @app.get("/")

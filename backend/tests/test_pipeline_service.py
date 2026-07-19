@@ -7,6 +7,9 @@ from models.pipeline_options import PipelineRunOptions
 from models.pipeline_result import AgentPipelineResult
 from services.geocoding import Coordinates
 from services.pipeline import PipelineService
+from services.warnings import WarningsService
+from db.chroma_warnings_client import InMemoryPipelineWarningsStore
+from agents.errors import SourceFetchError
 
 class PipelineServiceTests(unittest.IsolatedAsyncioTestCase):
     async def test_run_pipeline_saves_each_alert_as_processed(self) -> None:
@@ -19,7 +22,15 @@ class PipelineServiceTests(unittest.IsolatedAsyncioTestCase):
         source_db = Mock()
         service = PipelineService(db, source_db)
 
-        async def fake_run_agent_pipeline(options, *, source_db=None, reporter=None, on_alert_processed=None):
+        async def fake_run_agent_pipeline(
+            options,
+            *,
+            source_db=None,
+            reporter=None,
+            on_alert_processed=None,
+            on_warning=None,
+            run_id=None,
+        ):
             assert source_db is service.source_db
             assert on_alert_processed is not None
             await on_alert_processed(first_alert)
@@ -64,7 +75,15 @@ class PipelineServiceTests(unittest.IsolatedAsyncioTestCase):
         broadcaster = Mock()
         service = PipelineService(db, source_db, alert_broadcaster=broadcaster)
 
-        async def fake_run_agent_pipeline(options, *, source_db=None, reporter=None, on_alert_processed=None):
+        async def fake_run_agent_pipeline(
+            options,
+            *,
+            source_db=None,
+            reporter=None,
+            on_alert_processed=None,
+            on_warning=None,
+            run_id=None,
+        ):
             assert source_db is service.source_db
             assert on_alert_processed is not None
             for alert in alerts:
@@ -90,6 +109,46 @@ class PipelineServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(broadcaster.notify.call_count, 2)
         broadcaster.notify.assert_any_call(1)
         self.assertEqual(db.update_alert_coordinates.call_count, 2)
+
+    async def test_run_pipeline_emits_warning_on_hard_failure(self) -> None:
+        db = Mock()
+        source_db = Mock()
+        warnings_service = WarningsService(InMemoryPipelineWarningsStore())
+        service = PipelineService(db, source_db, warnings_service=warnings_service)
+
+        async def fake_run_agent_pipeline(*args, **kwargs):
+            raise RuntimeError("agent crash")
+
+        with patch("services.pipeline.run_agent_pipeline", side_effect=fake_run_agent_pipeline):
+            with self.assertRaises(RuntimeError):
+                await service.run_pipeline(PipelineRunOptions.model_construct(sources=["uk"], limit=1))
+
+        warnings = warnings_service.list_warnings()
+        self.assertEqual(len(warnings), 1)
+        self.assertEqual(warnings[0].category, "pipeline_failed")
+        self.assertIn("agent crash", warnings[0].message)
+
+    async def test_run_pipeline_emits_source_warnings_when_all_sources_fail(self) -> None:
+        db = Mock()
+        source_db = Mock()
+        warnings_service = WarningsService(InMemoryPipelineWarningsStore())
+        service = PipelineService(db, source_db, warnings_service=warnings_service)
+
+        async def fake_run_agent_pipeline(*args, **kwargs):
+            raise SourceFetchError({"france": "403", "uk": "timeout"})
+
+        with patch("services.pipeline.run_agent_pipeline", side_effect=fake_run_agent_pipeline):
+            with self.assertRaises(SourceFetchError):
+                await service.run_pipeline(
+                    PipelineRunOptions.model_construct(sources=["france", "uk"], limit=1)
+                )
+
+        warnings = warnings_service.list_warnings()
+        self.assertEqual(len(warnings), 2)
+        categories = {item.category for item in warnings}
+        self.assertEqual(categories, {"source_skipped"})
+        sources = {item.source for item in warnings}
+        self.assertEqual(sources, {"france", "uk"})
 
 def _alert_for_source(source: str) -> FoodRecallAlertCreate:
     return FoodRecallAlertCreate(
