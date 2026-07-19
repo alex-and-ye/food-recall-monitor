@@ -1,4 +1,5 @@
 from agents.graph import run_pipeline as run_agent_pipeline
+from agents.errors import SourceFetchError
 from db.interface import FoodRecallAlertsDBInterface
 from db.source_config_interface import ScraperSourceConfigDBInterface
 from models.food_recall_alert import FoodRecallAlertCreate
@@ -7,6 +8,7 @@ from models.pipeline_result import PipelineRunResult
 from services.alert_events import AlertChangeBroadcaster
 from services.geocoding import geocode_alert_location
 from services.pipeline_progress import PipelineProgressTracker
+from services.warnings import WarningsService
 
 class PipelineService:
     def __init__(
@@ -15,11 +17,13 @@ class PipelineService:
         source_db: ScraperSourceConfigDBInterface,
         progress_tracker: PipelineProgressTracker | None = None,
         alert_broadcaster: AlertChangeBroadcaster | None = None,
+        warnings_service: WarningsService | None = None,
     ) -> None:
         self.db = db
         self.source_db = source_db
         self.progress_tracker = progress_tracker
         self.alert_broadcaster = alert_broadcaster
+        self.warnings_service = warnings_service
 
     async def run_pipeline(self, options: PipelineRunOptions | None = None) -> PipelineRunResult:
         run_options = options or PipelineRunOptions()
@@ -65,6 +69,8 @@ class PipelineService:
                 source_db=self.source_db,
                 reporter=reporter,
                 on_alert_processed=save_alert_incrementally,
+                on_warning=self._emit_warning,
+                run_id=run_id,
             )
             if self.progress_tracker is not None and run_id is not None:
                 self.progress_tracker.complete_run(
@@ -76,10 +82,46 @@ class PipelineService:
         except Exception as exc:
             if self.progress_tracker is not None and run_id is not None:
                 self.progress_tracker.fail_run(run_id=run_id, error=str(exc))
+            self._emit_hard_failure(exc, run_id=run_id)
             raise
 
         return PipelineRunResult(
             new_alerts_count=saved_count,
             records_fetched=pipeline_result.records_fetched,
             source_failures=pipeline_result.source_failures,
+        )
+
+    def _emit_warning(
+        self,
+        *,
+        category: str,
+        message: str,
+        source: str | None = None,
+        run_id: str | None = None,
+    ) -> None:
+        if self.warnings_service is None:
+            return
+        self.warnings_service.emit(
+            category=category,  # type: ignore[arg-type]
+            message=message,
+            source=source,
+            run_id=run_id,
+        )
+
+    def _emit_hard_failure(self, exc: Exception, *, run_id: str | None) -> None:
+        if self.warnings_service is None:
+            return
+        if isinstance(exc, SourceFetchError):
+            for source_name, error in exc.failures.items():
+                self.warnings_service.emit(
+                    category="source_skipped",
+                    message=f'Source "{source_name}" was skipped during scraping: {error}',
+                    source=source_name,
+                    run_id=run_id,
+                )
+            return
+        self.warnings_service.emit(
+            category="pipeline_failed",
+            message=f"Pipeline run failed: {exc}",
+            run_id=run_id,
         )

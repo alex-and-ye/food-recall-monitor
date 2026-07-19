@@ -1,4 +1,5 @@
 import type { FoodRecallAlert, FoodRecallAlertStats, FoodRecallAlertsVersion } from "@/types/alert";
+import type { PipelineWarning, PipelineWarningsSummary } from "@/types/warning";
 import { ApiError } from "@/services/api/errors";
 // TODO: Remove this before final project delivery
 import {
@@ -126,4 +127,35 @@ export async function getAlertById(id: string): Promise<FoodRecallAlert> {
   }
 
   return apiFetch<FoodRecallAlert>(`/alerts/${encodeURIComponent(id)}`);
+}
+
+export async function getWarnings(
+  params: { acknowledged?: boolean } = {},
+): Promise<PipelineWarning[]> {
+  const query = buildQueryString({
+    acknowledged:
+      params.acknowledged === undefined ? undefined : String(params.acknowledged),
+  });
+  return apiFetch<PipelineWarning[]>(`/warnings${query}`);
+}
+
+export async function getWarningsSummary(): Promise<PipelineWarningsSummary> {
+  return apiFetch<PipelineWarningsSummary>("/warnings/summary");
+}
+
+export async function acknowledgeWarning(
+  warningId: string,
+): Promise<PipelineWarning> {
+  return apiFetch<PipelineWarning>(
+    `/warnings/${encodeURIComponent(warningId)}/acknowledge`,
+    { method: "POST" },
+  );
+}
+
+export async function acknowledgeAllWarnings(): Promise<{
+  acknowledged_count: number;
+}> {
+  return apiFetch<{ acknowledged_count: number }>("/warnings/acknowledge-all", {
+    method: "POST",
+  });
 }

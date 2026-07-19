@@ -63,6 +63,9 @@ def create_pipeline_graph(*, reporter: ProgressReporter | None = None):
 
     return graph.compile()
 
+WarningEmitter = Callable[..., None]
+
+
 async def run_pipeline(
     options: PipelineRunOptions,
     *,
@@ -71,6 +74,8 @@ async def run_pipeline(
     on_alert_processed: (
         Callable[[FoodRecallAlertCreate], Awaitable[int] | int] | None
     ) = None,
+    on_warning: WarningEmitter | None = None,
+    run_id: str | None = None,
 ) -> AgentPipelineResult:
     graph = create_pipeline_graph(reporter=reporter)
     if reporter is not None:
@@ -88,6 +93,15 @@ async def run_pipeline(
 
     if not fetch_result.records and fetch_result.failures:
         raise SourceFetchError(fetch_result.failures)
+
+    for source_name, error in fetch_result.failures.items():
+        _emit_warning(
+            on_warning,
+            category="source_skipped",
+            message=f'Source "{source_name}" was skipped during scraping: {error}',
+            source=source_name,
+            run_id=run_id,
+        )
 
     if reporter is not None:
         reporter.log(
@@ -138,6 +152,16 @@ async def run_pipeline(
                         "record_payload": _to_jsonable(record.payload),
                     },
                 )
+            _emit_warning(
+                on_warning,
+                category="record_skipped",
+                message=(
+                    f'Product record from "{record.source_name}" skipped '
+                    f"after pipeline processing failure"
+                ),
+                source=record.source_name,
+                run_id=run_id,
+            )
             continue
         alerts.append(result["alert"])
         if on_alert_processed is not None:
@@ -160,6 +184,19 @@ async def run_pipeline(
         records_fetched=len(fetch_result.records),
         source_failures=fetch_result.failures,
     )
+
+
+def _emit_warning(
+    on_warning: WarningEmitter | None,
+    *,
+    category: str,
+    message: str,
+    source: str | None = None,
+    run_id: str | None = None,
+) -> None:
+    if on_warning is None:
+        return
+    on_warning(category=category, message=message, source=source, run_id=run_id)
 
 
 def _tracked_node(

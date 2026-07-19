@@ -305,6 +305,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_run_pipeline_keeps_source_failures_when_records_exist(self) -> None:
         options = _options(sources=["uk", "us"], limit=2)
+        on_warning = Mock()
         with (
             patch(
                 "agents.graph.fetch_sources_sequentially",
@@ -315,10 +316,21 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
             patch("agents.graph.chat_json", side_effect=[{"record": _scraped_record().payload}, _valid_structured_json()]),
             patch("agents.graph.chat_text", return_value=_valid_summary()),
         ):
-            result = await run_pipeline(options, source_db=_source_db())
+            result = await run_pipeline(
+                options,
+                source_db=_source_db(),
+                on_warning=on_warning,
+                run_id="run-partial",
+            )
 
         self.assertEqual(result.records_fetched, 1)
         self.assertEqual(result.source_failures, {"us": "Timeout"})
+        on_warning.assert_called_once_with(
+            category="source_skipped",
+            message='Source "us" was skipped during scraping: Timeout',
+            source="us",
+            run_id="run-partial",
+        )
 
     async def test_run_pipeline_returns_empty_when_nothing_fetched_and_no_failures(self) -> None:
         options = _options(sources=["uk"], limit=1)
@@ -335,6 +347,7 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
         fake_graph.ainvoke = AsyncMock(
             side_effect=[ValueError("invalid structured payload"), {"alert": _alert_for_source("ca")}]
         )
+        on_warning = Mock()
         with (
             patch(
                 "agents.graph.fetch_sources_sequentially",
@@ -342,10 +355,21 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
             ),
             patch("agents.graph.create_pipeline_graph", return_value=fake_graph),
         ):
-            result = await run_pipeline(_options(["uk", "ca"], limit=2), source_db=_source_db())
+            result = await run_pipeline(
+                _options(["uk", "ca"], limit=2),
+                source_db=_source_db(),
+                on_warning=on_warning,
+                run_id="run-skip",
+            )
         self.assertEqual(result.records_fetched, 2)
         self.assertEqual(len(result.alerts), 1)
         self.assertEqual(result.alerts[0].web_source, "ca")
+        on_warning.assert_called_once_with(
+            category="record_skipped",
+            message='Product record from "uk" skipped after pipeline processing failure',
+            source="uk",
+            run_id="run-skip",
+        )
 
     async def test_run_pipeline_invokes_callback_for_each_processed_alert(self) -> None:
         fake_graph = AsyncMock()
