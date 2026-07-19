@@ -39,6 +39,6 @@ def _source_names() -> list[str]:
         except Exception:
             pass
 
-    from config.agents import BOOTSTRAP_SOURCE_NAMES
+    from config.sources import BOOTSTRAP_SOURCE_NAMES
 
     return list(BOOTSTRAP_SOURCE_NAMES)
