@@ -39,6 +39,7 @@ const RISK_PIN_COLORS: Record<RiskLevel, string> = {
   High: "#b91c1c",
   Medium: "#f59e0b",
   Low: "#047857",
+  Unknown: "#475569",
 };
 
 function toGlobePoints(
