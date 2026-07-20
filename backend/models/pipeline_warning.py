@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-WarningCategory = Literal["source_skipped", "record_skipped", "pipeline_failed"]
+
+class WarningCategory(StrEnum):
+    SOURCE_SKIPPED = "source_skipped"
+    RECORD_SKIPPED = "record_skipped"
+    PIPELINE_FAILED = "pipeline_failed"
+
+WARNING_CATEGORIES: frozenset[str] = frozenset(WarningCategory)
 
 MAX_WARNINGS_RETAINED = 200
 MAX_WARNING_MESSAGE_LENGTH = 280

@@ -4,6 +4,7 @@ import { filterAlerts, type AlertSearchPayload } from "@/lib/alertSearch";
 import type { GetAlertsParams } from "@/services/api/client";
 import { ApiError } from "@/services/api/errors";
 import type { FoodRecallAlert, FoodRecallAlertStats, FoodRecallAlertsVersion } from "@/types/alert";
+import { isCountrySource, isRiskLevel, isSortBy } from "@/types/alert";
 
 const MOCK_ALERTS: FoodRecallAlert[] = [
   {
@@ -111,23 +112,12 @@ const MOCK_ALERTS: FoodRecallAlert[] = [
 function toSearchPayload(params: GetAlertsParams): AlertSearchPayload {
   return {
     search: params.search ?? "",
-    risk_level:
-      params.risk_level === "High" ||
-      params.risk_level === "Medium" ||
-      params.risk_level === "Low"
-        ? params.risk_level
-        : null,
-    country_source:
-      params.country_source === "UK" ||
-      params.country_source === "Germany" ||
-      params.country_source === "France"
-        ? params.country_source
-        : null,
+    risk_level: isRiskLevel(params.risk_level) ? params.risk_level : null,
+    country_source: isCountrySource(params.country_source)
+      ? params.country_source
+      : null,
     recall_date: params.recall_date?.trim() || null,
-    sort_by:
-      params.sort_by === "latest" || params.sort_by === "oldest"
-        ? params.sort_by
-        : null,
+    sort_by: isSortBy(params.sort_by) ? params.sort_by : null,
   };
 }
 

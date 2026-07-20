@@ -5,12 +5,11 @@ from fastapi.responses import StreamingResponse
 import json
 
 from models.food_recall_alert import FoodRecallAlert, FoodRecallAlertStats, FoodRecallAlertsVersion
+from models.sort_options import VALID_SORT_OPTIONS
 from services.alert_events import AlertChangeBroadcaster
 from services.alerts import AlertsService
 from dependencies import get_alert_change_broadcaster, get_alerts_service
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
-
-VALID_SORT_OPTIONS = {"latest", "oldest"}
 
 @router.get("", response_model=dict, status_code=status.HTTP_200_OK)
 async def get_alerts(
@@ -26,7 +25,7 @@ async def get_alerts(
         if normalized_sort_by is not None and normalized_sort_by not in VALID_SORT_OPTIONS:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="sort_by must be one of: latest, oldest",
+                detail=f"sort_by must be one of: {', '.join(sorted(VALID_SORT_OPTIONS))}",
             )
 
         has_query = any(

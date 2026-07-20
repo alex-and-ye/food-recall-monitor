@@ -26,11 +26,17 @@ from agents.validators import (
 )
 from config.agents import TRANSLATION_MODEL
 from db.source_config_interface import ScraperSourceConfigDBInterface
-from models.food_recall_alert import FoodRecallAlertCreate
+from models.food_recall_alert import (
+    LEGACY_WEB_SOURCE_METADATA_KEY,
+    WEB_SOURCE_METADATA_KEY,
+    FoodRecallAlertCreate,
+)
 from models.pipeline_options import PipelineRunOptions
-from models.pipeline_progress import ProgressReporter
+from models.pipeline_progress import PipelineStage, ProgressReporter
 from models.pipeline_result import AgentPipelineResult
 from models.pipeline_state import PipelineRecordState
+from models.pipeline_warning import WarningCategory
+from models.risk_level import RiskLevel
 
 LOGGER: logging.Logger = logging.getLogger(__name__)
 
@@ -80,7 +86,7 @@ async def run_pipeline(
     graph = create_pipeline_graph(reporter=reporter)
     if reporter is not None:
         reporter.log(
-            stage="fetch",
+            stage=PipelineStage.FETCH,
             message="Starting source fetch",
             details={"sources": options.sources, "limit": options.limit},
         )
@@ -97,7 +103,7 @@ async def run_pipeline(
     for source_name, error in fetch_result.failures.items():
         _emit_warning(
             on_warning,
-            category="source_skipped",
+            category=WarningCategory.SOURCE_SKIPPED,
             message=f'Source "{source_name}" was skipped during scraping: {error}',
             source=source_name,
             run_id=run_id,
@@ -105,7 +111,7 @@ async def run_pipeline(
 
     if reporter is not None:
         reporter.log(
-            stage="fetch",
+            stage=PipelineStage.FETCH,
             message="Source fetch completed",
             details={
                 "records_fetched": len(fetch_result.records),
@@ -124,7 +130,7 @@ async def run_pipeline(
     for index, record in enumerate(fetch_result.records, start=1):
         if reporter is not None:
             reporter.log(
-                stage="record",
+                stage=PipelineStage.RECORD,
                 source=record.source_name,
                 message="Processing scraped record",
                 details={
@@ -143,7 +149,7 @@ async def run_pipeline(
             )
             if reporter is not None:
                 reporter.log(
-                    stage="record",
+                    stage=PipelineStage.RECORD,
                     source=record.source_name,
                     message="Record processing failed",
                     details={
@@ -154,7 +160,7 @@ async def run_pipeline(
                 )
             _emit_warning(
                 on_warning,
-                category="record_skipped",
+                category=WarningCategory.RECORD_SKIPPED,
                 message=(
                     f'Product record from "{record.source_name}" skipped '
                     f"after pipeline processing failure"
@@ -170,7 +176,7 @@ async def run_pipeline(
                 await callback_result
         if reporter is not None:
             reporter.log(
-                stage="record",
+                stage=PipelineStage.RECORD,
                 source=record.source_name,
                 message="Record processed successfully",
                 details={
@@ -189,7 +195,7 @@ async def run_pipeline(
 def _emit_warning(
     on_warning: WarningEmitter | None,
     *,
-    category: str,
+    category: WarningCategory,
     message: str,
     source: str | None = None,
     run_id: str | None = None,
@@ -210,7 +216,7 @@ def _tracked_node(
             source_name = state["record"].source_name
         if reporter is not None:
             reporter.log(
-                stage="agent",
+                stage=PipelineStage.AGENT,
                 source=source_name,
                 message=f"{node_name} started",
                 details={"input_state": _state_snapshot(state)},
@@ -218,7 +224,7 @@ def _tracked_node(
         result = node_fn(state)
         if reporter is not None:
             reporter.log(
-                stage="agent",
+                stage=PipelineStage.AGENT,
                 source=source_name,
                 message=f"{node_name} completed",
                 details={"output_state": _state_snapshot(result)},
@@ -311,7 +317,7 @@ def _fallback_structured_json(state: PipelineRecordState) -> dict[str, object]:
         "recall_reason": "Recall reason unavailable",
         "summary": state["summary"],
         "recall_date": _best_payload_value("recall_date", "", record.payload),
-        "risk_level": "Unknown",
+        "risk_level": RiskLevel.UNKNOWN,
         "hazard_type": "Unknown",
         "consumer_action": "Follow the source recall notice.",
         "source_url": _best_payload_value("source_url", "", record.payload),
@@ -333,7 +339,7 @@ def repair_and_convert_node(state: PipelineRecordState) -> PipelineRecordState:
         **{
             key: value
             for key, value in dict(state["structured_json"]).items()
-            if key not in {"web_source", "api_source"}
+            if key not in {WEB_SOURCE_METADATA_KEY, LEGACY_WEB_SOURCE_METADATA_KEY}
         },
     }
 

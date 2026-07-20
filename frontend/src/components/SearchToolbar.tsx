@@ -14,7 +14,7 @@ import {
   secondaryButtonClassName,
   selectClassName,
 } from "@/lib/ui";
-import { COUNTRY_SOURCES, RISK_LEVELS } from "@/types/alert";
+import { COUNTRY_SOURCES, RISK_LEVELS, SORT_BY_LATEST, SORT_BY_OLDEST } from "@/types/alert";
 
 interface AlertSearchToolbarProps {
   hasFeeds: boolean;
@@ -183,8 +183,8 @@ export default function AlertSearchToolbar({
             className={selectClassName}
           >
             <option value="">Default</option>
-            <option value="latest">Latest</option>
-            <option value="oldest">Oldest</option>
+            <option value={SORT_BY_LATEST}>Latest</option>
+            <option value={SORT_BY_OLDEST}>Oldest</option>
           </select>
         </div>
 

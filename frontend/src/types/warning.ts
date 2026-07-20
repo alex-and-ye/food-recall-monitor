@@ -1,7 +1,10 @@
-export type PipelineWarningCategory =
-  | "source_skipped"
-  | "record_skipped"
-  | "pipeline_failed";
+export const WARNING_CATEGORIES = [
+  "source_skipped",
+  "record_skipped",
+  "pipeline_failed",
+] as const;
+
+export type PipelineWarningCategory = (typeof WARNING_CATEGORIES)[number];
 
 export interface PipelineWarning {
   warning_id: string;

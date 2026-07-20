@@ -1,11 +1,18 @@
 import type { ReadonlyURLSearchParams } from "next/navigation";
-import type { CountrySource, FoodRecallAlert, RiskLevel } from "@/types/alert";
+import type { CountrySource, FoodRecallAlert, RiskLevel, SortBy } from "@/types/alert";
+import {
+  isCountrySource,
+  isRiskLevel,
+  isSortBy,
+  SORT_BY_LATEST,
+  SORT_BY_OLDEST,
+} from "@/types/alert";
 
 export type RiskLevelFilter = RiskLevel | "All";
 
 export type CountrySourceFilter = CountrySource | "All";
 
-export type SortByFilter = "" | "latest" | "oldest";
+export type SortByFilter = "" | SortBy;
 
 export interface AlertSearchFormState {
   search: string;
@@ -20,7 +27,7 @@ export interface AlertSearchPayload {
   risk_level: RiskLevel | null;
   country_source: CountrySource | null;
   recall_date: string | null;
-  sort_by: "latest" | "oldest" | null;
+  sort_by: SortBy | null;
 }
 
 export const DEFAULT_ALERT_SEARCH_FORM_STATE: AlertSearchFormState = {
@@ -39,10 +46,7 @@ export function buildAlertSearchPayload(
     risk_level: state.riskLevel === "All" ? null : state.riskLevel,
     country_source: state.countrySource === "All" ? null : state.countrySource,
     recall_date: state.recallDate.trim() || null,
-    sort_by:
-      state.sortBy === "latest" || state.sortBy === "oldest"
-        ? state.sortBy
-        : null,
+    sort_by: isSortBy(state.sortBy) ? state.sortBy : null,
   };
 }
 
@@ -66,18 +70,9 @@ export function formStateFromSearchParams(
 
   return {
     search: searchParams.get("search") ?? "",
-    riskLevel:
-      riskLevel === "High" || riskLevel === "Medium" || riskLevel === "Low"
-        ? riskLevel
-        : "All",
-    countrySource:
-      countrySource === "UK" ||
-      countrySource === "Germany" ||
-      countrySource === "France"
-        ? countrySource
-        : "All",
-    sortBy:
-      sortBy === "latest" || sortBy === "oldest" ? sortBy : "",
+    riskLevel: isRiskLevel(riskLevel) ? riskLevel : "All",
+    countrySource: isCountrySource(countrySource) ? countrySource : "All",
+    sortBy: isSortBy(sortBy) ? sortBy : "",
     recallDate: /^\d{4}-\d{2}-\d{2}$/.test(recallDate) ? recallDate : "",
   };
 }
@@ -186,11 +181,11 @@ export function filterAlerts(
     return searchableText.includes(searchTerm);
   });
 
-  if (payload.sort_by === "oldest") {
+  if (payload.sort_by === SORT_BY_OLDEST) {
     return [...filtered].sort(compareRecallDates);
   }
 
-  if (payload.sort_by === "latest") {
+  if (payload.sort_by === SORT_BY_LATEST) {
     return [...filtered].sort((left, right) =>
       compareRecallDates(right, left),
     );

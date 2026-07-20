@@ -1,21 +1,35 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Literal
+from enum import StrEnum
 
 from pydantic import BaseModel, Field, field_validator
 
 from models.scraper_config import ScraperSourceConfig
 
-DiscoveryStatus = Literal["ready", "failed", "stale", "pending"]
 
+class DiscoveryStatus(StrEnum):
+    READY = "ready"
+    FAILED = "failed"
+    STALE = "stale"
+    PENDING = "pending"
+
+DISCOVERY_STATUSES: frozenset[str] = frozenset(DiscoveryStatus)
+
+DISCOVERY_STATUSES_NEEDING_REFRESH: frozenset[str] = frozenset(
+    {
+        DiscoveryStatus.FAILED,
+        DiscoveryStatus.STALE,
+        DiscoveryStatus.PENDING,
+    }
+)
 
 class SourceRegistryDocument(BaseModel):
     source_name: str
     homepage_url: str
     country_source: str
     config: ScraperSourceConfig
-    discovery_status: DiscoveryStatus = "ready"
+    discovery_status: DiscoveryStatus = DiscoveryStatus.READY
     discovery_reason: str = ""
     discovered_at: datetime | None = None
     updated_at: datetime | None = None

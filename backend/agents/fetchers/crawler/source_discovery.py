@@ -18,9 +18,9 @@ from agents.fetchers.rendering.static_fetch import fetch_static_html
 from agents.llm import chat_json
 from agents.prompts import DETAIL_PATTERN_DISCOVERY_SYSTEM_PROMPT, LISTING_DISCOVERY_SYSTEM_PROMPT
 from config.agents import CLASSIFICATION_MODEL
-from models.pipeline_progress import ProgressReporter
+from models.pipeline_progress import PipelineStage, ProgressReporter
 from models.scraper_config import DEFAULT_LOOKBACK_DAYS, ScraperHints, ScraperSourceConfig
-from models.source_registry import SourceRegistryDocument
+from models.source_registry import DiscoveryStatus, SourceRegistryDocument
 
 LOGGER = logging.getLogger(__name__)
 
@@ -313,7 +313,7 @@ async def discover_source_config(
     display_country = (country_source or source_name).strip() or source_name
     if reporter is not None:
         reporter.log(
-            stage="discovery",
+            stage=PipelineStage.DISCOVERY,
             source=source_name,
             message="Starting source discovery",
             details={"homepage_url": homepage_url, "base_url": base_url},
@@ -335,7 +335,7 @@ async def discover_source_config(
     ranked = rank_candidates(merged_candidates)
     if reporter is not None:
         reporter.log(
-            stage="discovery",
+            stage=PipelineStage.DISCOVERY,
             source=source_name,
             message="Candidate exploration summary",
             details={
@@ -379,7 +379,7 @@ async def discover_source_config(
 
     if reporter is not None:
         reporter.log(
-            stage="discovery",
+            stage=PipelineStage.DISCOVERY,
             source=source_name,
             message="LLM listing selection result",
             details={
@@ -446,7 +446,7 @@ async def discover_source_config(
 
     if reporter is not None:
         reporter.log(
-            stage="discovery",
+            stage=PipelineStage.DISCOVERY,
             source=source_name,
             message="LLM detail-pattern selection result",
             details={
@@ -484,14 +484,14 @@ async def discover_source_config(
         homepage_url=homepage_url,
         country_source=display_country,
         config=config,
-        discovery_status="ready",
+        discovery_status=DiscoveryStatus.READY,
         discovery_reason=str(pattern_payload.get("reason") or listing_payload.get("reason") or "discovered"),
         discovered_at=now,
         updated_at=now,
     )
     if reporter is not None:
         reporter.log(
-            stage="discovery",
+            stage=PipelineStage.DISCOVERY,
             source=source_name,
             message="Source discovery completed",
             details={

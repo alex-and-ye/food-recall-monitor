@@ -9,13 +9,13 @@ from chromadb.api.types import Metadata
 
 from db.source_config_interface import ScraperSourceConfigDBInterface
 from models.scraper_config import ScraperSourceConfig
-from models.source_registry import DiscoveryStatus, SourceRegistryDocument
+from models.source_registry import DISCOVERY_STATUSES, DiscoveryStatus, SourceRegistryDocument
 
 
 class ScraperSourceConfigChromaClient(ScraperSourceConfigDBInterface):
     COLLECTION_NAME = "scraper_sources_collection"
 
-    def __init__(self, host: str = "localhost", port: int = 8000) -> None:
+    def __init__(self, host: str, port: int) -> None:
         self.client = chromadb.HttpClient(host=host, port=port)
         self.collection = self.client.get_or_create_collection(
             name=ScraperSourceConfigChromaClient.COLLECTION_NAME
@@ -111,12 +111,11 @@ class ScraperSourceConfigChromaClient(ScraperSourceConfigDBInterface):
         else:
             return None
 
-        status_raw = str(metadata.get("discovery_status") or "ready")
-        status: DiscoveryStatus
-        if status_raw in {"ready", "failed", "stale", "pending"}:
-            status = status_raw  # type: ignore[assignment]
+        status_raw = str(metadata.get("discovery_status") or DiscoveryStatus.READY)
+        if status_raw in DISCOVERY_STATUSES:
+            status = DiscoveryStatus(status_raw)
         else:
-            status = "ready"
+            status = DiscoveryStatus.READY
 
         return SourceRegistryDocument(
             source_name=str(metadata.get("source_name") or source_id),

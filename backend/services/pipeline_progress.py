@@ -10,6 +10,7 @@ from uuid import uuid4
 
 from paths import get_run_logs_dir
 from models.pipeline_options import PipelineRunOptions
+from models.pipeline_progress import PipelineStage
 
 LOGGER = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ class PipelineProgressTracker:
             self._open_run_log_stream(run_id)
         self.append_event(
             run_id=run_id,
-            stage="pipeline",
+            stage=PipelineStage.PIPELINE,
             message="Pipeline run started",
             details={
                 "options": options.model_dump(),
@@ -95,7 +96,7 @@ class PipelineProgressTracker:
             self._run_status[run_id] = "completed"
         self.append_event(
             run_id=run_id,
-            stage="pipeline",
+            stage=PipelineStage.PIPELINE,
             message="Pipeline run completed",
             details={
                 "new_alerts_count": new_alerts_count,
@@ -115,7 +116,7 @@ class PipelineProgressTracker:
             self._run_status[run_id] = "failed"
         self.append_event(
             run_id=run_id,
-            stage="pipeline",
+            stage=PipelineStage.PIPELINE,
             message="Pipeline run failed",
             details={"error": error},
         )
