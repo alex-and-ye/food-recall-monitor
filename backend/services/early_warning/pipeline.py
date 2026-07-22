@@ -88,6 +88,7 @@ class EarlyWarningPipelineService:
         self.reporter = reporter
         self.progress_tracker = progress_tracker
         self.run_lock = run_lock
+        self._active_run_id: str | None = None
 
     async def run(self, *, dry_run: bool = False) -> EarlyWarningRunResult:
         if self.run_lock is None:
@@ -104,8 +105,6 @@ class EarlyWarningPipelineService:
     async def _run(self, *, dry_run: bool = False) -> EarlyWarningRunResult:
         if not self.config.enabled:
             return EarlyWarningRunResult(dry_run=dry_run)
-        if self.search_client is None:
-            raise RuntimeError("early warning is enabled but Brave Search is unavailable")
 
         result = EarlyWarningRunResult(dry_run=dry_run)
         run_id: str | None = None
@@ -116,8 +115,12 @@ class EarlyWarningPipelineService:
                 details={"dry_run": dry_run},
             )
             self.reporter = self.progress_tracker.reporter(run_id)
+        self._active_run_id = run_id
 
         try:
+            if self.search_client is None:
+                raise RuntimeError("early warning is enabled but Brave Search is unavailable")
+
             self._log(PipelineStage.EARLY_WARNING, "Starting early-warning discovery")
             candidates = await self._search_and_filter(result)
             if dry_run:
@@ -194,11 +197,19 @@ class EarlyWarningPipelineService:
                         details={"incident_id": incident.incident_id},
                     )
                     if self.verification_service is not None:
-                        verification = self.verification_service.verify_incident(
-                            incident.incident_id
-                        )
-                        if verification is not None and verification.confirmed:
-                            result.officially_confirmed += 1
+                        try:
+                            verification = self.verification_service.verify_incident(
+                                incident.incident_id
+                            )
+                            if verification is not None and verification.confirmed:
+                                result.officially_confirmed += 1
+                        except Exception as exc:  # noqa: BLE001 - keep incident even if verify fails
+                            self._warn(
+                                WarningCategory.EARLY_WARNING_RECORD_SKIPPED,
+                                "Early-warning official verification failed",
+                                source=incident.primary_source_domain,
+                                error=exc,
+                            )
                     if self.broadcaster is not None:
                         self.broadcaster.notify(1)
                 except Exception as exc:  # noqa: BLE001 - isolate individual discovered pages
@@ -215,6 +226,7 @@ class EarlyWarningPipelineService:
                         WarningCategory.EARLY_WARNING_RECORD_SKIPPED,
                         "Early-warning page skipped during AI processing",
                         source=urlsplit(candidate.canonical_url).hostname,
+                        error=exc,
                     )
 
             self._log(
@@ -234,10 +246,12 @@ class EarlyWarningPipelineService:
             self._warn(
                 WarningCategory.EARLY_WARNING_PIPELINE_FAILED,
                 "Early-warning pipeline run failed",
+                error=exc,
             )
             raise
         finally:
             self.reporter = previous_reporter
+            self._active_run_id = None
 
     run_pipeline = run
 
@@ -276,7 +290,9 @@ class EarlyWarningPipelineService:
                     result.failures[f"query:{query.query_id}"] = str(exc)
                     self._warn(
                         WarningCategory.EARLY_WARNING_SEARCH_FAILED,
-                        "An early-warning search query failed",
+                        f'Early-warning search query "{query.query_id}" failed',
+                        source=query.country,
+                        error=exc,
                     )
                     break
                 searched = True
@@ -346,11 +362,26 @@ class EarlyWarningPipelineService:
                     result.candidates_accepted += 1
                 else:
                     result.candidates_rejected += 1
-            except Exception:  # noqa: BLE001 - conservative rejection on metadata failure
+            except Exception as exc:  # noqa: BLE001 - conservative rejection on metadata failure
+                result.failures[candidate.canonical_url] = str(exc)
+                self.candidate_store.upsert_candidate(
+                    candidate.model_copy(
+                        update={
+                            "decision": CandidateDecision.REJECT,
+                            "processing_status": CandidateStatus.REJECTED,
+                            "reasons": [
+                                *candidate.reasons,
+                                f"LLM review failed: {exc}",
+                            ],
+                        }
+                    )
+                )
+                result.candidates_rejected += 1
                 self._warn(
                     WarningCategory.EARLY_WARNING_RECORD_SKIPPED,
                     "Borderline early-warning candidate could not be classified",
                     source=urlsplit(candidate.canonical_url).hostname,
+                    error=exc,
                 )
         return accepted
 
@@ -402,6 +433,7 @@ class EarlyWarningPipelineService:
                             WarningCategory.EARLY_WARNING_FETCH_FAILED,
                             "Early-warning page has unsupported content type",
                             source=urlsplit(candidate.canonical_url).hostname,
+                            error=exc,
                         )
                         return None
                     except Exception as exc:  # noqa: BLE001 - isolate crawl failures
@@ -422,6 +454,7 @@ class EarlyWarningPipelineService:
                             WarningCategory.EARLY_WARNING_FETCH_FAILED,
                             "Early-warning page fetch failed",
                             source=urlsplit(candidate.canonical_url).hostname,
+                            error=exc,
                         )
                         return None
 
@@ -479,10 +512,18 @@ class EarlyWarningPipelineService:
         message: str,
         *,
         source: str | None = None,
+        error: BaseException | str | None = None,
     ) -> None:
-        LOGGER.warning("%s%s", message, f" ({source})" if source else "")
+        detail = str(error).strip() if error is not None else ""
+        full_message = f"{message}: {detail}" if detail else message
+        LOGGER.warning("%s%s", full_message, f" ({source})" if source else "")
         if self.warnings_service is not None:
-            self.warnings_service.emit(category=category, message=message, source=source)
+            self.warnings_service.emit(
+                category=category,
+                message=full_message,
+                source=source,
+                run_id=self._active_run_id,
+            )
 
     def _log(
         self,

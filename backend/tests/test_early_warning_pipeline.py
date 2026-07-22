@@ -5,11 +5,13 @@ from datetime import date
 from config.early_warning import load_early_warning_config
 from db.chroma_early_warning_candidates import InMemoryEarlyWarningCandidateStore
 from db.chroma_early_warning_client import InMemoryEarlyWarningIncidentStore
+from db.chroma_warnings_client import InMemoryPipelineWarningsStore
 from models.early_warning_incident import EarlyWarningIncidentCreate, IncidentType, SourceKind
 from models.scraped_record import ScrapedRecallRecord
 from models.search_candidate import SearchCandidate, SearchResponse
 from services.early_warning.incidents import EarlyWarningIncidentService
 from services.early_warning.pipeline import EarlyWarningPipelineService
+from services.warnings import WarningsService
 
 
 class FakeSearchClient:
@@ -156,6 +158,138 @@ class EarlyWarningPipelineTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.incidents_saved, 0)
         self.assertEqual(scrape_calls, 0)
         self.assertEqual(incident_store.count_incidents(), 0)
+
+
+class EarlyWarningPipelineWarningTests(unittest.IsolatedAsyncioTestCase):
+    def _enabled_config(self):
+        config = load_early_warning_config()
+        return config.model_copy(
+            update={
+                "enabled": True,
+                "budgets": config.budgets.model_copy(
+                    update={
+                        "queries_per_run": 1,
+                        "results_per_query": 1,
+                        "candidates_per_run": 1,
+                        "max_pages_per_query": 1,
+                    }
+                ),
+                "crawl": config.crawl.model_copy(
+                    update={"concurrency": 1, "minimum_text_characters": 1, "max_attempts": 1}
+                ),
+            }
+        )
+
+    async def test_missing_search_client_emits_pipeline_failed_warning(self) -> None:
+        warnings_service = WarningsService(InMemoryPipelineWarningsStore())
+        service = EarlyWarningPipelineService(
+            config=self._enabled_config(),
+            search_client=None,
+            candidate_store=InMemoryEarlyWarningCandidateStore(),
+            incident_service=EarlyWarningIncidentService(
+                InMemoryEarlyWarningIncidentStore()
+            ),
+            processing_service=FakeProcessor(),  # type: ignore[arg-type]
+            warnings_service=warnings_service,
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "Brave Search is unavailable"):
+            await service.run()
+
+        warnings = warnings_service.list_warnings()
+        self.assertEqual(len(warnings), 1)
+        self.assertEqual(warnings[0].category, "early_warning_pipeline_failed")
+        self.assertIn("Brave Search is unavailable", warnings[0].message)
+
+    async def test_search_failure_emits_search_warning(self) -> None:
+        class FailingSearchClient:
+            async def search(self, query, **_kwargs):
+                raise RuntimeError("brave rate limited")
+
+        warnings_service = WarningsService(InMemoryPipelineWarningsStore())
+        service = EarlyWarningPipelineService(
+            config=self._enabled_config(),
+            search_client=FailingSearchClient(),  # type: ignore[arg-type]
+            candidate_store=InMemoryEarlyWarningCandidateStore(),
+            incident_service=EarlyWarningIncidentService(
+                InMemoryEarlyWarningIncidentStore()
+            ),
+            processing_service=FakeProcessor(),  # type: ignore[arg-type]
+            warnings_service=warnings_service,
+        )
+
+        result = await service.run(dry_run=True)
+
+        self.assertEqual(result.search_results, 0)
+        warnings = warnings_service.list_warnings()
+        self.assertEqual(len(warnings), 1)
+        self.assertEqual(warnings[0].category, "early_warning_search_failed")
+        self.assertIn("brave rate limited", warnings[0].message)
+
+    async def test_fetch_failure_emits_fetch_warning(self) -> None:
+        warnings_service = WarningsService(InMemoryPipelineWarningsStore())
+
+        async def ingest(_url, **_kwargs):
+            raise RuntimeError("timeout fetching page")
+
+        service = EarlyWarningPipelineService(
+            config=self._enabled_config(),
+            search_client=FakeSearchClient(),  # type: ignore[arg-type]
+            candidate_store=InMemoryEarlyWarningCandidateStore(),
+            incident_service=EarlyWarningIncidentService(
+                InMemoryEarlyWarningIncidentStore()
+            ),
+            processing_service=FakeProcessor(),  # type: ignore[arg-type]
+            warnings_service=warnings_service,
+            ingest=ingest,
+        )
+
+        result = await service.run()
+
+        self.assertEqual(result.pages_scraped, 0)
+        warnings = warnings_service.list_warnings()
+        self.assertEqual(len(warnings), 1)
+        self.assertEqual(warnings[0].category, "early_warning_fetch_failed")
+        self.assertIn("timeout fetching page", warnings[0].message)
+        self.assertEqual(warnings[0].source, "inspection.canada.ca")
+
+    async def test_processing_failure_emits_record_warning(self) -> None:
+        class FailingProcessor(FakeProcessor):
+            async def process_record(self, record, **_kwargs):
+                raise RuntimeError("llm taxonomy failed")
+
+        warnings_service = WarningsService(InMemoryPipelineWarningsStore())
+
+        async def ingest(url, **_kwargs):
+            return ScrapedRecallRecord(
+                source_name="inspection.canada.ca",
+                payload={
+                    "source_url": url,
+                    "canonical_url": url,
+                    "visible_text": "Recall details",
+                    "content_hash": "hash",
+                },
+            )
+
+        service = EarlyWarningPipelineService(
+            config=self._enabled_config(),
+            search_client=FakeSearchClient(),  # type: ignore[arg-type]
+            candidate_store=InMemoryEarlyWarningCandidateStore(),
+            incident_service=EarlyWarningIncidentService(
+                InMemoryEarlyWarningIncidentStore()
+            ),
+            processing_service=FailingProcessor(),  # type: ignore[arg-type]
+            warnings_service=warnings_service,
+            ingest=ingest,
+        )
+
+        result = await service.run()
+
+        self.assertEqual(result.incidents_saved, 0)
+        warnings = warnings_service.list_warnings()
+        self.assertEqual(len(warnings), 1)
+        self.assertEqual(warnings[0].category, "early_warning_record_skipped")
+        self.assertIn("llm taxonomy failed", warnings[0].message)
 
 
 if __name__ == "__main__":
