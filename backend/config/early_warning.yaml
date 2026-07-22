@@ -84,7 +84,7 @@ confidence:
   description: 0.10
 
 brave:
-  freshness: pw
+  freshness: pd
   timeout_seconds: 15
   minimum_interval_seconds: 1
   max_retries: 3

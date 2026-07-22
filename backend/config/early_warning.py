@@ -233,7 +233,7 @@ class ConfidenceWeights(_StrictConfigModel):
 
 
 class BraveSearchConfig(_StrictConfigModel):
-    freshness: str = "pw"
+    freshness: str = "pd"
     timeout_seconds: float = Field(default=15.0, gt=0.0, le=120.0)
     minimum_interval_seconds: float = Field(default=1.0, ge=0.0, le=60.0)
     max_retries: int = Field(default=3, ge=0, le=10)
