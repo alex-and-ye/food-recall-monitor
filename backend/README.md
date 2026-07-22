@@ -24,7 +24,8 @@ Copy `backend/.env.example` to `backend/.env` when you need non-default configur
    fastapi dev backend/main.py --port 8080
    ```
 
-   Pipeline run logs are written to `backend/.logs/pipeline_runs/` by default.
+   Pipeline run logs for official and early-warning pipelines are stored in ChromaDB
+   (`pipeline_run_logs_collection`), with an in-memory fallback when Chroma is unavailable.
 
 ## Ollama
 

@@ -21,6 +21,7 @@ from models.discovery_candidate import (
 from models.early_warning_incident import EarlyWarningIncident, SourceKind, TrustTier
 from models.pipeline_progress import PipelineStage, ProgressReporter
 from models.pipeline_warning import WarningCategory
+from models.pipeline_run_log import PipelineKind
 from models.scraped_record import ScrapedRecallRecord
 from services.alert_events import AlertChangeBroadcaster
 from services.early_warning.brave_search import BraveSearchClient
@@ -33,6 +34,7 @@ from services.early_warning.ingestion import (
 )
 from services.early_warning.query_generator import QueryGenerator
 from services.early_warning.verification import IncidentVerificationService
+from services.pipeline_progress import PipelineProgressTracker
 from services.warnings import WarningsService
 
 LOGGER = logging.getLogger(__name__)
@@ -71,6 +73,7 @@ class EarlyWarningPipelineService:
         warnings_service: WarningsService | None = None,
         ingest: IngestCallable = ingest_early_warning_url,
         reporter: ProgressReporter | None = None,
+        progress_tracker: PipelineProgressTracker | None = None,
         run_lock: asyncio.Lock | None = None,
     ) -> None:
         self.config = config
@@ -83,6 +86,7 @@ class EarlyWarningPipelineService:
         self.warnings_service = warnings_service
         self.ingest = ingest
         self.reporter = reporter
+        self.progress_tracker = progress_tracker
         self.run_lock = run_lock
 
     async def run(self, *, dry_run: bool = False) -> EarlyWarningRunResult:
@@ -104,96 +108,136 @@ class EarlyWarningPipelineService:
             raise RuntimeError("early warning is enabled but Brave Search is unavailable")
 
         result = EarlyWarningRunResult(dry_run=dry_run)
-        self._log(PipelineStage.EARLY_WARNING, "Starting early-warning discovery")
-        candidates = await self._search_and_filter(result)
-        if dry_run:
-            self._log(
-                PipelineStage.EARLY_WARNING,
-                "Completed early-warning discovery dry run",
-                details=_safe_metrics(result),
+        run_id: str | None = None
+        previous_reporter = self.reporter
+        if self.progress_tracker is not None:
+            run_id = self.progress_tracker.start_run(
+                pipeline_kind=PipelineKind.EARLY_WARNING,
+                details={"dry_run": dry_run},
             )
-            return result
-        accepted = await self._review_borderline(candidates, result)
-        records = await self._scrape(accepted, result)
+            self.reporter = self.progress_tracker.reporter(run_id)
 
-        for candidate, record in records:
-            try:
-                processed_incident = self._already_processed(record)
-                if processed_incident is not None:
+        try:
+            self._log(PipelineStage.EARLY_WARNING, "Starting early-warning discovery")
+            candidates = await self._search_and_filter(result)
+            if dry_run:
+                self._log(
+                    PipelineStage.EARLY_WARNING,
+                    "Completed early-warning discovery dry run",
+                    details=_safe_metrics(result),
+                )
+                if self.progress_tracker is not None and run_id is not None:
+                    self.progress_tracker.complete_run(
+                        run_id=run_id,
+                        summary=_safe_metrics(result),
+                    )
+                return result
+
+            accepted = await self._review_borderline(candidates, result)
+            records = await self._scrape(accepted, result)
+
+            for candidate, record in records:
+                try:
+                    processed_incident = self._already_processed(record)
+                    if processed_incident is not None:
+                        self.candidate_store.upsert_candidate(
+                            candidate.mark_status(
+                                CandidateStatus.CONVERTED,
+                                content_hash=str(record.payload.get("content_hash") or ""),
+                                final_url=str(
+                                    record.payload.get("final_url") or candidate.canonical_url
+                                ),
+                                linked_incident_id=processed_incident.incident_id,
+                            )
+                        )
+                        continue
+                    source_kind, trust_tier = self._source_profile(candidate.canonical_url)
+                    before = self.incident_service.store.count_incidents()
+                    incident_create = await self.processing_service.process_record(
+                        record,
+                        source_kind=source_kind,
+                        trust_tier=trust_tier,
+                    )
+                    result.records_processed += 1
+                    if incident_create is None:
+                        result.irrelevant_pages += 1
+                        self.candidate_store.upsert_candidate(
+                            candidate.mark_status(CandidateStatus.CLASSIFIED).model_copy(
+                                update={
+                                    "decision": CandidateDecision.REJECT,
+                                    "reasons": [
+                                        *candidate.reasons,
+                                        "page classified as irrelevant",
+                                    ],
+                                }
+                            )
+                        )
+                        continue
+                    incident = self.incident_service.save_incident(incident_create)
                     self.candidate_store.upsert_candidate(
                         candidate.mark_status(
                             CandidateStatus.CONVERTED,
                             content_hash=str(record.payload.get("content_hash") or ""),
-                            final_url=str(record.payload.get("final_url") or candidate.canonical_url),
-                            linked_incident_id=processed_incident.incident_id,
+                            final_url=str(
+                                record.payload.get("final_url") or candidate.canonical_url
+                            ),
+                            linked_incident_id=incident.incident_id,
                         )
                     )
-                    continue
-                source_kind, trust_tier = self._source_profile(candidate.canonical_url)
-                before = self.incident_service.store.count_incidents()
-                incident_create = await self.processing_service.process_record(
-                    record,
-                    source_kind=source_kind,
-                    trust_tier=trust_tier,
-                )
-                result.records_processed += 1
-                if incident_create is None:
-                    result.irrelevant_pages += 1
+                    result.incidents_saved += 1
+                    if self.incident_service.store.count_incidents() > before:
+                        result.new_incidents += 1
+                    self._log(
+                        PipelineStage.EARLY_WARNING_DB,
+                        "Early-warning incident persisted",
+                        source=incident.primary_source_domain,
+                        details={"incident_id": incident.incident_id},
+                    )
+                    if self.verification_service is not None:
+                        verification = self.verification_service.verify_incident(
+                            incident.incident_id
+                        )
+                        if verification is not None and verification.confirmed:
+                            result.officially_confirmed += 1
+                    if self.broadcaster is not None:
+                        self.broadcaster.notify(1)
+                except Exception as exc:  # noqa: BLE001 - isolate individual discovered pages
+                    result.failures[candidate.canonical_url] = str(exc)
                     self.candidate_store.upsert_candidate(
-                        candidate.mark_status(CandidateStatus.CLASSIFIED).model_copy(
-                            update={
-                                "decision": CandidateDecision.REJECT,
-                                "reasons": [*candidate.reasons, "page classified as irrelevant"],
-                            }
+                        candidate.mark_status(
+                            CandidateStatus.RETRYABLE,
+                            error=str(exc),
+                            next_retry_at=self._next_retry_at(),
+                            increment_attempt=True,
                         )
                     )
-                    continue
-                incident = self.incident_service.save_incident(incident_create)
-                self.candidate_store.upsert_candidate(
-                    candidate.mark_status(
-                        CandidateStatus.CONVERTED,
-                        content_hash=str(record.payload.get("content_hash") or ""),
-                        final_url=str(record.payload.get("final_url") or candidate.canonical_url),
-                        linked_incident_id=incident.incident_id,
+                    self._warn(
+                        WarningCategory.EARLY_WARNING_RECORD_SKIPPED,
+                        "Early-warning page skipped during AI processing",
+                        source=urlsplit(candidate.canonical_url).hostname,
                     )
-                )
-                result.incidents_saved += 1
-                if self.incident_service.store.count_incidents() > before:
-                    result.new_incidents += 1
-                self._log(
-                    PipelineStage.EARLY_WARNING_DB,
-                    "Early-warning incident persisted",
-                    source=incident.primary_source_domain,
-                    details={"incident_id": incident.incident_id},
-                )
-                if self.verification_service is not None:
-                    verification = self.verification_service.verify_incident(incident.incident_id)
-                    if verification is not None and verification.confirmed:
-                        result.officially_confirmed += 1
-                if self.broadcaster is not None:
-                    self.broadcaster.notify(1)
-            except Exception as exc:  # noqa: BLE001 - isolate individual discovered pages
-                result.failures[candidate.canonical_url] = str(exc)
-                self.candidate_store.upsert_candidate(
-                    candidate.mark_status(
-                        CandidateStatus.RETRYABLE,
-                        error=str(exc),
-                        next_retry_at=self._next_retry_at(),
-                        increment_attempt=True,
-                    )
-                )
-                self._warn(
-                    WarningCategory.EARLY_WARNING_RECORD_SKIPPED,
-                    "Early-warning page skipped during AI processing",
-                    source=urlsplit(candidate.canonical_url).hostname,
-                )
 
-        self._log(
-            PipelineStage.EARLY_WARNING,
-            "Completed early-warning discovery",
-            details=_safe_metrics(result),
-        )
-        return result
+            self._log(
+                PipelineStage.EARLY_WARNING,
+                "Completed early-warning discovery",
+                details=_safe_metrics(result),
+            )
+            if self.progress_tracker is not None and run_id is not None:
+                self.progress_tracker.complete_run(
+                    run_id=run_id,
+                    summary=_safe_metrics(result),
+                )
+            return result
+        except Exception as exc:
+            if self.progress_tracker is not None and run_id is not None:
+                self.progress_tracker.fail_run(run_id=run_id, error=str(exc))
+            self._warn(
+                WarningCategory.EARLY_WARNING_PIPELINE_FAILED,
+                "Early-warning pipeline run failed",
+            )
+            raise
+        finally:
+            self.reporter = previous_reporter
 
     run_pipeline = run
 

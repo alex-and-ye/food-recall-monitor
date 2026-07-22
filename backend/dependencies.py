@@ -9,6 +9,10 @@ from settings import get_settings
 from db.chroma_client import FoodRecallAlertsChromaClient
 from db.chroma_source_client import InMemoryScraperSourceConfigStore, ScraperSourceConfigChromaClient
 from db.chroma_warnings_client import InMemoryPipelineWarningsStore, PipelineWarningsChromaClient
+from db.chroma_pipeline_logs_client import (
+    InMemoryPipelineRunLogsStore,
+    PipelineRunLogsChromaClient,
+)
 from db.chroma_early_warning_candidates import (
     EarlyWarningCandidatesChromaClient,
     InMemoryEarlyWarningCandidateStore,
@@ -18,6 +22,7 @@ from db.chroma_early_warning_client import (
     InMemoryEarlyWarningIncidentStore,
 )
 from db.interface import FoodRecallAlertsDBInterface
+from db.pipeline_logs_interface import PipelineRunLogsDBInterface
 from db.source_config_interface import ScraperSourceConfigDBInterface
 from db.warnings_interface import PipelineWarningsDBInterface
 from services.alert_events import AlertChangeBroadcaster
@@ -75,6 +80,17 @@ def _build_warnings_db() -> PipelineWarningsDBInterface:
         return InMemoryPipelineWarningsStore()
 
 
+def _build_pipeline_logs_db() -> PipelineRunLogsDBInterface:
+    try:
+        return PipelineRunLogsChromaClient(
+            host=_settings.chroma_host,
+            port=_settings.chroma_port,
+        )
+    except Exception as exc:  # noqa: BLE001 - fall back so local tests/dev can start
+        LOGGER.warning("Falling back to in-memory pipeline run logs store: %s", exc)
+        return InMemoryPipelineRunLogsStore()
+
+
 def _build_early_warning_candidate_db():
     try:
         return EarlyWarningCandidatesChromaClient(
@@ -105,7 +121,8 @@ _source_config_db: ScraperSourceConfigDBInterface = _build_source_config_db()
 _warnings_db: PipelineWarningsDBInterface = _build_warnings_db()
 _early_warning_candidate_db = _build_early_warning_candidate_db()
 _early_warning_incident_db = _build_early_warning_incident_db()
-_pipeline_progress_tracker = PipelineProgressTracker()
+_pipeline_logs_db = _build_pipeline_logs_db()
+_pipeline_progress_tracker = PipelineProgressTracker(_pipeline_logs_db)
 _alert_change_broadcaster = AlertChangeBroadcaster()
 _incident_change_broadcaster = AlertChangeBroadcaster()
 _warnings_service = WarningsService(_warnings_db)
@@ -173,8 +190,17 @@ _early_warning_pipeline_service = EarlyWarningPipelineService(
     verification_service=_incident_verification_service,
     broadcaster=_incident_change_broadcaster,
     warnings_service=_warnings_service,
+    progress_tracker=_pipeline_progress_tracker,
     run_lock=_pipeline_run_lock,
 )
+
+
+def get_pipeline_logs_db() -> PipelineRunLogsDBInterface:
+    return _pipeline_logs_db
+
+
+def get_pipeline_progress_tracker() -> PipelineProgressTracker:
+    return _pipeline_progress_tracker
 
 
 def _country_source_from_registry(source_name: str) -> str | None:

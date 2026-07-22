@@ -11,6 +11,7 @@ from models.pipeline_result import PipelineRunResult
 from models.pipeline_warning import WarningCategory
 from services.alert_events import AlertChangeBroadcaster
 from services.geocoding import geocode_alert_location
+from models.pipeline_run_log import PipelineKind
 from services.pipeline_progress import PipelineProgressTracker
 from services.warnings import WarningsService
 from services.early_warning.verification import IncidentVerificationService
@@ -50,7 +51,10 @@ class PipelineService:
         run_id: str | None = None
         reporter = None
         if self.progress_tracker is not None:
-            run_id = self.progress_tracker.start_run(run_options)
+            run_id = self.progress_tracker.start_run(
+                run_options,
+                pipeline_kind=PipelineKind.OFFICIAL,
+            )
             reporter = self.progress_tracker.reporter(run_id)
 
         try:
