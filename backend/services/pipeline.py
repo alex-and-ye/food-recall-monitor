@@ -1,3 +1,5 @@
+import asyncio
+
 from agents.graph import run_pipeline as run_agent_pipeline
 from agents.errors import SourceFetchError
 from db.interface import FoodRecallAlertsDBInterface
@@ -11,6 +13,8 @@ from services.alert_events import AlertChangeBroadcaster
 from services.geocoding import geocode_alert_location
 from services.pipeline_progress import PipelineProgressTracker
 from services.warnings import WarningsService
+from services.early_warning.verification import IncidentVerificationService
+from services.early_warning.semantic_index import SafetyEventSemanticIndex
 
 class PipelineService:
     def __init__(
@@ -20,14 +24,28 @@ class PipelineService:
         progress_tracker: PipelineProgressTracker | None = None,
         alert_broadcaster: AlertChangeBroadcaster | None = None,
         warnings_service: WarningsService | None = None,
+        verification_service: IncidentVerificationService | None = None,
+        incident_broadcaster: AlertChangeBroadcaster | None = None,
+        run_lock: asyncio.Lock | None = None,
+        semantic_index: SafetyEventSemanticIndex | None = None,
     ) -> None:
         self.db = db
         self.source_db = source_db
         self.progress_tracker = progress_tracker
         self.alert_broadcaster = alert_broadcaster
         self.warnings_service = warnings_service
+        self.verification_service = verification_service
+        self.incident_broadcaster = incident_broadcaster
+        self.run_lock = run_lock
+        self.semantic_index = semantic_index
 
     async def run_pipeline(self, options: PipelineRunOptions | None = None) -> PipelineRunResult:
+        if self.run_lock is None:
+            return await self._run_pipeline(options)
+        async with self.run_lock:
+            return await self._run_pipeline(options)
+
+    async def _run_pipeline(self, options: PipelineRunOptions | None = None) -> PipelineRunResult:
         run_options = options or PipelineRunOptions()
         run_id: str | None = None
         reporter = None
@@ -37,14 +55,23 @@ class PipelineService:
 
         try:
             saved_count = 0
+            saved_alert_records = []
 
             async def save_alert_incrementally(alert: FoodRecallAlertCreate) -> int:
                 nonlocal saved_count
                 saved_alerts = self.db.save_alerts([alert])
+                saved_alert_records.extend(saved_alerts)
                 inserted_count = len(saved_alerts)
                 saved_count += inserted_count
 
                 for saved_alert in saved_alerts:
+                    if self.semantic_index is not None:
+                        try:
+                            self.semantic_index.upsert_official_alert(saved_alert)
+                        except Exception:
+                            # Similarity is a derived index; official recall
+                            # persistence must remain authoritative.
+                            pass
                     coordinates = await geocode_alert_location(alert)
                     self.db.update_alert_coordinates(
                         saved_alert.alert_id,
@@ -74,6 +101,13 @@ class PipelineService:
                 on_warning=self._emit_warning,
                 run_id=run_id,
             )
+            if self.verification_service is not None and saved_alert_records:
+                verification_results = self.verification_service.verify_unresolved(
+                    saved_alert_records
+                )
+                confirmed_count = sum(result.confirmed for result in verification_results)
+                if confirmed_count and self.incident_broadcaster is not None:
+                    self.incident_broadcaster.notify(confirmed_count)
             if self.progress_tracker is not None and run_id is not None:
                 self.progress_tracker.complete_run(
                     run_id=run_id,

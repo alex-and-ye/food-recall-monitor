@@ -12,6 +12,11 @@ class PipelineStage(StrEnum):
     SOURCE = "source"
     CRAWL = "crawl"
     DB = "db"
+    EARLY_WARNING = "early_warning"
+    EARLY_WARNING_SEARCH = "early_warning_search"
+    EARLY_WARNING_FETCH = "early_warning_fetch"
+    EARLY_WARNING_AGENT = "early_warning_agent"
+    EARLY_WARNING_DB = "early_warning_db"
 
 class ProgressReporter(Protocol):
     def log(

@@ -5,12 +5,17 @@ from settings import get_settings
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from bootstrap import run_state_aware_bootstrap
+from bootstrap import run_early_warning_bootstrap, run_state_aware_bootstrap
 from dependencies import (
     get_alert_change_broadcaster,
     get_alerts_service,
     get_db,
+    get_early_warning_incident_service,
+    get_early_warning_pipeline_service,
+    get_incident_change_broadcaster,
+    get_incident_verification_service,
     get_pipeline_service,
+    get_pipeline_switches,
     get_source_config_db,
     get_warnings_service,
 )
@@ -19,7 +24,14 @@ from routes.alerts import router as alerts_router
 from routes.pipeline import router as pipeline_router
 from routes.sources import router as sources_router
 from routes.warnings import router as warnings_router
-from scheduler import start_daily_pipeline_scheduler, stop_daily_pipeline_scheduler
+from routes.incidents import router as incidents_router
+from routes.early_warning import router as early_warning_router
+from scheduler import (
+    start_daily_pipeline_scheduler,
+    start_early_warning_scheduler,
+    stop_daily_pipeline_scheduler,
+    stop_early_warning_scheduler,
+)
 from services.source_bootstrap import ensure_bootstrap_sources
 
 get_settings()
@@ -29,6 +41,8 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 async def lifespan(_: FastAPI):
     ensure_backend_data_dirs()
     ensure_bootstrap_sources(get_source_config_db())
+    switches = get_pipeline_switches()
+    logger = logging.getLogger(__name__)
 
     db = get_db()
     pipeline_service = get_pipeline_service(
@@ -36,15 +50,45 @@ async def lifespan(_: FastAPI):
         get_source_config_db(),
         get_alert_change_broadcaster(),
         get_warnings_service(),
+        get_incident_verification_service(),
+        get_incident_change_broadcaster(),
     )
     alerts_service = get_alerts_service(db)
+    early_warning_service = get_early_warning_pipeline_service()
+    early_warning_incidents = get_early_warning_incident_service()
 
-    await run_state_aware_bootstrap(alerts_service, pipeline_service)
-    scheduler_task, stop_event = start_daily_pipeline_scheduler(pipeline_service)
+    if (
+        switches.official_pipeline.enabled
+        and switches.official_pipeline.bootstrap_on_empty_db
+    ):
+        await run_state_aware_bootstrap(alerts_service, pipeline_service)
+    elif not switches.official_pipeline.enabled:
+        logger.info(
+            "Skipping official pipeline bootstrap because it is disabled in pipelines.yaml"
+        )
+
+    if (
+        switches.early_warning.enabled
+        and switches.early_warning.bootstrap_on_empty_db
+    ):
+        await run_early_warning_bootstrap(early_warning_incidents, early_warning_service)
+    elif not switches.early_warning.enabled:
+        logger.info(
+            "Skipping early-warning bootstrap because it is disabled in pipelines.yaml"
+        )
+
+    scheduler_task, stop_event = start_daily_pipeline_scheduler(
+        pipeline_service,
+        enabled=switches.official_pipeline.enabled,
+    )
+    early_task, early_stop_event = start_early_warning_scheduler(early_warning_service)
 
     yield
 
     await stop_daily_pipeline_scheduler(scheduler_task, stop_event)
+    await stop_early_warning_scheduler(early_task, early_stop_event)
+    if early_warning_service.search_client is not None:
+        await early_warning_service.search_client.aclose()
 
 app = FastAPI(
     title="Food Recall Monitor API",
@@ -64,6 +108,8 @@ app.include_router(alerts_router)
 app.include_router(pipeline_router)
 app.include_router(sources_router)
 app.include_router(warnings_router)
+app.include_router(incidents_router)
+app.include_router(early_warning_router)
 
 
 @app.get("/")

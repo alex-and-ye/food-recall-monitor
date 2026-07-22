@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, status, HTTPException
 from agents.errors import SourceFetchError
 from models.pipeline_options import PipelineRunOptions
 from services.pipeline import PipelineService
-from dependencies import get_pipeline_service
+from dependencies import get_pipeline_service, get_pipeline_switches
 
 router = APIRouter(prefix="/api/pipeline", tags=["pipeline"])
 
@@ -13,6 +13,11 @@ async def run_pipeline(
     options: PipelineRunOptions | None = None,
     pipeline_service: PipelineService = Depends(get_pipeline_service)
 ) -> dict:
+    if not get_pipeline_switches().official_pipeline.enabled:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Official pipeline is disabled",
+        )
     try:
         result = await pipeline_service.run_pipeline(options)
     except SourceFetchError as exc:

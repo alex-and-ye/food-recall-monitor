@@ -1,4 +1,9 @@
 import type { FoodRecallAlert, FoodRecallAlertStats, FoodRecallAlertsVersion } from "@/types/alert";
+import type {
+  EarlyWarningIncident,
+  IncidentsVersion,
+  IncidentStatusCounts,
+} from "@/types/incident";
 import type { PipelineWarning, PipelineWarningsSummary } from "@/types/warning";
 import { ApiError } from "@/services/api/errors";
 // TODO: Remove this before final project delivery
@@ -21,13 +26,17 @@ export function getAlertsEventsUrl(): string {
   return `${API_BASE_URL}/alerts/events`;
 }
 
+export function getIncidentsEventsUrl(): string {
+  return `${API_BASE_URL}/incidents/events`;
+}
+
 // TODO: Remove this before final project delivery
 export function isMockDataMode(): boolean {
   return process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true";
 }
 
 // TODO: Remove this before final project delivery
-function useMockData(): boolean {
+function shouldUseMockData(): boolean {
   return isMockDataMode();
 }
 
@@ -35,11 +44,26 @@ interface AlertsResponse {
   alerts: FoodRecallAlert[];
 }
 
+interface IncidentsResponse {
+  incidents: EarlyWarningIncident[];
+}
+
 export interface GetAlertsParams {
   search?: string;
   risk_level?: string;
   country_source?: string;
   recall_date?: string;
+  sort_by?: string;
+}
+
+export interface GetIncidentsParams {
+  search?: string;
+  verification_status?: string;
+  incident_type?: string;
+  minimum_confidence?: string;
+  country?: string;
+  source_kind?: string;
+  publication_date?: string;
   sort_by?: string;
 }
 
@@ -87,7 +111,7 @@ export async function getAlerts(
   params: GetAlertsParams = {},
 ): Promise<FoodRecallAlert[]> {
   // TODO: Remove this before final project delivery
-  if (useMockData()) {
+  if (shouldUseMockData()) {
     return fetchMockAlerts(params);
   }
 
@@ -104,7 +128,7 @@ export async function getAlerts(
 
 export async function getAlertStats(): Promise<FoodRecallAlertStats> {
   // TODO: Remove this before final project delivery
-  if (useMockData()) {
+  if (shouldUseMockData()) {
     return fetchMockStats();
   }
 
@@ -113,7 +137,7 @@ export async function getAlertStats(): Promise<FoodRecallAlertStats> {
 
 export async function getAlertsVersion(): Promise<FoodRecallAlertsVersion> {
   // TODO: Remove this before final project delivery
-  if (useMockData()) {
+  if (shouldUseMockData()) {
     return fetchMockAlertsVersion();
   }
 
@@ -122,11 +146,46 @@ export async function getAlertsVersion(): Promise<FoodRecallAlertsVersion> {
 
 export async function getAlertById(id: string): Promise<FoodRecallAlert> {
   // TODO: Remove this before final project delivery
-  if (useMockData()) {
+  if (shouldUseMockData()) {
     return fetchMockAlertById(id);
   }
 
   return apiFetch<FoodRecallAlert>(`/alerts/${encodeURIComponent(id)}`);
+}
+
+export async function getIncidents(
+  params: GetIncidentsParams = {},
+): Promise<EarlyWarningIncident[]> {
+  const query = buildQueryString({
+    search: params.search,
+    verification_status: params.verification_status,
+    incident_type: params.incident_type,
+    minimum_confidence: params.minimum_confidence,
+    country: params.country,
+    source_kind: params.source_kind,
+    publication_date: params.publication_date,
+    sort_by: params.sort_by,
+  });
+  const data = await apiFetch<IncidentsResponse | EarlyWarningIncident[]>(
+    `/incidents${query}`,
+  );
+  return Array.isArray(data) ? data : data.incidents;
+}
+
+export async function getIncidentById(
+  id: string,
+): Promise<EarlyWarningIncident> {
+  return apiFetch<EarlyWarningIncident>(
+    `/incidents/${encodeURIComponent(id)}`,
+  );
+}
+
+export async function getIncidentStatusCounts(): Promise<IncidentStatusCounts> {
+  return apiFetch<IncidentStatusCounts>("/incidents/stats");
+}
+
+export async function getIncidentsVersion(): Promise<IncidentsVersion> {
+  return apiFetch<IncidentsVersion>("/incidents/version");
 }
 
 export async function getWarnings(

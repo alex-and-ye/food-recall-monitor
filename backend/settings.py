@@ -19,6 +19,10 @@ class BackendSettings(BaseSettings):
     chroma_port: int = Field(default=8000, ge=1, le=65535)
     chroma_server_data_path: str | None = None
     backend_run_logs_dir: str | None = None
+    brave_api_key: str | None = None
+    brave_search_base_url: str = "https://api.search.brave.com/res/v1/web/search"
+    early_warning_config_path: str | None = None
+    pipeline_switches_path: str | None = None
 
 @lru_cache
 def get_settings() -> BackendSettings:

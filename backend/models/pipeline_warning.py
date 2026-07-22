@@ -10,6 +10,10 @@ class WarningCategory(StrEnum):
     SOURCE_SKIPPED = "source_skipped"
     RECORD_SKIPPED = "record_skipped"
     PIPELINE_FAILED = "pipeline_failed"
+    EARLY_WARNING_SEARCH_FAILED = "early_warning_search_failed"
+    EARLY_WARNING_FETCH_FAILED = "early_warning_fetch_failed"
+    EARLY_WARNING_RECORD_SKIPPED = "early_warning_record_skipped"
+    EARLY_WARNING_PIPELINE_FAILED = "early_warning_pipeline_failed"
 
 WARNING_CATEGORIES: frozenset[str] = frozenset(WarningCategory)
 

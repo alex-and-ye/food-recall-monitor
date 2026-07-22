@@ -2,6 +2,7 @@ import logging
 
 from models.pipeline_options import PipelineRunOptions
 from services.pipeline import PipelineService
+from services.early_warning.pipeline import EarlyWarningPipelineService
 
 LOGGER = logging.getLogger(__name__)
 
@@ -25,4 +26,29 @@ async def run_pipeline_wrapper(pipeline_service: PipelineService, *, context: st
         LOGGER.exception(
             "%s pipeline failed; will retry on next scheduled cycle",
             context
+        )
+
+
+async def run_early_warning_wrapper(
+    pipeline_service: EarlyWarningPipelineService,
+    *,
+    context: str = "scheduled early-warning",
+) -> None:
+    try:
+        LOGGER.info("Starting %s pipeline run", context)
+        result = await pipeline_service.run()
+        if result.skipped_due_to_overlap:
+            LOGGER.warning("Skipped %s run because another pipeline is active", context)
+            return
+        LOGGER.info(
+            "%s pipeline complete: %d new incident(s), %d page(s) scraped, %d failure(s)",
+            context.capitalize(),
+            result.new_incidents,
+            result.pages_scraped,
+            len(result.failures),
+        )
+    except Exception:
+        LOGGER.exception(
+            "%s pipeline failed; will retry on next scheduled cycle",
+            context,
         )

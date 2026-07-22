@@ -1,7 +1,32 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import httpx
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+
+
+@dataclass(frozen=True)
+class StaticPage:
+    html: str
+    final_url: str
+    content_type: str
+
+
+async def fetch_static_html(
+    client: httpx.AsyncClient,
+    url: str,
+    *,
+    headers: dict[str, str] | None = None,
+    proxy_url: str | None = None,
+) -> tuple[str, str]:
+    page = await fetch_static_page(
+        client,
+        url,
+        headers=headers,
+        proxy_url=proxy_url,
+    )
+    return page.html, page.final_url
 
 
 @retry(
@@ -10,13 +35,13 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
     wait=wait_exponential(multiplier=0.5, min=0.5, max=3),
     retry=retry_if_exception_type(httpx.HTTPError),
 )
-async def fetch_static_html(
+async def fetch_static_page(
     client: httpx.AsyncClient,
     url: str,
     *,
     headers: dict[str, str] | None = None,
     proxy_url: str | None = None,
-) -> tuple[str, str]:
+) -> StaticPage:
     if proxy_url:
         async with httpx.AsyncClient(
             timeout=client.timeout,
@@ -27,4 +52,8 @@ async def fetch_static_html(
     else:
         response = await client.get(url, headers=headers)
     response.raise_for_status()
-    return response.text, str(response.url)
+    return StaticPage(
+        html=response.text,
+        final_url=str(response.url),
+        content_type=response.headers.get("content-type", "").split(";", 1)[0].strip().lower(),
+    )
