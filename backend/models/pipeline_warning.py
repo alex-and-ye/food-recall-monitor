@@ -18,7 +18,7 @@ class WarningCategory(StrEnum):
 WARNING_CATEGORIES: frozenset[str] = frozenset(WarningCategory)
 
 MAX_WARNINGS_RETAINED = 200
-MAX_WARNING_MESSAGE_LENGTH = 280
+MAX_WARNING_MESSAGE_LENGTH = 4000
 
 
 class PipelineWarning(BaseModel):
