@@ -45,7 +45,7 @@ languages:
 
 terms:
   path_signals: [recall, recalls, alert, alerts, warning, warnung, withdrawal, rappel, alerte, rueckruf, rückruf]
-  exclusions: [automobile, vehicle recall, software update]
+  exclusions: [automobile, vehicle recall, software update, wikipedia]
 
 domains:
   trusted:
@@ -56,7 +56,7 @@ domains:
     - who.int
     - fao.org
     - foodsafetynews.com
-  excluded: [facebook.com, instagram.com, linkedin.com, x.com, youtube.com]
+  excluded: [facebook.com, instagram.com, linkedin.com, x.com, youtube.com, wikipedia.org]
   profiles:
     food.gov.uk: {source_kind: official_recall, trust_tier: official}
     gouv.fr: {source_kind: government_investigation, trust_tier: official}

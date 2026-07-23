@@ -169,6 +169,57 @@ class EarlyWarningGraphTests(unittest.IsolatedAsyncioTestCase):
         extraction = IncidentExtraction.model_validate({"source_kind": "news_outlet"})
         self.assertEqual(extraction.source_kind, SourceKind.UNKNOWN)
 
+    def test_hazard_type_list_is_coerced_to_string(self) -> None:
+        extraction = IncidentExtraction.model_validate(
+            {
+                "hazard_type": ["Salmonella presence", "manufacturing issues"],
+                "product_name": ["Ice cream"],
+            }
+        )
+        self.assertEqual(
+            extraction.hazard_type,
+            "Salmonella presence; manufacturing issues",
+        )
+        self.assertEqual(extraction.product_name, "Ice cream")
+
+    async def test_taxonomy_retries_after_invalid_payload(self) -> None:
+        record = ScrapedRecallRecord(
+            source_name="news.example",
+            payload={
+                "source_url": "https://news.example/story",
+                "canonical_url": "https://news.example/story",
+                "visible_text": "A recall was issued.",
+                "content_hash": "abc",
+            },
+        )
+        responses = iter(
+            [
+                {"record": record.payload},
+                {"content_type": "text/html", "reason": "wrong shape"},
+                {"content_type": "potential_recall", "reason": "current recall"},
+                {
+                    "product_name": "Yogurt",
+                    "hazard_type": ["Listeria"],
+                    "source_kind": "major_news",
+                    "extraction_completeness": 0.7,
+                },
+            ]
+        )
+        service = EarlyWarningProcessingService(
+            json_chat=lambda **_kwargs: next(responses),
+            text_chat=lambda **_kwargs: "A yogurt recall was reported.",
+        )
+
+        incident = await service.process_record(record)
+
+        assert incident is not None
+        self.assertEqual(incident.incident_type, "potential_recall")
+        self.assertEqual(incident.hazard_type, "Listeria")
+
+    def test_taxonomy_rejects_mime_content_type(self) -> None:
+        with self.assertRaises(ValueError):
+            TaxonomyResult.model_validate({"content_type": "text/html", "reason": "x"})
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -24,6 +24,16 @@ from models.early_warning_incident import (
 from models.scraped_record import ScrapedRecallRecord
 
 _SOURCE_KIND_VALUES = {item.value for item in SourceKind}
+_CONTENT_TAXONOMY_VALUES = {
+    "official_recall",
+    "potential_recall",
+    "foodborne_outbreak",
+    "investigation",
+    "company_withdrawal",
+    "public_health_warning",
+    "food_safety_advisory",
+    "irrelevant",
+}
 _DEFAULT_TRUST_BY_SOURCE_KIND: dict[SourceKind, TrustTier] = {
     SourceKind.OFFICIAL_RECALL: TrustTier.OFFICIAL,
     SourceKind.GOVERNMENT_INVESTIGATION: TrustTier.OFFICIAL,
@@ -46,18 +56,24 @@ ContentTaxonomy = Literal[
     "irrelevant",
 ]
 
-TAXONOMY_PROMPT = """Classify the supplied page using exactly one content_type:
+TAXONOMY_PROMPT = """Classify the supplied page using exactly one content_type.
+Return ONLY this JSON shape:
+{"content_type":"<one allowed value>","reason":"<short justification>"}
+Allowed content_type values:
 official_recall, potential_recall, foodborne_outbreak, investigation,
 company_withdrawal, public_health_warning, food_safety_advisory, irrelevant.
 Use irrelevant for historical summaries, generic food advice, unrelated products,
-or pages without a current concrete food-safety event. Do not infer a recall merely
-from cautious or speculative wording. Return JSON with content_type and reason."""
+encyclopedia/list pages, or pages without a current concrete food-safety event.
+Do not infer a recall merely from cautious or speculative wording.
+Never return MIME types, nested product objects, or any keys other than
+content_type and reason."""
 
 BORDERLINE_PROMPT = """Decide whether this search-result metadata is sufficiently
 likely to describe a current concrete food-safety incident to justify fetching.
 Accept recalls, withdrawals, outbreaks, illness clusters, contamination reports,
 investigations, public-health warnings, and food-safety advisories. Reject generic
-advice, recipes, historical pages, and non-food product recalls. Return JSON:
+advice, recipes, historical pages, encyclopedia pages, and non-food product recalls.
+Return JSON:
 {"relevant": true|false, "reason": "..."}."""
 
 SUMMARY_PROMPT = """Write a concise factual summary of the supplied food-safety page.
@@ -70,7 +86,11 @@ translated page and summary. Return one JSON object with these keys:
 product_name, company_name, product_category, hazard_type, incident_reason,
 consumer_guidance, country, affected_regions (array), publication_date (YYYY-MM-DD
 or null), publisher, source_kind, original_language, extraction_completeness (0..1).
-Use empty strings/arrays for facts not supported by the source. Do not invent facts.
+All of product_name, company_name, product_category, hazard_type, incident_reason,
+consumer_guidance, country, publisher, and original_language MUST be strings
+(not arrays/objects). If multiple hazards apply, join them in one hazard_type
+string with "; ". Use empty strings/arrays for facts not supported by the source.
+Do not invent facts.
 
 Classify source_kind from the publisher/outlet type of THIS page (not the incident
 type). Choose exactly one of:
@@ -90,10 +110,30 @@ class TaxonomyResult(BaseModel):
     content_type: ContentTaxonomy
     reason: str = ""
 
+    @field_validator("content_type", mode="before")
+    @classmethod
+    def _coerce_content_type(cls, value: object) -> object:
+        text = str(value or "").strip().lower()
+        if text in _CONTENT_TAXONOMY_VALUES:
+            return text
+        raise ValueError(
+            "content_type must be one of: " + ", ".join(sorted(_CONTENT_TAXONOMY_VALUES))
+        )
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def _coerce_reason(cls, value: object) -> str:
+        return _coerce_string(value)
+
 
 class BorderlineRelevance(BaseModel):
     relevant: bool
     reason: str = ""
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def _coerce_reason(cls, value: object) -> str:
+        return _coerce_string(value)
 
 
 class IncidentExtraction(BaseModel):
@@ -111,6 +151,34 @@ class IncidentExtraction(BaseModel):
     original_language: str = ""
     extraction_completeness: float = Field(default=0.0, ge=0.0, le=1.0)
 
+    @field_validator(
+        "product_name",
+        "company_name",
+        "product_category",
+        "hazard_type",
+        "incident_reason",
+        "consumer_guidance",
+        "country",
+        "publisher",
+        "original_language",
+        mode="before",
+    )
+    @classmethod
+    def _coerce_text_fields(cls, value: object) -> str:
+        return _coerce_string(value)
+
+    @field_validator("affected_regions", mode="before")
+    @classmethod
+    def _coerce_regions(cls, value: object) -> list[str]:
+        if value is None or value == "":
+            return []
+        if isinstance(value, str):
+            parts = [part.strip() for part in value.replace(";", ",").split(",")]
+            return [part for part in parts if part]
+        if isinstance(value, list):
+            return [text for item in value if (text := _coerce_string(item))]
+        return [_coerce_string(value)]
+
     @field_validator("source_kind", mode="before")
     @classmethod
     def _coerce_source_kind(cls, value: object) -> object:
@@ -120,6 +188,20 @@ class IncidentExtraction(BaseModel):
         if not text or text not in _SOURCE_KIND_VALUES:
             return SourceKind.UNKNOWN
         return text
+
+
+def _coerce_string(value: object) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, list):
+        return "; ".join(
+            part for item in value if (part := _coerce_string(item))
+        )
+    if isinstance(value, dict):
+        return json.dumps(value, ensure_ascii=False)
+    return str(value).strip()
 
 
 class EarlyWarningProcessingService:
@@ -155,13 +237,7 @@ class EarlyWarningProcessingService:
         trust_tier: TrustTier = TrustTier.UNKNOWN,
     ) -> EarlyWarningIncidentCreate | None:
         translated = self._translate(record)
-        taxonomy = TaxonomyResult.model_validate(
-            self._json_chat(
-                system_prompt=TAXONOMY_PROMPT,
-                user_prompt=json.dumps(translated, ensure_ascii=False),
-                model=CLASSIFICATION_MODEL,
-            )
-        )
+        taxonomy = self._classify(translated)
         if taxonomy.content_type == "irrelevant":
             return None
 
@@ -210,13 +286,36 @@ class EarlyWarningProcessingService:
         except (AgentOutputError, AgentValidationError, ValueError):
             return envelope
 
+    def _classify(self, translated: dict[str, Any]) -> TaxonomyResult:
+        last_error: Exception | None = None
+        for _attempt in range(2):
+            user_prompt = json.dumps(translated, ensure_ascii=False)
+            if last_error is not None:
+                user_prompt += (
+                    f"\nPrevious output error: {last_error}. "
+                    'Return only {"content_type":"...","reason":"..."} with an allowed content_type.'
+                )
+            try:
+                response = self._json_chat(
+                    system_prompt=TAXONOMY_PROMPT,
+                    user_prompt=user_prompt,
+                    model=CLASSIFICATION_MODEL,
+                )
+                return TaxonomyResult.model_validate(_normalize_taxonomy_payload(response))
+            except (AgentOutputError, ValueError) as exc:
+                last_error = exc
+        raise AgentOutputError(f"early-warning taxonomy failed: {last_error}")
+
     def _extract(self, translated: dict[str, Any], summary: str) -> IncidentExtraction:
         prompt_payload = {"translated_page": translated, "cautious_summary": summary}
         last_error: Exception | None = None
         for _attempt in range(2):
             user_prompt = json.dumps(prompt_payload, ensure_ascii=False)
             if last_error is not None:
-                user_prompt += f"\nPrevious output error: {last_error}. Return valid JSON only."
+                user_prompt += (
+                    f"\nPrevious output error: {last_error}. Return valid JSON only. "
+                    "hazard_type and other scalar fields must be strings, not arrays."
+                )
             try:
                 response = self._json_chat(
                     system_prompt=STRUCTURING_PROMPT,
@@ -231,6 +330,18 @@ class EarlyWarningProcessingService:
 
 def create_early_warning_graph() -> EarlyWarningProcessingService:
     return EarlyWarningProcessingService()
+
+
+def _normalize_taxonomy_payload(payload: object) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        raise ValueError("taxonomy response must be a JSON object")
+    data = dict(payload)
+    if "content_type" not in data:
+        for key in ("type", "classification", "category", "label"):
+            if key in data:
+                data["content_type"] = data[key]
+                break
+    return data
 
 
 def _to_incident(

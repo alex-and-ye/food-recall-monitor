@@ -23,11 +23,11 @@ export function getApiBaseUrl(): string {
 }
 
 export function getAlertsEventsUrl(): string {
-  return `${API_BASE_URL}/alerts/events`;
+  return `${API_BASE_URL}/stream/alerts`;
 }
 
 export function getIncidentsEventsUrl(): string {
-  return `${API_BASE_URL}/incidents/events`;
+  return `${API_BASE_URL}/stream/incidents`;
 }
 
 // TODO: Remove this before final project delivery
