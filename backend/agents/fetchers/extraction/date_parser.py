@@ -12,6 +12,24 @@ NUMERIC_DATE_PATTERN = re.compile(
     r"\b(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4})\b",
 )
 ISO_DATE_PATTERN = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
+# Explicit named-month spans so trailing prose cannot make dateparser invent
+# wrong calendar days (e.g. "08:16, 18 Jul 2026 A series" -> 2026-07-01).
+NAMED_MONTH_DATE_PATTERN = re.compile(
+    r"\b(?:"
+    r"\d{1,2}:\d{2}\s*,\s*"
+    r")?"
+    r"\d{1,2}\s+"
+    r"(?:"
+    r"Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|"
+    r"Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?|"
+    r"janv(?:ier)?|févr(?:ier)?|fevr(?:ier)?|mars|avr(?:il)?|mai|juin|juil(?:let)?|"
+    r"août|aout|sept(?:embre)?|oct(?:obre)?|nov(?:embre)?|déc(?:embre)?|dec(?:embre)?|"
+    r"Jan(?:uar)?|Feb(?:ruar)?|Mär(?:z)?|Maerz|Apr(?:il)?|Mai|Juni|Juli|"
+    r"Aug(?:ust)?|Sept(?:ember)?|Okt(?:ober)?|Nov(?:ember)?|Dez(?:ember)?"
+    r")\.?\s+"
+    r"\d{4}\b",
+    re.IGNORECASE,
+)
 COMPLETE_NUMERIC_DATE_PATTERN = re.compile(r"^\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}$")
 COMPLETE_ISO_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 HTML_LANG_PATTERN = re.compile(r"^[a-z]{2}")
@@ -91,6 +109,15 @@ def search_adaptive_dates(
             )
             if parsed is not None:
                 _add_candidate(parsed, matched_text)
+
+    for matched_text in _unique_matches(NAMED_MONTH_DATE_PATTERN.findall(text)):
+        parsed = parse_date(
+            matched_text,
+            languages=language_list or None,
+            settings={**base_settings, "DATE_ORDER": "DMY"},
+        )
+        if parsed is not None:
+            _add_candidate(parsed, matched_text)
 
     for matched_text in _unique_matches(ISO_DATE_PATTERN.findall(text)):
         try:
@@ -186,6 +213,9 @@ def _is_complete_date_match(matched_text: str) -> bool:
     """Reject incomplete fragments like '2026 07' that borrow today's day."""
     text = matched_text.strip()
     if not text:
+        return False
+    # dateparser sometimes appends the next word ("2026 A"), inventing wrong days.
+    if re.search(r"\d{4}\s+[A-Za-zÀ-ÿ]", text):
         return False
     if COMPLETE_NUMERIC_DATE_PATTERN.fullmatch(text) or COMPLETE_ISO_DATE_PATTERN.fullmatch(text):
         return True
