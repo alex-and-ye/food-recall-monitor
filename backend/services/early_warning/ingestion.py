@@ -8,6 +8,7 @@ from urllib.parse import urlsplit
 import httpx
 from bs4 import BeautifulSoup
 
+from agents.fetchers.extraction.date_candidates import select_recent_recall_date
 from agents.fetchers.extraction.detail_extractor import extract_detail_payload
 from agents.fetchers.rendering.browser_fetch import fetch_browser_html
 from agents.fetchers.rendering.static_fetch import StaticPage, fetch_static_page
@@ -18,6 +19,9 @@ from models.search_candidate import canonicalize_url
 
 StaticFetcher = Callable[..., Awaitable[StaticPage]]
 BrowserFetcher = Callable[..., Awaitable[tuple[str, str]]]
+
+# Align with Brave freshness (past week) plus a small buffer for delayed indexing.
+EARLY_WARNING_PUBLICATION_LOOKBACK_DAYS = 14
 
 _HTML_CONTENT_TYPES = {
     "",
@@ -178,9 +182,14 @@ def _preferred_publication_date(payload: dict[str, Any]) -> str | None:
     sources = payload.get("published_date_candidate_sources")
     if not isinstance(candidates, list):
         return None
-    source_map = sources if isinstance(sources, dict) else {}
-    priority = {"structured": 0, "selector": 1, "generic": 2}
+    source_map = sources if isinstance(sources, dict) else None
     values = [str(value) for value in candidates if str(value).strip()]
     if not values:
         return None
-    return min(values, key=lambda value: (priority.get(str(source_map.get(value)), 3), values.index(value)))
+    # Same selection policy as official recalls: reject future dates and
+    # prefer structured/selector candidates within the lookback window.
+    return select_recent_recall_date(
+        values,
+        lookback_days=EARLY_WARNING_PUBLICATION_LOOKBACK_DAYS,
+        candidate_sources=source_map,
+    )

@@ -207,7 +207,10 @@ def _to_incident(
         raise ValueError("processed page is missing a source URL")
     domain = (urlsplit(source_url).hostname or "").lower()
     discovered_at = datetime.now(timezone.utc)
-    publication_date = extraction.publication_date or _safe_date(payload.get("publication_date"))
+    scraper_date = _sanitize_publication_date(_safe_date(payload.get("publication_date")))
+    llm_date = _sanitize_publication_date(extraction.publication_date)
+    # Prefer scraper-selected dates over LLM guesses (same as official recalls).
+    publication_date = scraper_date or llm_date
     evidence = IncidentEvidence(
         url=source_url,
         title=str(payload.get("title") or ""),
@@ -252,6 +255,19 @@ def _safe_date(value: object) -> date | None:
     if not text:
         return None
     try:
-        return date.fromisoformat(text)
+        return date.fromisoformat(text[:10])
     except ValueError:
         return None
+
+
+def _sanitize_publication_date(
+    value: date | None,
+    *,
+    today: date | None = None,
+) -> date | None:
+    if value is None:
+        return None
+    current = today or datetime.now(timezone.utc).date()
+    if value > current:
+        return None
+    return value

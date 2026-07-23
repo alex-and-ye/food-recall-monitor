@@ -1,4 +1,6 @@
 import unittest
+from datetime import UTC, datetime
+from unittest.mock import patch
 
 import httpx
 
@@ -6,6 +8,7 @@ from agents.fetchers.rendering.static_fetch import StaticPage
 from services.early_warning.ingestion import (
     EarlyWarningIngestionError,
     UnsupportedContentError,
+    _preferred_publication_date,
     ingest_early_warning_url,
 )
 
@@ -58,6 +61,31 @@ class EarlyWarningIngestionTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(context.exception.content_type, "application/pdf")
         self.assertIsInstance(context.exception, EarlyWarningIngestionError)
+
+    def test_preferred_publication_date_rejects_future_candidates(self) -> None:
+        fixed_now = datetime(2026, 7, 23, 12, 0, tzinfo=UTC)
+
+        with patch(
+            "agents.fetchers.extraction.date_candidates.datetime"
+        ) as mocked_datetime:
+            mocked_datetime.now.return_value = fixed_now
+            mocked_datetime.fromisoformat.side_effect = datetime.fromisoformat
+            selected = _preferred_publication_date(
+                {
+                    "published_date_candidates": [
+                        "2027-12-08",
+                        "2026-07-18",
+                        "2026-07-31",
+                    ],
+                    "published_date_candidate_sources": {
+                        "2027-12-08": "structured",
+                        "2026-07-18": "generic",
+                        "2026-07-31": "selector",
+                    },
+                }
+            )
+
+        self.assertEqual(selected, "2026-07-18")
 
 
 if __name__ == "__main__":

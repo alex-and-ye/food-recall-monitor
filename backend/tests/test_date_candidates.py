@@ -95,6 +95,19 @@ class DateCandidatesTests(unittest.TestCase):
         )
         self.assertEqual(selected, "2026-07-03")
 
+    def test_select_recent_recall_date_rejects_future_dates(self) -> None:
+        selected = select_recent_recall_date(
+            ["2027-12-08", "2026-07-18", "2026-07-31"],
+            lookback_days=14,
+            now=datetime(2026, 7, 23, 12, 0, tzinfo=UTC),
+            candidate_sources={
+                "2027-12-08": "structured",
+                "2026-07-18": "generic",
+                "2026-07-31": "selector",
+            },
+        )
+        self.assertEqual(selected, "2026-07-18")
+
     def test_select_recent_recall_date_prefers_source_and_document_order(self) -> None:
         selected = select_recent_recall_date(
             ["2026-07-10", "2026-07-12"],

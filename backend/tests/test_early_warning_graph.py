@@ -1,8 +1,15 @@
 import unittest
+from datetime import date
 
 from models.early_warning_incident import SourceKind, TrustTier
 from models.scraped_record import ScrapedRecallRecord
-from services.early_warning.graph import EarlyWarningProcessingService
+from services.early_warning.graph import (
+    EarlyWarningProcessingService,
+    IncidentExtraction,
+    TaxonomyResult,
+    _sanitize_publication_date,
+    _to_incident,
+)
 
 
 class EarlyWarningGraphTests(unittest.IsolatedAsyncioTestCase):
@@ -58,7 +65,10 @@ class EarlyWarningGraphTests(unittest.IsolatedAsyncioTestCase):
     async def test_irrelevant_page_is_not_converted(self) -> None:
         record = ScrapedRecallRecord(
             source_name="example",
-            payload={"source_url": "https://example.test/advice", "visible_text": "Generic advice"},
+            payload={
+                "source_url": "https://example.test/advice",
+                "visible_text": "Generic advice",
+            },
         )
         responses = iter(
             [
@@ -70,6 +80,38 @@ class EarlyWarningGraphTests(unittest.IsolatedAsyncioTestCase):
             json_chat=lambda **_kwargs: next(responses),
         )
         self.assertIsNone(await service.process_record(record))
+
+    def test_future_publication_dates_are_discarded(self) -> None:
+        self.assertIsNone(
+            _sanitize_publication_date(date(2027, 12, 8), today=date(2026, 7, 23))
+        )
+        self.assertEqual(
+            _sanitize_publication_date(date(2026, 7, 18), today=date(2026, 7, 23)),
+            date(2026, 7, 18),
+        )
+
+        record = ScrapedRecallRecord(
+            source_name="news.example",
+            payload={
+                "source_url": "https://news.example/story",
+                "canonical_url": "https://news.example/story",
+                "publication_date": "2026-07-18",
+                "content_hash": "abc",
+            },
+        )
+        incident = _to_incident(
+            record,
+            taxonomy=TaxonomyResult(content_type="potential_recall", reason="test"),
+            extraction=IncidentExtraction(
+                product_name="Ice cream",
+                publication_date=date(2027, 12, 8),
+                publisher="Example News",
+            ),
+            summary="A recall was reported.",
+            source_kind=SourceKind.MAJOR_NEWS,
+            trust_tier=TrustTier.MEDIUM,
+        )
+        self.assertEqual(incident.publication_date, date(2026, 7, 18))
 
 
 if __name__ == "__main__":

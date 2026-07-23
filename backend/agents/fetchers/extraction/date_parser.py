@@ -203,7 +203,7 @@ def _is_plausible_recall_date(value: str, *, reference: date | None = None) -> b
         return False
 
     current = reference or datetime.now(tz=UTC).date()
-    return 1900 <= parsed.year <= current.year + 1
+    return date(1900, 1, 1) <= parsed <= current
 
 
 def _is_excluded_date_context(text: str, matched_text: str, markers: tuple[str, ...]) -> bool:
