@@ -6,7 +6,7 @@ from datetime import date, datetime, timezone
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from agents.fetchers.scraper_ingestion import to_translator_envelope
 from agents.llm import AgentOutputError, chat_json, chat_text
@@ -22,6 +22,18 @@ from models.early_warning_incident import (
     TrustTier,
 )
 from models.scraped_record import ScrapedRecallRecord
+
+_SOURCE_KIND_VALUES = {item.value for item in SourceKind}
+_DEFAULT_TRUST_BY_SOURCE_KIND: dict[SourceKind, TrustTier] = {
+    SourceKind.OFFICIAL_RECALL: TrustTier.OFFICIAL,
+    SourceKind.GOVERNMENT_INVESTIGATION: TrustTier.OFFICIAL,
+    SourceKind.WHO_FAO: TrustTier.HIGH,
+    SourceKind.COMPANY_RELEASE: TrustTier.HIGH,
+    SourceKind.MAJOR_NEWS: TrustTier.MEDIUM,
+    SourceKind.TRADE_PUBLICATION: TrustTier.MEDIUM,
+    SourceKind.BLOG: TrustTier.LOW,
+    SourceKind.UNKNOWN: TrustTier.UNKNOWN,
+}
 
 ContentTaxonomy = Literal[
     "official_recall",
@@ -57,8 +69,21 @@ STRUCTURING_PROMPT = """Extract one current food-safety incident from the suppli
 translated page and summary. Return one JSON object with these keys:
 product_name, company_name, product_category, hazard_type, incident_reason,
 consumer_guidance, country, affected_regions (array), publication_date (YYYY-MM-DD
-or null), publisher, original_language, extraction_completeness (0..1).
-Use empty strings/arrays for facts not supported by the source. Do not invent facts."""
+or null), publisher, source_kind, original_language, extraction_completeness (0..1).
+Use empty strings/arrays for facts not supported by the source. Do not invent facts.
+
+Classify source_kind from the publisher/outlet type of THIS page (not the incident
+type). Choose exactly one of:
+- official_recall: national/regional food-safety authority recall notices
+- government_investigation: other government agency investigation or outbreak notices
+- who_fao: WHO, FAO, or similar international public-health organization pages
+- company_release: manufacturer, retailer, or brand's own notice/press release
+- major_news: general news media, newspapers, broadcasters, or news portals
+- trade_publication: food-industry or food-safety specialty journalism
+- blog: personal blogs, forums, opinion, or unverified commentary
+- unknown: only when the outlet type truly cannot be determined
+Prefer major_news for ordinary news reporting. Do not use domain allowlists; judge
+from page content, byline, publisher name, and how the outlet presents itself."""
 
 
 class TaxonomyResult(BaseModel):
@@ -82,8 +107,19 @@ class IncidentExtraction(BaseModel):
     affected_regions: list[str] = Field(default_factory=list)
     publication_date: date | None = None
     publisher: str = ""
+    source_kind: SourceKind = SourceKind.UNKNOWN
     original_language: str = ""
     extraction_completeness: float = Field(default=0.0, ge=0.0, le=1.0)
+
+    @field_validator("source_kind", mode="before")
+    @classmethod
+    def _coerce_source_kind(cls, value: object) -> object:
+        if value is None:
+            return SourceKind.UNKNOWN
+        text = str(value).strip().lower()
+        if not text or text not in _SOURCE_KIND_VALUES:
+            return SourceKind.UNKNOWN
+        return text
 
 
 class EarlyWarningProcessingService:
@@ -136,13 +172,18 @@ class EarlyWarningProcessingService:
         if not summary:
             raise AgentOutputError("early-warning summary was empty")
         extraction = self._extract(translated, summary)
+        resolved_kind, resolved_trust = _resolve_source_profile(
+            configured_kind=source_kind,
+            configured_trust=trust_tier,
+            extracted_kind=extraction.source_kind,
+        )
         return _to_incident(
             record,
             taxonomy=taxonomy,
             extraction=extraction,
             summary=summary,
-            source_kind=source_kind,
-            trust_tier=trust_tier,
+            source_kind=resolved_kind,
+            trust_tier=resolved_trust,
         )
 
     async def ainvoke(self, state: dict[str, Any]) -> dict[str, Any]:
@@ -247,6 +288,25 @@ def _to_incident(
         original_language=extraction.original_language,
         evidence=[evidence],
         extraction_completeness=extraction.extraction_completeness,
+    )
+
+
+def _resolve_source_profile(
+    *,
+    configured_kind: SourceKind,
+    configured_trust: TrustTier,
+    extracted_kind: SourceKind,
+) -> tuple[SourceKind, TrustTier]:
+    """Prefer optional domain-profile overrides; otherwise use LLM classification."""
+    source_kind = (
+        configured_kind
+        if configured_kind != SourceKind.UNKNOWN
+        else extracted_kind
+    )
+    if configured_trust != TrustTier.UNKNOWN:
+        return source_kind, configured_trust
+    return source_kind, _DEFAULT_TRUST_BY_SOURCE_KIND.get(
+        source_kind, TrustTier.UNKNOWN
     )
 
 

@@ -146,7 +146,7 @@ class EarlyWarningPipelineLoggingTests(unittest.IsolatedAsyncioTestCase):
                     country="United States",
                     publication_date=date(2026, 7, 20),
                     primary_source_url=record.payload["source_url"],
-                    source_kind=SourceKind.NEWS_OUTLET,
+                    source_kind=SourceKind.MAJOR_NEWS,
                 )
 
             def classify_borderline(self, _candidate):
