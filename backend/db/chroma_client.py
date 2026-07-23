@@ -81,7 +81,8 @@ class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
                 ],
             )
 
-        return new_alerts
+        # Return inserts and content updates so callers can notify the UI.
+        return [*new_alerts, *updated_alerts]
 
     def update_alert_coordinates(self, alert_id: str, latitude: float, longitude: float) -> bool:
         existing = self.get_alert_by_id(alert_id)

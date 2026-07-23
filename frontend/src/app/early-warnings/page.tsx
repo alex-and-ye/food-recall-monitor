@@ -72,9 +72,12 @@ function EarlyWarningsPageContent() {
 
   useIncidentsChangeStream(() => {
     getIncidents(incidentFetchParamsFromSearchParams(searchParams))
-      .then(setIncidents)
+      .then((data) => {
+        setIncidents(data);
+        setStatus("ready");
+      })
       .catch(() => undefined);
-  }, status === "ready");
+  });
 
   const totalPages = Math.max(1, Math.ceil(incidents.length / ITEMS_PER_PAGE));
   const pageStart = (currentPage - 1) * ITEMS_PER_PAGE;

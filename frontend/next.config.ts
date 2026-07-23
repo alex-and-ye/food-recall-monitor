@@ -16,6 +16,9 @@ const allowedDevOrigins = (process.env.ALLOWED_DEV_ORIGINS ?? "")
 const nextConfig: NextConfig = {
   ...(allowedDevOrigins.length > 0 ? { allowedDevOrigins } : {}),
   async rewrites() {
+    // App route handlers under app/api/*/events take precedence over these
+    // rewrites. Those handlers stream SSE without buffering; plain rewrites
+    // can hold event-stream responses until the connection closes.
     return [
       {
         source: "/api/:path*",

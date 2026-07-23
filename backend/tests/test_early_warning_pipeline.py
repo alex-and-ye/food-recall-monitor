@@ -119,6 +119,57 @@ class EarlyWarningPipelineTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(incident_store.count_incidents(), 1)
         self.assertEqual(first.pages_scraped, 1)
 
+    async def test_run_notifies_broadcaster_after_each_saved_incident(self) -> None:
+        from unittest.mock import Mock
+
+        config = load_early_warning_config()
+        config = config.model_copy(
+            update={
+                "enabled": True,
+                "budgets": config.budgets.model_copy(
+                    update={
+                        "queries_per_run": 1,
+                        "results_per_query": 1,
+                        "candidates_per_run": 1,
+                    }
+                ),
+                "crawl": config.crawl.model_copy(
+                    update={"concurrency": 1, "minimum_text_characters": 1}
+                ),
+            }
+        )
+        broadcaster = Mock()
+
+        async def ingest(url, **_kwargs):
+            return ScrapedRecallRecord(
+                source_name="inspection.canada.ca",
+                payload={
+                    "source_url": url,
+                    "canonical_url": url,
+                    "visible_text": "Recall details",
+                    "content_hash": "hash-notify",
+                },
+            )
+
+        service = EarlyWarningPipelineService(
+            config=config,
+            search_client=FakeSearchClient(),  # type: ignore[arg-type]
+            candidate_store=InMemoryEarlyWarningCandidateStore(),
+            incident_service=EarlyWarningIncidentService(
+                InMemoryEarlyWarningIncidentStore()
+            ),
+            processing_service=FakeProcessor(),  # type: ignore[arg-type]
+            broadcaster=broadcaster,
+            ingest=ingest,
+        )
+
+        result = await service.run()
+        dry = await service.run(dry_run=True)
+
+        self.assertEqual(result.incidents_saved, 1)
+        self.assertEqual(dry.incidents_saved, 0)
+        broadcaster.notify.assert_called_once_with(1)
+
     async def test_dry_run_searches_without_scraping_or_persisting(self) -> None:
         config = load_early_warning_config()
         config = config.model_copy(
