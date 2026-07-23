@@ -63,6 +63,27 @@ class InMemoryEarlyWarningCandidateStoreTests(unittest.TestCase):
             stored,
         )
 
+    def test_upsert_keeps_stronger_decision_on_rediscovery(self) -> None:
+        store = InMemoryEarlyWarningCandidateStore()
+        now = datetime.now(timezone.utc)
+        store.upsert_candidate(
+            _candidate(
+                seen_at=now,
+                query_id="query-1",
+                decision=CandidateDecision.ACCEPT,
+            )
+        )
+        stored = store.upsert_candidate(
+            _candidate(
+                seen_at=now + timedelta(hours=1),
+                query_id="query-2",
+                decision=CandidateDecision.REJECT,
+            )
+        )
+
+        self.assertEqual(stored.decision, CandidateDecision.ACCEPT)
+        self.assertEqual(stored.query_ids, ["query-1", "query-2"])
+
     def test_lists_by_decision_and_limit(self) -> None:
         store = InMemoryEarlyWarningCandidateStore()
         now = datetime.now(timezone.utc)

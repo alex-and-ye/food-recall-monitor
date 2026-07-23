@@ -204,6 +204,9 @@ def _filter_and_sort(
         ]
     return sorted(
         selected,
-        key=lambda incident: (incident.last_discovered_at, incident.incident_id),
+        key=lambda incident: (
+            incident.effective_publication_date().isoformat(),
+            incident.incident_id,
+        ),
         reverse=True,
     )

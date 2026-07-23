@@ -230,8 +230,8 @@ export default function IncidentSearchToolbar({
             className={selectClassName}
           >
             <option value="">Default</option>
-            <option value="latest">Latest report</option>
-            <option value="oldest">Oldest report</option>
+            <option value="latest">Latest</option>
+            <option value="oldest">Oldest</option>
             <option value="confidence_high">Highest confidence</option>
             <option value="confidence_low">Lowest confidence</option>
           </select>

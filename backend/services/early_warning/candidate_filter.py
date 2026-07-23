@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from urllib.parse import unquote, urlsplit
 
@@ -39,9 +40,16 @@ class CandidateFilter:
 
     def evaluate(self, candidate: SearchCandidate) -> CandidateFilterResult:
         hostname = (urlsplit(candidate.url).hostname or "").lower().rstrip(".")
-        searchable_text = " ".join(
-            (candidate.title, candidate.description, unquote(urlsplit(candidate.url).path))
-        ).casefold()
+        path_text = _normalize_match_text(unquote(urlsplit(candidate.url).path))
+        searchable_text = _normalize_match_text(
+            " ".join(
+                (
+                    candidate.title,
+                    candidate.description,
+                    unquote(urlsplit(candidate.url).path),
+                )
+            )
+        )
         reasons: list[str] = []
 
         excluded_domain = _matching_domain(hostname, self._config.domains.excluded)
@@ -77,10 +85,7 @@ class CandidateFilter:
         country_match = (
             _matching_domain(hostname, country.domains) if country is not None else None
         )
-        path_match = _matching_term(
-            unquote(urlsplit(candidate.url).path).casefold(),
-            self._config.terms.path_signals,
-        )
+        path_match = _matching_term(path_text, self._config.terms.path_signals)
 
         weights = self._config.confidence
         score = 0.0
@@ -149,7 +154,12 @@ def _matching_domain(hostname: str, domains: list[str]) -> str | None:
 
 
 def _matching_term(text: str, terms: list[str]) -> str | None:
+    normalized_text = _normalize_match_text(text)
     for term in terms:
-        if term.casefold() in text:
+        if _normalize_match_text(term) in normalized_text:
             return term
     return None
+
+
+def _normalize_match_text(value: str) -> str:
+    return re.sub(r"[-_/]+", " ", value).casefold()

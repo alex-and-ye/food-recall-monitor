@@ -13,6 +13,8 @@ def _candidate(
     title: str,
     url: str,
     description: str = "",
+    country: str = "GB",
+    language: str = "en",
 ) -> SearchCandidate:
     return SearchCandidate(
         title=title,
@@ -20,9 +22,9 @@ def _candidate(
         description=description,
         rank=1,
         query_id="query-1",
-        query='"food recall" Canada',
-        country="CA",
-        language="en",
+        query="food recall United Kingdom",
+        country=country,
+        language=language,
     )
 
 
@@ -50,8 +52,9 @@ class CandidateFilterTests(unittest.TestCase):
         result = self.filter.evaluate(
             _candidate(
                 title="Food recall: unsafe cheese",
-                url="https://inspection.canada.ca/food-safety/recalls/cheese",
+                url="https://www.food.gov.uk/news-alerts/alert/cheese-recall",
                 description="A beverage and food safety alert for consumers.",
+                country="GB",
             )
         )
 
@@ -59,12 +62,26 @@ class CandidateFilterTests(unittest.TestCase):
         self.assertGreaterEqual(result.confidence, 0.68)
         self.assertTrue(any(reason.startswith("trusted domain:") for reason in result.reasons))
 
+    def test_accepts_hyphenated_news_recall_url(self) -> None:
+        result = self.filter.evaluate(
+            _candidate(
+                title="Waitrose warns customers of unsafe food in urgent recall notice",
+                url="https://www.glasgowlive.co.uk/whats-on/food-drink-news/waitrose-food-recall-notice-warning-34332452",
+                description="Shoppers have been told not to eat the product.",
+                country="GB",
+            )
+        )
+
+        self.assertEqual(result.decision, CandidateDecision.ACCEPT)
+        self.assertTrue(any("food recall" in reason for reason in result.reasons))
+
     def test_marks_partial_signal_as_borderline(self) -> None:
         result = self.filter.evaluate(
             _candidate(
                 title="Food recall announced",
                 url="https://news.example/article/123",
                 description="Food product details.",
+                country="GB",
             )
         )
 
@@ -76,6 +93,7 @@ class CandidateFilterTests(unittest.TestCase):
                 title="Weekly market report",
                 url="https://news.example/article/123",
                 description="Prices increased.",
+                country="GB",
             )
         )
         excluded = self.filter.evaluate(
@@ -83,6 +101,7 @@ class CandidateFilterTests(unittest.TestCase):
                 title="Food recall",
                 url="https://facebook.com/posts/1",
                 description="Food safety alert.",
+                country="GB",
             )
         )
 
@@ -96,6 +115,7 @@ class CandidateFilterTests(unittest.TestCase):
             title="Food recall announced",
             url="https://news.example/article/123",
             description="Food product details.",
+            country="GB",
         )
 
         first = self.filter.evaluate(candidate)

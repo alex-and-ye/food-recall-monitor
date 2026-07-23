@@ -8,6 +8,7 @@ from db.chroma_early_warning_client import (
     InMemoryEarlyWarningIncidentStore,
 )
 from models.early_warning_incident import (
+    EarlyWarningIncident,
     EarlyWarningIncidentCreate,
     IncidentEvidence,
     IncidentType,
@@ -79,6 +80,89 @@ class InMemoryIncidentStoreTests(unittest.TestCase):
         stored = store.get_incident(created.incident_id)
         assert stored is not None
         self.assertEqual(len(stored.evidence), 1)
+
+    def test_default_sort_and_date_filter_use_publication_date(self) -> None:
+        store = InMemoryEarlyWarningIncidentStore()
+        service = EarlyWarningIncidentService(store)
+
+        def seed(
+            *,
+            incident_id: str,
+            product_name: str,
+            publication_date: date | None,
+            discovered_at: datetime,
+            url: str,
+        ):
+            return store.upsert_incident(
+                EarlyWarningIncident(
+                    incident_id=incident_id,
+                    incident_type=IncidentType.POTENTIAL_RECALL,
+                    product_name=product_name,
+                    company_name=f"{product_name} Co",
+                    hazard_type="Listeria",
+                    summary="A publisher reports a possible safety issue.",
+                    country="Canada",
+                    publication_date=publication_date,
+                    first_discovered_at=discovered_at,
+                    last_discovered_at=discovered_at,
+                    primary_source_url=url,
+                    primary_source_domain="news.example.test",
+                    source_kind=SourceKind.MAJOR_NEWS,
+                    confidence_score=80,
+                )
+            )
+
+        older = seed(
+            incident_id="incident-older",
+            product_name="Alpha yogurt",
+            publication_date=date(2026, 7, 10),
+            discovered_at=datetime(2026, 7, 10, 12, tzinfo=timezone.utc),
+            url="https://news.example.test/older",
+        )
+        newer = seed(
+            incident_id="incident-newer",
+            product_name="Beta crackers",
+            publication_date=date(2026, 7, 22),
+            discovered_at=datetime(2026, 7, 22, 12, tzinfo=timezone.utc),
+            url="https://news.example.test/newer",
+        )
+        missing_publication = seed(
+            incident_id="incident-discovered",
+            product_name="Gamma juice",
+            publication_date=None,
+            discovered_at=datetime(2026, 7, 15, 12, tzinfo=timezone.utc),
+            url="https://news.example.test/discovered",
+        )
+
+        default_order = service.list_incidents()
+        self.assertEqual(
+            [item.incident_id for item in default_order],
+            [newer.incident_id, missing_publication.incident_id, older.incident_id],
+        )
+
+        latest_order = service.list_incidents(sort_by="latest")
+        self.assertEqual(
+            [item.incident_id for item in latest_order],
+            [newer.incident_id, missing_publication.incident_id, older.incident_id],
+        )
+
+        oldest_order = service.list_incidents(sort_by="oldest")
+        self.assertEqual(
+            [item.incident_id for item in oldest_order],
+            [older.incident_id, missing_publication.incident_id, newer.incident_id],
+        )
+
+        filtered = service.list_incidents(publication_date=date(2026, 7, 15))
+        self.assertEqual(
+            [item.incident_id for item in filtered],
+            [missing_publication.incident_id],
+        )
+
+        filtered_explicit = service.list_incidents(publication_date=date(2026, 7, 22))
+        self.assertEqual(
+            [item.incident_id for item in filtered_explicit],
+            [newer.incident_id],
+        )
 
     def test_incident_metadata_contains_only_chroma_scalar_values(self) -> None:
         incident = EarlyWarningIncidentService(
@@ -167,7 +251,11 @@ def _incident(
     *,
     summary: str = "A publisher reports a possible safety issue.",
     hazard_type: str = "Listeria",
+    product_name: str = "Sample cheese",
+    company_name: str = "Sample Foods",
+    publication_date: date | None = date(2026, 7, 20),
     first_discovered_at: datetime | None = None,
+    primary_source_url: str = "https://news.example.test/story?utm_source=test",
 ) -> EarlyWarningIncidentCreate:
     discovered_at = first_discovered_at or datetime(
         2026,
@@ -178,26 +266,26 @@ def _incident(
     )
     return EarlyWarningIncidentCreate(
         incident_type=IncidentType.POTENTIAL_RECALL,
-        product_name="Sample cheese",
-        company_name="Sample Foods",
+        product_name=product_name,
+        company_name=company_name,
         hazard_type=hazard_type,
         summary=summary,
         country="Canada",
-        publication_date=date(2026, 7, 20),
+        publication_date=publication_date,
         first_discovered_at=discovered_at,
         last_discovered_at=discovered_at,
-        primary_source_url="https://news.example.test/story?utm_source=test",
+        primary_source_url=primary_source_url,
         primary_source_domain="news.example.test",
         primary_publisher="Example News",
         source_kind=SourceKind.MAJOR_NEWS,
         evidence=[
             IncidentEvidence(
-                url="https://news.example.test/story",
+                url=primary_source_url.split("?", 1)[0],
                 title="Sample cheese safety report",
-                publication_date=date(2026, 7, 20),
+                publication_date=publication_date,
                 source_kind=SourceKind.MAJOR_NEWS,
                 domain="news.example.test",
-                content_hash="content-1",
+                content_hash=f"content-{primary_source_url}",
             )
         ],
         extraction_completeness=0.9,

@@ -123,6 +123,11 @@ class EarlyWarningPipelineService:
 
             self._log(PipelineStage.EARLY_WARNING, "Starting early-warning discovery")
             candidates = await self._search_and_filter(result)
+            if result.queries_searched > 0 and result.search_results == 0:
+                self._warn(
+                    WarningCategory.EARLY_WARNING_SEARCH_FAILED,
+                    "Early-warning search returned no results for this run",
+                )
             if dry_run:
                 self._log(
                     PipelineStage.EARLY_WARNING,
@@ -298,6 +303,7 @@ class EarlyWarningPipelineService:
                 searched = True
                 result.queries_searched += 1
                 result.search_results += len(response.candidates)
+                useful_this_page = 0
                 for filtered in candidate_filter.filter(response.candidates):
                     candidate = self.candidate_store.upsert_candidate(
                         filtered.to_discovery_candidate()
@@ -305,11 +311,13 @@ class EarlyWarningPipelineService:
                     discovered[candidate.candidate_id] = candidate
                     if candidate.decision == CandidateDecision.ACCEPT:
                         result.candidates_accepted += 1
+                        useful_this_page += 1
                     elif candidate.decision == CandidateDecision.BORDERLINE:
                         result.candidates_borderline += 1
+                        useful_this_page += 1
                     else:
                         result.candidates_rejected += 1
-                remaining -= len(response.candidates)
+                remaining -= useful_this_page
                 if (
                     not response.more_results_available
                     or response.offset >= 9
@@ -332,58 +340,80 @@ class EarlyWarningPipelineService:
         result: EarlyWarningRunResult,
     ) -> list[DiscoveryCandidate]:
         accepted: list[DiscoveryCandidate] = []
+        seen_ids: set[str] = set()
         for candidate in candidates:
-            if not self._eligible_for_processing(candidate):
+            reviewed = await self._review_one_candidate(candidate, result)
+            if reviewed is None or reviewed.candidate_id in seen_ids:
                 continue
-            if candidate.decision == CandidateDecision.ACCEPT:
-                accepted.append(candidate)
+            seen_ids.add(reviewed.candidate_id)
+            accepted.append(reviewed)
+
+        for stored in self.candidate_store.list_candidates():
+            if stored.candidate_id in seen_ids:
                 continue
-            if candidate.decision != CandidateDecision.BORDERLINE:
+            if stored.decision != CandidateDecision.ACCEPT:
                 continue
-            try:
-                relevance = self.processing_service.classify_borderline(candidate)
-                decision = (
-                    CandidateDecision.ACCEPT if relevance.relevant else CandidateDecision.REJECT
-                )
-                reviewed = candidate.model_copy(
+            if not self._eligible_for_processing(stored):
+                continue
+            seen_ids.add(stored.candidate_id)
+            accepted.append(stored)
+        return accepted
+
+    async def _review_one_candidate(
+        self,
+        candidate: DiscoveryCandidate,
+        result: EarlyWarningRunResult,
+    ) -> DiscoveryCandidate | None:
+        if not self._eligible_for_processing(candidate):
+            return None
+        if candidate.decision == CandidateDecision.ACCEPT:
+            return candidate
+        if candidate.decision != CandidateDecision.BORDERLINE:
+            return None
+        try:
+            relevance = self.processing_service.classify_borderline(candidate)
+            decision = (
+                CandidateDecision.ACCEPT if relevance.relevant else CandidateDecision.REJECT
+            )
+            reviewed = candidate.model_copy(
+                update={
+                    "decision": decision,
+                    "processing_status": (
+                        CandidateStatus.ACCEPTED
+                        if decision == CandidateDecision.ACCEPT
+                        else CandidateStatus.REJECTED
+                    ),
+                    "reasons": [*candidate.reasons, f"LLM review: {relevance.reason}"],
+                }
+            )
+            reviewed = self.candidate_store.upsert_candidate(reviewed)
+            if decision == CandidateDecision.ACCEPT:
+                result.candidates_accepted += 1
+                return reviewed
+            result.candidates_rejected += 1
+            return None
+        except Exception as exc:  # noqa: BLE001 - conservative rejection on metadata failure
+            result.failures[candidate.canonical_url] = str(exc)
+            self.candidate_store.upsert_candidate(
+                candidate.model_copy(
                     update={
-                        "decision": decision,
-                        "processing_status": (
-                            CandidateStatus.ACCEPTED
-                            if decision == CandidateDecision.ACCEPT
-                            else CandidateStatus.REJECTED
-                        ),
-                        "reasons": [*candidate.reasons, f"LLM review: {relevance.reason}"],
+                        "decision": CandidateDecision.REJECT,
+                        "processing_status": CandidateStatus.REJECTED,
+                        "reasons": [
+                            *candidate.reasons,
+                            f"LLM review failed: {exc}",
+                        ],
                     }
                 )
-                reviewed = self.candidate_store.upsert_candidate(reviewed)
-                if decision == CandidateDecision.ACCEPT:
-                    accepted.append(reviewed)
-                    result.candidates_accepted += 1
-                else:
-                    result.candidates_rejected += 1
-            except Exception as exc:  # noqa: BLE001 - conservative rejection on metadata failure
-                result.failures[candidate.canonical_url] = str(exc)
-                self.candidate_store.upsert_candidate(
-                    candidate.model_copy(
-                        update={
-                            "decision": CandidateDecision.REJECT,
-                            "processing_status": CandidateStatus.REJECTED,
-                            "reasons": [
-                                *candidate.reasons,
-                                f"LLM review failed: {exc}",
-                            ],
-                        }
-                    )
-                )
-                result.candidates_rejected += 1
-                self._warn(
-                    WarningCategory.EARLY_WARNING_RECORD_SKIPPED,
-                    "Borderline early-warning candidate could not be classified",
-                    source=urlsplit(candidate.canonical_url).hostname,
-                    error=exc,
-                )
-        return accepted
+            )
+            result.candidates_rejected += 1
+            self._warn(
+                WarningCategory.EARLY_WARNING_RECORD_SKIPPED,
+                "Borderline early-warning candidate could not be classified",
+                source=urlsplit(candidate.canonical_url).hostname,
+                error=exc,
+            )
+            return None
 
     async def _scrape(
         self,
@@ -489,14 +519,17 @@ class EarlyWarningPipelineService:
         )
 
     def _eligible_for_processing(self, candidate: DiscoveryCandidate) -> bool:
-        if candidate.processing_status == CandidateStatus.CONVERTED:
+        if candidate.processing_status in {
+            CandidateStatus.CONVERTED,
+            CandidateStatus.CLASSIFIED,
+            CandidateStatus.UNSUPPORTED_CONTENT,
+            CandidateStatus.REJECTED,
+        }:
             return False
         if (
             candidate.processing_status == CandidateStatus.FETCH_FAILED
             and candidate.attempt_count >= self.config.crawl.max_attempts
         ):
-            return False
-        if candidate.processing_status == CandidateStatus.UNSUPPORTED_CONTENT:
             return False
         now = datetime.now(timezone.utc)
         return candidate.next_retry_at is None or candidate.next_retry_at <= now

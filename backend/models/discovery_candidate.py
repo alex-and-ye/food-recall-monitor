@@ -118,14 +118,20 @@ class DiscoveryCandidate(BaseModel):
             raise ValueError("cannot merge candidates with different IDs")
         query_ids = list(dict.fromkeys([*self.query_ids, *other.query_ids]))
         preserve_processing = self.processing_status in {
+            CandidateStatus.ACCEPTED,
             CandidateStatus.CLASSIFIED,
             CandidateStatus.CONVERTED,
             CandidateStatus.RETRYABLE,
             CandidateStatus.FETCH_FAILED,
             CandidateStatus.UNSUPPORTED_CONTENT,
         }
+        decision = _stronger_decision(self.decision, other.decision)
+        winner = self if decision == self.decision else other
         return other.model_copy(
             update={
+                "decision": decision,
+                "confidence": winner.confidence,
+                "reasons": winner.reasons,
                 "query_ids": query_ids,
                 "first_seen_at": min(self.first_seen_at, other.first_seen_at),
                 "last_seen_at": max(self.last_seen_at, other.last_seen_at),
@@ -197,3 +203,18 @@ class EarlyWarningQueryState(BaseModel):
                 "search_count": self.search_count + 1,
             }
         )
+
+
+_DECISION_RANK = {
+    CandidateDecision.REJECT: 0,
+    CandidateDecision.BORDERLINE: 1,
+    CandidateDecision.ACCEPT: 2,
+}
+
+
+def _stronger_decision(
+    left: CandidateDecision,
+    right: CandidateDecision,
+) -> CandidateDecision:
+    return left if _DECISION_RANK[left] >= _DECISION_RANK[right] else right
+

@@ -183,6 +183,15 @@ class EarlyWarningIncident(EarlyWarningIncidentCreate):
     def get_id(self) -> str:
         return self.incident_id
 
+    def effective_publication_date(self) -> date:
+        """Date used for dashboard sorting/filtering (matches card display)."""
+        if self.publication_date is not None:
+            return self.publication_date
+        discovered = self.first_discovered_at
+        if discovered.tzinfo is not None:
+            discovered = discovered.astimezone(timezone.utc)
+        return discovered.date()
+
     def to_metadata(self) -> dict[str, str | int | float | bool]:
         metadata: dict[str, str | int | float | bool] = {
             "incident_id": self.incident_id,

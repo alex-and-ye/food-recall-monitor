@@ -22,29 +22,29 @@ countries:
 
 languages:
   en:
-    recall: [food recall, product withdrawal, food safety alert]
-    food: [food, beverage]
+    recall: [food recall, product withdrawal, food safety alert, product recall]
+    food: [food, beverage, grocery]
     outbreak: [foodborne outbreak]
-    illness: [food poisoning, illnesses]
-    contamination: [contamination, contaminated]
+    illness: [food poisoning]
+    contamination: [food contamination, contaminated food]
     investigation: [food safety investigation]
   fr:
-    recall: [rappel de produit, alerte alimentaire, retrait de produit]
-    food: [aliment, boisson]
+    recall: [rappel de produit, alerte alimentaire, retrait de produit, rappel produit, rappel]
+    food: [aliment, boisson, alimentaire, oeufs, viande, fromage]
     outbreak: [éclosion d'origine alimentaire]
-    illness: [intoxication alimentaire, maladies]
-    contamination: [contamination, contaminé]
+    illness: [intoxication alimentaire]
+    contamination: [contamination alimentaire, contaminé]
     investigation: [enquête de sécurité alimentaire]
   de:
-    recall: [lebensmittelwarnung, produktrückruf, rückrufaktion]
+    recall: [lebensmittelwarnung, produktrückruf, rückrufaktion, rückruf]
     food: [lebensmittel, getränk]
     outbreak: [lebensmittelbedingter ausbruch]
-    illness: [lebensmittelvergiftung, erkrankungen]
+    illness: [lebensmittelvergiftung]
     contamination: [verunreinigung, kontaminiert]
     investigation: [lebensmitteluntersuchung]
 
 terms:
-  path_signals: [recall, recalls, alert, alerts, warning, withdrawal, rappel, rueckruf, rückruf]
+  path_signals: [recall, recalls, alert, alerts, warning, warnung, withdrawal, rappel, alerte, rueckruf, rückruf]
   exclusions: [automobile, vehicle recall, software update]
 
 domains:
@@ -84,7 +84,7 @@ confidence:
   description: 0.10
 
 brave:
-  freshness: pd
+  freshness: pw
   timeout_seconds: 15
   minimum_interval_seconds: 1
   max_retries: 3

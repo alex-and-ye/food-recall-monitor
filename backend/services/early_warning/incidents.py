@@ -113,7 +113,7 @@ class EarlyWarningIncidentService:
             incidents = [
                 incident
                 for incident in incidents
-                if incident.publication_date == publication_date
+                if incident.effective_publication_date() == publication_date
             ]
         query = (search or "").strip().casefold()
         if query:
@@ -134,16 +134,7 @@ class EarlyWarningIncidentService:
                     )
                 ).casefold()
             ]
-        if sort_by == "oldest":
-            incidents.sort(key=lambda item: (item.last_discovered_at, item.incident_id))
-        elif sort_by == "confidence_high":
-            incidents.sort(
-                key=lambda item: (item.confidence_score, item.last_discovered_at),
-                reverse=True,
-            )
-        elif sort_by == "confidence_low":
-            incidents.sort(key=lambda item: (item.confidence_score, item.last_discovered_at))
-        return incidents
+        return _sort_incidents(incidents, sort_by=sort_by)
 
     def get_status_counts(self) -> IncidentStatusCounts:
         counts = Counter(incident.verification_status.value for incident in self.store.list_incidents())
@@ -434,3 +425,38 @@ def _highest_weight_source_kind(source_kinds: list[SourceKind]) -> SourceKind:
 
 def _ordered_union(left: list[str], right: list[str]) -> list[str]:
     return list(dict.fromkeys([*left, *right]))
+
+
+def _sort_incidents(
+    incidents: list[EarlyWarningIncident],
+    *,
+    sort_by: str | None,
+) -> list[EarlyWarningIncident]:
+    """Sort like official recalls: publication date newest-first by default."""
+    publication_key = lambda item: (
+        item.effective_publication_date().isoformat(),
+        item.incident_id,
+    )
+    if sort_by == "oldest":
+        return sorted(incidents, key=publication_key)
+    if sort_by == "confidence_high":
+        return sorted(
+            incidents,
+            key=lambda item: (
+                item.confidence_score,
+                item.effective_publication_date().isoformat(),
+                item.incident_id,
+            ),
+            reverse=True,
+        )
+    if sort_by == "confidence_low":
+        return sorted(
+            incidents,
+            key=lambda item: (
+                item.confidence_score,
+                item.effective_publication_date().isoformat(),
+                item.incident_id,
+            ),
+        )
+    # Default and "latest": newest publication date first.
+    return sorted(incidents, key=publication_key, reverse=True)

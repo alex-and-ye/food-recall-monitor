@@ -72,6 +72,14 @@ class QueryGeneratorTests(unittest.TestCase):
         self.assertIn("fr", {query.language for query in first})
         self.assertIn("de", {query.language for query in first})
         self.assertTrue(any("site:" in query.text for query in first))
+        self.assertTrue(
+            any(
+                "food recall United Kingdom" == query.text
+                or query.text.startswith("food recall ")
+                for query in first
+            )
+        )
+        self.assertFalse(any(' "food" ' in f" {query.text} " for query in first))
 
     def test_rotation_is_deterministic_and_budgeted(self) -> None:
         first = generate_queries(self.config, rotation=0, budget=5)

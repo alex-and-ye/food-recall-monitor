@@ -20,26 +20,47 @@ class QueryGenerator:
         return generate_queries(self._config, rotation=rotation, budget=budget)
 
 
-def _quoted(term: str) -> str:
-    escaped = term.replace('"', " ")
-    normalized = " ".join(escaped.split())
-    return f'"{normalized}"' if " " in normalized else normalized
-
-
 def build_query_catalog(config: EarlyWarningConfig) -> list[SearchQuery]:
-    """Build the complete query catalog in a stable, configuration-driven order."""
+    """Build discovery queries with recall intents first.
+
+    Broad illness/contamination queries are appended later so rotation does not
+    spend the whole budget on low-precision matches. Site probes stay last.
+    """
     queries: list[SearchQuery] = []
     seen_text: set[tuple[str, str, str, str | None]] = set()
+
+    def add(
+        *,
+        text: str,
+        country_code: str,
+        language: str,
+        domain: str | None = None,
+    ) -> None:
+        normalized = " ".join(text.split())
+        if not normalized:
+            return
+        identity = (normalized, country_code, language, domain)
+        if identity in seen_text:
+            return
+        seen_text.add(identity)
+        queries.append(
+            SearchQuery.create(
+                text=normalized,
+                country=country_code,
+                language=language,
+                domain=domain,
+            )
+        )
+
     for country in config.countries:
         if not country.enabled:
             continue
         for language in country.languages:
             language_terms = config.languages[language]
-            domains: list[str | None] = [None, *country.domains]
-            intent_terms = list(
+            country_names = list(dict.fromkeys([country.name, *country.aliases]))
+            secondary_intents = list(
                 dict.fromkeys(
                     [
-                        *language_terms.recall,
                         *language_terms.outbreak,
                         *language_terms.illness,
                         *language_terms.contamination,
@@ -47,31 +68,31 @@ def build_query_catalog(config: EarlyWarningConfig) -> list[SearchQuery]:
                     ]
                 )
             )
-            country_names = list(dict.fromkeys([country.name, *country.aliases]))
+
             for country_name in country_names:
-                for recall_term in intent_terms:
-                    for food_term in language_terms.food:
-                        for domain in domains:
-                            parts = [
-                                _quoted(recall_term),
-                                _quoted(food_term),
-                                _quoted(country_name),
-                            ]
-                            if domain is not None:
-                                parts.append(f"site:{domain}")
-                            text = " ".join(parts)
-                            identity = (text, country.code, language, domain)
-                            if identity in seen_text:
-                                continue
-                            seen_text.add(identity)
-                            queries.append(
-                                SearchQuery.create(
-                                    text=text,
-                                    country=country.code,
-                                    language=language,
-                                    domain=domain,
-                                )
-                            )
+                for intent in language_terms.recall:
+                    add(
+                        text=f"{intent} {country_name}",
+                        country_code=country.code,
+                        language=language,
+                    )
+
+            primary_name = country.name
+            for intent in secondary_intents:
+                add(
+                    text=f"{intent} {primary_name}",
+                    country_code=country.code,
+                    language=language,
+                )
+
+            for domain in country.domains:
+                for intent in language_terms.recall[:2]:
+                    add(
+                        text=f"{intent} site:{domain}",
+                        country_code=country.code,
+                        language=language,
+                        domain=domain,
+                    )
     return queries
 
 
