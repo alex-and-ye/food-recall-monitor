@@ -91,7 +91,29 @@ def normalized_title_fingerprint(title: str) -> str:
 def normalize_text(value: str) -> str:
     normalized = unicodedata.normalize("NFKD", value)
     ascii_text = "".join(character for character in normalized if not unicodedata.combining(character))
+    # Treat "&" as "and" so "Waitrose & Partners" matches "Waitrose and Partners".
+    ascii_text = ascii_text.replace("&", " and ")
     return " ".join(re.findall(r"\w+", ascii_text.casefold()))
+
+
+def entity_text_match(left: str, right: str, *, min_tokens: int = 2) -> bool:
+    """Match entity strings exactly or when one token-set contains the other."""
+    left_norm = normalize_text(left)
+    right_norm = normalize_text(right)
+    if not left_norm or not right_norm:
+        return False
+    if left_norm == right_norm:
+        return True
+    left_tokens = set(left_norm.split())
+    right_tokens = set(right_norm.split())
+    shorter, longer = (
+        (left_tokens, right_tokens)
+        if len(left_tokens) <= len(right_tokens)
+        else (right_tokens, left_tokens)
+    )
+    # Require enough shared specificity to avoid collapsing on a single token,
+    # unless the caller lowers min_tokens (e.g. company after a product match).
+    return len(shorter) >= min_tokens and shorter <= longer
 
 
 class IncidentMatcher:
@@ -230,11 +252,21 @@ def entity_overlap(
     right: EarlyWarningIncident,
 ) -> tuple[str, ...]:
     overlaps: list[str] = []
-    for field_name in ("product_name", "company_name", "hazard_type", "country"):
-        left_value = normalize_text(str(getattr(left, field_name)))
-        right_value = normalize_text(str(getattr(right, field_name)))
-        if left_value and left_value == right_value:
-            overlaps.append(field_name)
+    # Country labels are too inconsistent across sources ("UK" vs "United Kingdom")
+    # to use as a hard identity signal; matching is based on product/company/hazard.
+    if entity_text_match(left.product_name, right.product_name):
+        overlaps.append("product_name")
+    # After a product match, allow a shorter company label ("Waitrose") to align
+    # with a fuller legal name ("Waitrose & Partners").
+    company_min_tokens = 1 if "product_name" in overlaps else 2
+    if entity_text_match(
+        left.company_name,
+        right.company_name,
+        min_tokens=company_min_tokens,
+    ):
+        overlaps.append("company_name")
+    if entity_text_match(left.hazard_type, right.hazard_type):
+        overlaps.append("hazard_type")
     return tuple(overlaps)
 
 
@@ -246,11 +278,13 @@ def _entity_date_match(
     date_window_days: int,
 ) -> bool:
     has_primary_entity = "product_name" in overlap or "company_name" in overlap
-    return (
-        has_primary_entity
-        and len(overlap) >= 2
-        and _dates_within(left.publication_date, right.publication_date, date_window_days)
-    )
+    if not (has_primary_entity and len(overlap) >= 2):
+        return False
+    if left.publication_date is None or right.publication_date is None:
+        # Missing dates should not create near-duplicate incidents when product and
+        # company already align across sources.
+        return "product_name" in overlap and "company_name" in overlap
+    return _dates_within(left.publication_date, right.publication_date, date_window_days)
 
 
 def _dates_within(left: date | None, right: date | None, window_days: int) -> bool:

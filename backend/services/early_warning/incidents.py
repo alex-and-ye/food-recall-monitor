@@ -224,6 +224,12 @@ class EarlyWarningIncidentService:
         ):
             if not update[field_name]:
                 update[field_name] = getattr(existing, field_name)
+        update["country"] = _preferred_country(existing.country, update.get("country") or "")
+        for field_name in ("product_name", "company_name", "hazard_type"):
+            update[field_name] = _preferred_entity_label(
+                getattr(existing, field_name),
+                update.get(field_name) or "",
+            )
         update.update(
             {
                 "incident_id": existing.incident_id,
@@ -324,14 +330,15 @@ IncidentsService = EarlyWarningIncidentService
 def build_cluster_fingerprint(
     incident: EarlyWarningIncidentCreate | EarlyWarningIncident,
 ) -> str:
+    # Omit country: extractors freely emit aliases ("UK" vs "United Kingdom") that
+    # must not mint separate incident identities for the same recall.
     entity_parts = [
         normalize_text(incident.product_name),
         normalize_text(incident.company_name),
         normalize_text(incident.hazard_type),
-        normalize_text(incident.country),
         incident.publication_date.isoformat() if incident.publication_date else "",
     ]
-    populated_entities = sum(bool(part) for part in entity_parts[:4])
+    populated_entities = sum(bool(part) for part in entity_parts[:3])
     if populated_entities < 2:
         entity_parts.append(canonicalize_url(incident.primary_source_url))
     raw = "\0".join(entity_parts)
@@ -340,6 +347,31 @@ def build_cluster_fingerprint(
 
 def build_incident_id(cluster_fingerprint: str) -> str:
     return str(uuid.uuid5(INCIDENT_ID_NAMESPACE, cluster_fingerprint))
+
+
+def _preferred_country(*candidates: str) -> str:
+    """Prefer the more descriptive non-empty country label without alias maps."""
+    best = ""
+    for candidate in candidates:
+        text = str(candidate or "").strip()
+        if len(text) > len(best):
+            best = text
+    return best
+
+
+def _preferred_entity_label(*candidates: str) -> str:
+    """Prefer the more specific non-empty entity label (more tokens / longer text)."""
+    best = ""
+    best_tokens = 0
+    for candidate in candidates:
+        text = str(candidate or "").strip()
+        token_count = len(normalize_text(text).split()) if text else 0
+        if token_count > best_tokens or (
+            token_count == best_tokens and len(text) > len(best)
+        ):
+            best = text
+            best_tokens = token_count
+    return best
 
 
 def _with_derived_confidence(

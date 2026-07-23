@@ -74,6 +74,84 @@ class IncidentMatcherTests(unittest.TestCase):
         self.assertEqual(result.matched_id, "nearby")
         self.assertEqual(result.kind, MatchKind.ENTITY_DATE)
 
+    def test_entity_match_ignores_country_label_aliases(self) -> None:
+        incoming = _incident(
+            "incoming",
+            product_name="Chocolate Chip Brioche Rolls",
+            company_name="Waitrose & Partners",
+            country="UK",
+            publication_date=date(2026, 7, 22),
+            url="https://one.example/brioche",
+        )
+        existing = _incident(
+            "existing",
+            product_name="Chocolate Chip Brioche Rolls",
+            company_name="Waitrose and Partners",
+            country="United Kingdom",
+            publication_date=date(2026, 7, 22),
+            url="https://two.example/brioche",
+        )
+
+        result = IncidentMatcher().find_match(incoming, [existing])
+
+        assert result is not None
+        self.assertEqual(result.matched_id, "existing")
+        self.assertEqual(result.kind, MatchKind.ENTITY_DATE)
+        self.assertIn("product_name", result.entity_overlap)
+        self.assertIn("company_name", result.entity_overlap)
+
+    def test_save_merges_when_country_labels_differ(self) -> None:
+        store = InMemoryEarlyWarningIncidentStore()
+        service = EarlyWarningIncidentService(store)
+        first = service.save_incident(
+            _incident(
+                "ignored-1",
+                product_name="Chocolate Chip Brioche Rolls",
+                company_name="Waitrose & Partners",
+                country="United Kingdom",
+                publication_date=date(2026, 7, 22),
+                url="https://one.example/brioche",
+            )
+        )
+        second = service.save_incident(
+            _incident(
+                "ignored-2",
+                product_name="Chocolate Chip Brioche Rolls",
+                company_name="Waitrose and Partners",
+                country="UK",
+                publication_date=date(2026, 7, 22),
+                url="https://two.example/brioche",
+            )
+        )
+
+        self.assertEqual(first.incident_id, second.incident_id)
+        self.assertEqual(store.count_incidents(), 1)
+        stored = store.get_incident(first.incident_id)
+        assert stored is not None
+        self.assertEqual(stored.country, "United Kingdom")
+        self.assertEqual(len(stored.evidence), 2)
+
+    def test_entity_match_allows_missing_dates_when_product_and_company_align(self) -> None:
+        incoming = _incident(
+            "incoming",
+            product_name="Chocolate Chip Brioche Rolls",
+            company_name="Waitrose & Partners",
+            publication_date=None,
+            url="https://one.example/brioche",
+        )
+        existing = _incident(
+            "existing",
+            product_name="8 Chocolate Chip Brioche Rolls",
+            company_name="Waitrose and Partners",
+            publication_date=None,
+            url="https://two.example/brioche",
+        )
+
+        result = IncidentMatcher().find_match(incoming, [existing])
+
+        assert result is not None
+        self.assertEqual(result.kind, MatchKind.ENTITY_DATE)
+
     def test_semantic_matching_never_merges_without_entity_overlap(self) -> None:
         calls = 0
 
