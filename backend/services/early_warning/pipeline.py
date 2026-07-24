@@ -405,7 +405,12 @@ class EarlyWarningPipelineService:
         if candidate.decision != CandidateDecision.BORDERLINE:
             return None
         try:
-            relevance = self.processing_service.classify_borderline(candidate)
+            # Metadata classification calls the synchronous Ollama client.
+            # Keep it off FastAPI's event loop just like full record processing.
+            relevance = await asyncio.to_thread(
+                self.processing_service.classify_borderline,
+                candidate,
+            )
             decision = (
                 CandidateDecision.ACCEPT if relevance.relevant else CandidateDecision.REJECT
             )

@@ -110,6 +110,20 @@ class CandidateFilterTests(unittest.TestCase):
         self.assertEqual(excluded.confidence, 0.0)
         self.assertEqual(excluded.reasons, ["excluded domain: facebook.com"])
 
+    def test_rejects_non_food_electronics_recall_before_fetching(self) -> None:
+        result = self.filter.evaluate(
+            _candidate(
+                title="Electronics recall: unsafe battery charger",
+                url="https://news.example/electronics-recall-charger",
+                description="Consumers should return the affected charger.",
+                country="GB",
+            )
+        )
+
+        self.assertEqual(result.decision, CandidateDecision.REJECT)
+        self.assertEqual(result.confidence, 0.0)
+        self.assertIn("excluded topic term: electronics", result.reasons)
+
     def test_filter_is_deterministic(self) -> None:
         candidate = _candidate(
             title="Food recall announced",

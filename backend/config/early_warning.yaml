@@ -46,7 +46,18 @@ languages:
 
 terms:
   path_signals: [recall, recalls, alert, alerts, warning, warnung, withdrawal, rappel, alerte, rueckruf, rückruf]
-  exclusions: [automobile, vehicle recall, software update, wikipedia]
+  exclusions:
+    [
+      automobile, vehicle recall, software update, wikipedia,
+      electronics, electronic device, smartphone, mobile phone, laptop, computer,
+      television, tv recall, battery recall, charger recall, power bank,
+      toy recall, furniture recall, appliance recall, cosmetic recall,
+      automobile recall, car recall, motorcycle recall, tyre recall,
+      rappel voiture, rappel automobile, appareil électronique, téléphone,
+      rappel de jouet, rappel de meuble, rappel de cosmétique,
+      elektronik, elektrogerät, smartphone, laptop, spielzeugrückruf,
+      fahrzeugrückruf, autorückruf, kosmetikrückruf
+    ]
 
 domains:
   trusted:

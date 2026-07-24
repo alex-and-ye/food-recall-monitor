@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import re
+import unicodedata
 from collections.abc import Callable
 from datetime import date, datetime, timezone
 from typing import Any, Literal
@@ -44,6 +47,36 @@ _DEFAULT_TRUST_BY_SOURCE_KIND: dict[SourceKind, TrustTier] = {
     SourceKind.BLOG: TrustTier.LOW,
     SourceKind.UNKNOWN: TrustTier.UNKNOWN,
 }
+_NON_FOOD_PRODUCT_TERMS = (
+    "appliance",
+    "automobile",
+    "battery",
+    "car",
+    "charger",
+    "computer",
+    "cosmetic",
+    "electronics",
+    "electronic device",
+    "furniture",
+    "laptop",
+    "mobile phone",
+    "motorcycle",
+    "power bank",
+    "smartphone",
+    "television",
+    "toy",
+    "tyre",
+    "vehicle",
+    "appareil electronique",
+    "telephone",
+    "jouet",
+    "meuble",
+    "cosmetique",
+    "fahrzeug",
+    "elektronik",
+    "elektrogerat",
+    "spielzeug",
+)
 
 ContentTaxonomy = Literal[
     "official_recall",
@@ -64,6 +97,8 @@ official_recall, potential_recall, foodborne_outbreak, investigation,
 company_withdrawal, public_health_warning, food_safety_advisory, irrelevant.
 Use irrelevant for historical summaries, generic food advice, unrelated products,
 encyclopedia/list pages, or pages without a current concrete food-safety event.
+Use irrelevant for every non-food recall, including electronics, batteries,
+vehicles, toys, furniture, cosmetics, household appliances, and software.
 Do not infer a recall merely from cautious or speculative wording.
 Never return MIME types, nested product objects, or any keys other than
 content_type and reason."""
@@ -94,6 +129,9 @@ Do not invent facts.
 
 product_name must contain only the concise name of ONE affected product or one
 clearly defined product range.
+Extract food, beverages, food supplements, or food-contact items only. If the
+page is about electronics, batteries, vehicles, toys, furniture, cosmetics,
+appliances, software, or another non-food item, leave product_name empty.
 
 Classify source_kind from the publisher/outlet type of THIS page (not the incident
 type). Choose exactly one of:
@@ -239,6 +277,23 @@ class EarlyWarningProcessingService:
         source_kind: SourceKind = SourceKind.UNKNOWN,
         trust_tier: TrustTier = TrustTier.UNKNOWN,
     ) -> EarlyWarningIncidentCreate | None:
+        # Ollama's Python client is synchronous. Run the complete inference
+        # sequence off the FastAPI event loop so API requests stay responsive
+        # while a discovery pipeline is processing records.
+        return await asyncio.to_thread(
+            self._process_record_sync,
+            record,
+            source_kind=source_kind,
+            trust_tier=trust_tier,
+        )
+
+    def _process_record_sync(
+        self,
+        record: ScrapedRecallRecord,
+        *,
+        source_kind: SourceKind,
+        trust_tier: TrustTier,
+    ) -> EarlyWarningIncidentCreate | None:
         translated = self._translate(record)
         taxonomy = self._classify(translated)
         if taxonomy.content_type == "irrelevant":
@@ -260,6 +315,8 @@ class EarlyWarningProcessingService:
         if _requires_specific_product(taxonomy.content_type) and not _is_specific_product(
             extraction.product_name
         ):
+            return None
+        if _is_explicitly_non_food(extraction):
             return None
         resolved_kind, resolved_trust = _resolve_source_profile(
             configured_kind=source_kind,
@@ -394,6 +451,27 @@ def _is_specific_product(product_name: str) -> bool:
     # a long delimiter-heavy value is almost always a listing copied by the LLM.
     separators = text.count(",") + text.count(";") + text.count("|")
     return separators < 4 and normalized.count(" and ") < 4
+
+
+def _is_explicitly_non_food(extraction: IncidentExtraction) -> bool:
+    """Block clearly non-food recalls even if an LLM assigns food taxonomy."""
+    text = " ".join(
+        (
+            extraction.product_name,
+            extraction.product_category,
+            extraction.incident_reason,
+        )
+    ).casefold()
+    ascii_text = "".join(
+        character
+        for character in unicodedata.normalize("NFKD", text)
+        if not unicodedata.combining(character)
+    )
+    normalized = re.sub(r"[^a-z0-9]+", " ", ascii_text)
+    return any(
+        re.search(rf"\b{re.escape(term)}\b", normalized) is not None
+        for term in _NON_FOOD_PRODUCT_TERMS
+    )
 
 
 def _to_incident(

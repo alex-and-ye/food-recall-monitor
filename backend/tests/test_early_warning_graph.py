@@ -1,3 +1,5 @@
+import asyncio
+import time
 import unittest
 from datetime import date
 
@@ -14,6 +16,35 @@ from services.early_warning.graph import (
 
 
 class EarlyWarningGraphTests(unittest.IsolatedAsyncioTestCase):
+    async def test_record_inference_does_not_block_event_loop(self) -> None:
+        record = ScrapedRecallRecord(
+            source_name="example",
+            payload={
+                "source_url": "https://example.test/advice",
+                "visible_text": "Generic advice",
+            },
+        )
+        responses = iter(
+            [
+                {"record": record.payload},
+                {"content_type": "irrelevant", "reason": "generic advice"},
+            ]
+        )
+
+        def slow_json_chat(**_kwargs):
+            time.sleep(0.05)
+            return next(responses)
+
+        service = EarlyWarningProcessingService(json_chat=slow_json_chat)
+        processing = asyncio.create_task(service.process_record(record))
+        heartbeat = asyncio.create_task(asyncio.sleep(0))
+
+        await asyncio.sleep(0.01)
+
+        self.assertTrue(heartbeat.done())
+        self.assertFalse(processing.done())
+        self.assertIsNone(await processing)
+
     async def test_structures_incident_and_protects_source_provenance(self) -> None:
         record = ScrapedRecallRecord(
             source_name="news.example",
@@ -147,6 +178,35 @@ class EarlyWarningGraphTests(unittest.IsolatedAsyncioTestCase):
         service = EarlyWarningProcessingService(
             json_chat=lambda **_kwargs: next(responses),
             text_chat=lambda **_kwargs: "Several unrelated products are listed.",
+        )
+
+        self.assertIsNone(await service.process_record(record))
+
+    async def test_electronics_recall_is_not_converted_after_extraction(self) -> None:
+        record = ScrapedRecallRecord(
+            source_name="example",
+            payload={
+                "source_url": "https://example.test/device-recall",
+                "canonical_url": "https://example.test/device-recall",
+                "visible_text": "A battery charger recall was issued.",
+            },
+        )
+        responses = iter(
+            [
+                {"record": record.payload},
+                {"content_type": "official_recall", "reason": "recall notice"},
+                {
+                    "product_name": "USB Battery Charger",
+                    "product_category": "Electronics",
+                    "country": "United Kingdom",
+                    "publisher": "Example Authority",
+                    "source_kind": "official_recall",
+                },
+            ]
+        )
+        service = EarlyWarningProcessingService(
+            json_chat=lambda **_kwargs: next(responses),
+            text_chat=lambda **_kwargs: "A battery charger has been recalled.",
         )
 
         self.assertIsNone(await service.process_record(record))
