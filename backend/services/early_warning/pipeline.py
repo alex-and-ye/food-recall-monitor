@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
+import unicodedata
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -39,6 +41,19 @@ from services.warnings import WarningsService
 
 LOGGER = logging.getLogger(__name__)
 IngestCallable = Callable[..., Awaitable[ScrapedRecallRecord]]
+MAX_LISTING_DETAIL_LINKS = 25
+_LISTING_TITLE_SIGNALS = (
+    "recalls",
+    "recall alerts",
+    "food alerts",
+    "food warnings",
+    "latest warnings",
+    "product warnings",
+    "rappels",
+    "alertes",
+    "warnungen",
+    "produktwarnungen",
+)
 
 
 @dataclass
@@ -143,6 +158,7 @@ class EarlyWarningPipelineService:
 
             accepted = await self._review_borderline(candidates, result)
             records = await self._scrape(accepted, result)
+            records = await self._expand_listing_pages(records, result)
 
             for candidate, record in records:
                 try:
@@ -181,6 +197,24 @@ class EarlyWarningPipelineService:
                             )
                         )
                         continue
+                    target_country = self._target_country_for_incident(incident_create)
+                    if target_country is None:
+                        result.irrelevant_pages += 1
+                        self.candidate_store.upsert_candidate(
+                            candidate.mark_status(CandidateStatus.CLASSIFIED).model_copy(
+                                update={
+                                    "decision": CandidateDecision.REJECT,
+                                    "reasons": [
+                                        *candidate.reasons,
+                                        "incident is outside configured target countries",
+                                    ],
+                                }
+                            )
+                        )
+                        continue
+                    incident_create = incident_create.model_copy(
+                        update={"country": target_country}
+                    )
                     incident = self.incident_service.save_incident(incident_create)
                     self.candidate_store.upsert_candidate(
                         candidate.mark_status(
@@ -491,6 +525,86 @@ class EarlyWarningPipelineService:
             scraped = await asyncio.gather(*(scrape_one(candidate) for candidate in candidates))
         return [item for item in scraped if item is not None]
 
+    async def _expand_listing_pages(
+        self,
+        records: list[tuple[DiscoveryCandidate, ScrapedRecallRecord]],
+        result: EarlyWarningRunResult,
+    ) -> list[tuple[DiscoveryCandidate, ScrapedRecallRecord]]:
+        """Replace listing/index pages with a bounded set of their detail pages."""
+        detail_records: list[tuple[DiscoveryCandidate, ScrapedRecallRecord]] = []
+        children: list[DiscoveryCandidate] = []
+        seen_urls: set[str] = set()
+        for candidate, record in records:
+            links = _listing_detail_links(record)
+            if not links:
+                detail_records.append((candidate, record))
+                continue
+            result.irrelevant_pages += 1
+            self.candidate_store.upsert_candidate(
+                candidate.mark_status(CandidateStatus.CLASSIFIED).model_copy(
+                    update={
+                        "decision": CandidateDecision.REJECT,
+                        "reasons": [
+                            *candidate.reasons,
+                            f"listing page expanded to {len(links)} detail links",
+                        ],
+                    }
+                )
+            )
+            now = datetime.now(timezone.utc)
+            for link in links[:MAX_LISTING_DETAIL_LINKS]:
+                url = str(link.get("url") or "").strip()
+                if not url or url == candidate.canonical_url or url in seen_urls:
+                    continue
+                seen_urls.add(url)
+                child = DiscoveryCandidate(
+                    canonical_url=url,
+                    title=str(link.get("title") or "Recall detail").strip()
+                    or "Recall detail",
+                    description=f"Discovered from listing {candidate.canonical_url}",
+                    country=candidate.country,
+                    language=candidate.language,
+                    decision=CandidateDecision.ACCEPT,
+                    confidence=candidate.confidence,
+                    reasons=[
+                        *candidate.reasons,
+                        f"detail link discovered from {candidate.canonical_url}",
+                    ],
+                    query_ids=list(candidate.query_ids),
+                    first_seen_at=now,
+                    last_seen_at=now,
+                    processing_status=CandidateStatus.ACCEPTED,
+                )
+                stored = self.candidate_store.upsert_candidate(child)
+                if self._eligible_for_processing(stored):
+                    children.append(stored)
+        if children:
+            detail_records.extend(await self._scrape(children, result))
+        return detail_records
+
+    def _target_country_for_incident(
+        self,
+        incident: Any,
+    ) -> str | None:
+        enabled = [country for country in self.config.countries if country.enabled]
+        reported_places = [incident.country, *incident.affected_regions]
+        for country in enabled:
+            aliases = [country.code, country.name, *country.aliases]
+            if any(
+                _place_matches_alias(place, alias)
+                for place in reported_places
+                for alias in aliases
+            ):
+                return country.name
+        hostname = (urlsplit(incident.primary_source_url).hostname or "").lower()
+        for country in enabled:
+            if any(
+                hostname == domain or hostname.endswith(f".{domain}")
+                for domain in country.domains
+            ):
+                return country.name
+        return None
+
     def _source_profile(self, url: str) -> tuple[SourceKind, TrustTier]:
         hostname = (urlsplit(url).hostname or "").lower()
         matches = [
@@ -591,3 +705,35 @@ def _safe_metrics(result: EarlyWarningRunResult) -> dict[str, int]:
         "officially_confirmed": result.officially_confirmed,
         "failure_count": len(result.failures),
     }
+
+
+def _listing_detail_links(record: ScrapedRecallRecord) -> list[dict[str, str]]:
+    raw_links = record.payload.get("detail_links")
+    if not isinstance(raw_links, list):
+        return []
+    links = [item for item in raw_links if isinstance(item, dict) and item.get("url")]
+    if len(links) < 3:
+        return []
+    title = str(record.payload.get("title") or "").casefold()
+    path = urlsplit(str(record.payload.get("canonical_url") or "")).path.casefold()
+    generic_listing = any(signal in f"{title} {path}" for signal in _LISTING_TITLE_SIGNALS)
+    return links if generic_listing or len(links) >= 5 else []
+
+
+def _normalize_place(value: object) -> str:
+    text = unicodedata.normalize("NFKD", str(value or ""))
+    ascii_text = "".join(character for character in text if not unicodedata.combining(character))
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", ascii_text.casefold()).split())
+
+
+def _place_matches_alias(place: object, alias: object) -> bool:
+    normalized_place = _normalize_place(place)
+    normalized_alias = _normalize_place(alias)
+    if not normalized_place or not normalized_alias:
+        return False
+    if normalized_place == normalized_alias:
+        return True
+    # Avoid accidental substring matches for short codes such as DE/FR/GB.
+    return len(normalized_alias) >= 4 and re.search(
+        rf"\b{re.escape(normalized_alias)}\b", normalized_place
+    ) is not None

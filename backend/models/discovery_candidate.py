@@ -117,16 +117,36 @@ class DiscoveryCandidate(BaseModel):
         if self.candidate_id != other.candidate_id:
             raise ValueError("cannot merge candidates with different IDs")
         query_ids = list(dict.fromkeys([*self.query_ids, *other.query_ids]))
-        preserve_processing = self.processing_status in {
-            CandidateStatus.ACCEPTED,
+        terminal_statuses = {
             CandidateStatus.CLASSIFIED,
             CandidateStatus.CONVERTED,
-            CandidateStatus.RETRYABLE,
             CandidateStatus.FETCH_FAILED,
             CandidateStatus.UNSUPPORTED_CONTENT,
+            CandidateStatus.REJECTED,
         }
-        decision = _stronger_decision(self.decision, other.decision)
+        incoming_is_processing_update = (
+            other.processing_status != self.processing_status
+            and other.last_seen_at <= self.last_seen_at
+        ) or (
+            other.attempt_count > self.attempt_count
+            or bool(other.content_hash and other.content_hash != self.content_hash)
+            or bool(other.final_url and other.final_url != self.final_url)
+        )
+        preserve_terminal = self.processing_status in terminal_statuses
+        decision = (
+            other.decision
+            if incoming_is_processing_update and not preserve_terminal
+            else _stronger_decision(self.decision, other.decision)
+        )
         winner = self if decision == self.decision else other
+        preserve_processing = (
+            preserve_terminal
+            or (
+                self.processing_status == CandidateStatus.RETRYABLE
+                and not incoming_is_processing_update
+            )
+        )
+        processing_source = self if preserve_processing else other
         return other.model_copy(
             update={
                 "decision": decision,
@@ -135,12 +155,10 @@ class DiscoveryCandidate(BaseModel):
                 "query_ids": query_ids,
                 "first_seen_at": min(self.first_seen_at, other.first_seen_at),
                 "last_seen_at": max(self.last_seen_at, other.last_seen_at),
-                "processing_status": (
-                    self.processing_status if preserve_processing else other.processing_status
-                ),
+                "processing_status": processing_source.processing_status,
                 "attempt_count": max(self.attempt_count, other.attempt_count),
-                "next_retry_at": self.next_retry_at if preserve_processing else other.next_retry_at,
-                "last_error": self.last_error if preserve_processing else other.last_error,
+                "next_retry_at": processing_source.next_retry_at,
+                "last_error": processing_source.last_error,
                 "content_hash": self.content_hash or other.content_hash,
                 "final_url": self.final_url or other.final_url,
                 "linked_incident_id": self.linked_incident_id or other.linked_incident_id,

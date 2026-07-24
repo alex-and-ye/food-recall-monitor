@@ -47,6 +47,37 @@ class EarlyWarningIngestionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(record.payload["content_hash"]), 64)
         self.assertEqual(record.payload["provenance"]["discovery_method"], "arbitrary_url")
 
+    async def test_listing_exposes_only_same_site_recall_detail_links(self) -> None:
+        html = """
+        <html><head><title>Latest food recalls</title></head><body><main>
+        <h1>Latest food recalls</h1>
+        <a href="/recalls/cheese">Cheese recall</a>
+        <a href="https://example.test/alerts/yogurt">Yogurt warning</a>
+        <a href="https://outside.test/recall/ham">Outside recall</a>
+        <a href="/about">About us</a>
+        <p>Current notices and consumer food safety information.</p>
+        </main></body></html>
+        """
+
+        async def static_fetcher(*_args, **_kwargs):
+            return StaticPage(html, "https://example.test/recalls", "text/html")
+
+        async with httpx.AsyncClient() as client:
+            record = await ingest_early_warning_url(
+                "https://example.test/recalls",
+                client=client,
+                minimum_text_characters=20,
+                static_fetcher=static_fetcher,
+            )
+
+        self.assertEqual(
+            [link["url"] for link in record.payload["detail_links"]],
+            [
+                "https://example.test/recalls/cheese",
+                "https://example.test/alerts/yogurt",
+            ],
+        )
+
     async def test_rejects_non_html_content(self) -> None:
         async def static_fetcher(*_args, **_kwargs):
             return StaticPage("binary", "https://example.test/file.pdf", "application/pdf")

@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Awaitable, Callable
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 import httpx
 from bs4 import BeautifulSoup
@@ -37,6 +37,19 @@ _DYNAMIC_SHELL_MARKERS = (
     "id=\"app\"></div>",
     "id=\"root\"></div>",
 )
+_DETAIL_LINK_SIGNALS = (
+    "recall",
+    "alert",
+    "warning",
+    "withdrawal",
+    "rappel",
+    "alerte",
+    "retrait",
+    "rueckruf",
+    "rückruf",
+    "warnung",
+)
+_MAX_DISCOVERED_DETAIL_LINKS = 50
 
 
 class EarlyWarningIngestionError(ValueError):
@@ -111,6 +124,7 @@ async def ingest_early_warning_url(
         )
 
     title = _page_title(html, payload)
+    detail_links = _discover_detail_links(html, final_url)
     content_hash = hashlib.sha256(visible_text.encode("utf-8")).hexdigest()
     publication_date = _preferred_publication_date(payload)
     aliases = list(dict.fromkeys([canonical_requested, final_url]))
@@ -133,6 +147,7 @@ async def ingest_early_warning_url(
             "redirected_url_aliases": aliases,
             "source_domain": hostname,
             "title": title,
+            "detail_links": detail_links,
             "publication_date": publication_date,
             "content_hash": content_hash,
             "content_type": static_page.content_type or "text/html",
@@ -175,6 +190,33 @@ def _page_title(html: str, payload: dict[str, Any]) -> str:
     if heading is not None:
         return heading.get_text(" ", strip=True)
     return str(payload.get("source_url") or "")
+
+
+def _discover_detail_links(html: str, page_url: str) -> list[dict[str, str]]:
+    """Collect likely recall-detail links for bounded listing-page expansion."""
+    soup = BeautifulSoup(html, "html.parser")
+    page_host = (urlsplit(page_url).hostname or "").lower()
+    discovered: dict[str, str] = {}
+    for anchor in soup.find_all("a", href=True):
+        label = " ".join(anchor.get_text(" ", strip=True).split())
+        href = str(anchor.get("href") or "").strip()
+        if not href:
+            continue
+        try:
+            target = canonicalize_url(urljoin(page_url, href))
+        except ValueError:
+            continue
+        parsed = urlsplit(target)
+        target_host = (parsed.hostname or "").lower()
+        if target == page_url or target_host != page_host:
+            continue
+        signal_text = f"{label} {parsed.path}".casefold()
+        if not any(signal in signal_text for signal in _DETAIL_LINK_SIGNALS):
+            continue
+        discovered.setdefault(target, label or parsed.path.rsplit("/", 1)[-1])
+        if len(discovered) >= _MAX_DISCOVERED_DETAIL_LINKS:
+            break
+    return [{"url": url, "title": title} for url, title in discovered.items()]
 
 
 def _preferred_publication_date(payload: dict[str, Any]) -> str | None:

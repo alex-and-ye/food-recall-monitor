@@ -20,8 +20,8 @@ function incidentTitle(incident: EarlyWarningIncident): string {
   return (
     incident.product_name?.trim() ||
     incident.company_name?.trim() ||
-    incident.summary?.trim() ||
-    "Unnamed food safety incident"
+    incident.product_category?.trim() ||
+    INCIDENT_TYPE_LABELS[incident.incident_type]
   );
 }
 

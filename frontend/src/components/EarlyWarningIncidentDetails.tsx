@@ -100,7 +100,8 @@ export default function EarlyWarningIncidentDetails({
               {formatText(
                 incident.product_name ||
                   incident.company_name ||
-                  incident.summary,
+                  incident.product_category ||
+                  INCIDENT_TYPE_LABELS[incident.incident_type],
               )}
             </h2>
             <p className={`mt-1 ${detailMetaClassName}`}>

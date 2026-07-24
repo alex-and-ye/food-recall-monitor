@@ -10,7 +10,11 @@ from models.early_warning_incident import EarlyWarningIncidentCreate, IncidentTy
 from models.scraped_record import ScrapedRecallRecord
 from models.search_candidate import SearchCandidate, SearchResponse
 from services.early_warning.incidents import EarlyWarningIncidentService
-from services.early_warning.pipeline import EarlyWarningPipelineService
+from services.early_warning.pipeline import (
+    EarlyWarningPipelineService,
+    _listing_detail_links,
+    _place_matches_alias,
+)
 from services.warnings import WarningsService
 
 
@@ -40,7 +44,7 @@ class FakeProcessor:
             product_name="Sample cheese",
             hazard_type="Listeria",
             summary="A possible contamination prompted a warning.",
-            country="Canada",
+            country="United Kingdom",
             publication_date=date(2026, 7, 20),
             primary_source_url=record.payload["source_url"],
             source_kind=SourceKind.OFFICIAL_RECALL,
@@ -51,6 +55,60 @@ class FakeProcessor:
 
 
 class EarlyWarningPipelineTests(unittest.IsolatedAsyncioTestCase):
+    def test_target_country_matching_is_explicit(self) -> None:
+        self.assertTrue(_place_matches_alias("England", "England"))
+        self.assertTrue(_place_matches_alias("Nationwide, United Kingdom", "United Kingdom"))
+        self.assertFalse(_place_matches_alias("Canada", "France"))
+        self.assertFalse(_place_matches_alias("European Union", "Germany"))
+
+    def test_listing_page_requires_multiple_recall_detail_links(self) -> None:
+        record = ScrapedRecallRecord(
+            source_name="authority.example",
+            payload={
+                "canonical_url": "https://authority.example/recalls",
+                "title": "Latest food recalls",
+                "detail_links": [
+                    {"url": f"https://authority.example/recall/{index}", "title": f"Recall {index}"}
+                    for index in range(3)
+                ],
+            },
+        )
+        self.assertEqual(len(_listing_detail_links(record)), 3)
+
+    async def test_out_of_scope_incident_is_not_persisted(self) -> None:
+        class OutsideProcessor(FakeProcessor):
+            async def process_record(self, record, **_kwargs):
+                incident = await super().process_record(record, **_kwargs)
+                return incident.model_copy(update={"country": "Canada"})
+
+        config = load_early_warning_config().model_copy(update={"enabled": True})
+        store = InMemoryEarlyWarningIncidentStore()
+
+        async def ingest(url, **_kwargs):
+            return ScrapedRecallRecord(
+                source_name="news.example",
+                payload={
+                    "source_url": url,
+                    "canonical_url": url,
+                    "visible_text": "Recall details",
+                    "content_hash": "outside-country",
+                },
+            )
+
+        service = EarlyWarningPipelineService(
+            config=config,
+            search_client=FakeSearchClient(),  # type: ignore[arg-type]
+            candidate_store=InMemoryEarlyWarningCandidateStore(),
+            incident_service=EarlyWarningIncidentService(store),
+            processing_service=OutsideProcessor(),  # type: ignore[arg-type]
+            ingest=ingest,
+        )
+
+        result = await service.run()
+
+        self.assertEqual(result.incidents_saved, 0)
+        self.assertEqual(store.count_incidents(), 0)
+
     async def test_overlapping_run_is_skipped(self) -> None:
         config = load_early_warning_config().model_copy(update={"enabled": True})
         lock = asyncio.Lock()

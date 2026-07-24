@@ -36,7 +36,9 @@ class CandidateFilter:
 
     def __init__(self, config: EarlyWarningConfig) -> None:
         self._config = config
-        self._countries = {country.code: country for country in config.countries}
+        self._countries = {
+            country.code: country for country in config.countries if country.enabled
+        }
 
     def evaluate(self, candidate: SearchCandidate) -> CandidateFilterResult:
         hostname = (urlsplit(candidate.url).hostname or "").lower().rstrip(".")
@@ -52,6 +54,14 @@ class CandidateFilter:
         )
         reasons: list[str] = []
 
+        country = self._countries.get(candidate.country.upper())
+        if country is None:
+            return self._result(
+                candidate,
+                CandidateDecision.REJECT,
+                0.0,
+                [f"country is not enabled: {candidate.country}"],
+            )
         excluded_domain = _matching_domain(hostname, self._config.domains.excluded)
         if excluded_domain is not None:
             return self._result(
@@ -81,10 +91,7 @@ class CandidateFilter:
             else None
         )
         trusted_match = _matching_domain(hostname, self._config.domains.trusted)
-        country = self._countries.get(candidate.country.upper())
-        country_match = (
-            _matching_domain(hostname, country.domains) if country is not None else None
-        )
+        country_match = _matching_domain(hostname, country.domains)
         path_match = _matching_term(path_text, self._config.terms.path_signals)
 
         weights = self._config.confidence

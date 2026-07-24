@@ -92,6 +92,9 @@ consumer_guidance, country, publisher, and original_language MUST be strings
 string with "; ". Use empty strings/arrays for facts not supported by the source.
 Do not invent facts.
 
+product_name must contain only the concise name of ONE affected product or one
+clearly defined product range.
+
 Classify source_kind from the publisher/outlet type of THIS page (not the incident
 type). Choose exactly one of:
 - official_recall: national/regional food-safety authority recall notices
@@ -248,6 +251,16 @@ class EarlyWarningProcessingService:
         if not summary:
             raise AgentOutputError("early-warning summary was empty")
         extraction = self._extract(translated, summary)
+        extraction = extraction.model_copy(
+            update={
+                "product_name": _clean_header_value(extraction.product_name),
+                "company_name": _clean_header_value(extraction.company_name),
+            }
+        )
+        if _requires_specific_product(taxonomy.content_type) and not _is_specific_product(
+            extraction.product_name
+        ):
+            return None
         resolved_kind, resolved_trust = _resolve_source_profile(
             configured_kind=source_kind,
             configured_trust=trust_tier,
@@ -342,6 +355,45 @@ def _normalize_taxonomy_payload(payload: object) -> dict[str, Any]:
                 data["content_type"] = data[key]
                 break
     return data
+
+
+def _clean_header_value(value: str, *, maximum: int = 160) -> str:
+    """Keep card headers concise and free of copied markup/JSON."""
+    text = " ".join(str(value or "").split()).strip(" \t\r\n-–—|:;\"'")
+    if len(text) > maximum or text.startswith(("{", "[")):
+        return ""
+    return text
+
+
+def _requires_specific_product(content_type: ContentTaxonomy) -> bool:
+    return content_type in {
+        "official_recall",
+        "potential_recall",
+        "company_withdrawal",
+    }
+
+
+def _is_specific_product(product_name: str) -> bool:
+    text = _clean_header_value(product_name)
+    normalized = " ".join(text.casefold().split())
+    if not normalized:
+        return False
+    vague_names = {
+        "various products",
+        "multiple products",
+        "food products",
+        "recalled products",
+        "product recalls",
+        "recall alerts",
+        "food recalls",
+        "all products",
+    }
+    if normalized in vague_names:
+        return False
+    # A detail title can contain a small family of closely related variants, but
+    # a long delimiter-heavy value is almost always a listing copied by the LLM.
+    separators = text.count(",") + text.count(";") + text.count("|")
+    return separators < 4 and normalized.count(" and ") < 4
 
 
 def _to_incident(

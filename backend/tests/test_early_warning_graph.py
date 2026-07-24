@@ -123,6 +123,34 @@ class EarlyWarningGraphTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIsNone(await service.process_record(record))
 
+    async def test_recall_listing_with_many_products_is_not_converted(self) -> None:
+        record = ScrapedRecallRecord(
+            source_name="example",
+            payload={
+                "source_url": "https://example.test/recalls",
+                "canonical_url": "https://example.test/recalls",
+                "visible_text": "Current recall listing",
+            },
+        )
+        responses = iter(
+            [
+                {"record": record.payload},
+                {"content_type": "official_recall", "reason": "recall listing"},
+                {
+                    "product_name": "Cheese, yogurt, ham, cereal, juice",
+                    "country": "United Kingdom",
+                    "publisher": "Example Authority",
+                    "source_kind": "official_recall",
+                },
+            ]
+        )
+        service = EarlyWarningProcessingService(
+            json_chat=lambda **_kwargs: next(responses),
+            text_chat=lambda **_kwargs: "Several unrelated products are listed.",
+        )
+
+        self.assertIsNone(await service.process_record(record))
+
     def test_future_publication_dates_are_discarded(self) -> None:
         self.assertIsNone(
             _sanitize_publication_date(date(2027, 12, 8), today=date(2026, 7, 23))

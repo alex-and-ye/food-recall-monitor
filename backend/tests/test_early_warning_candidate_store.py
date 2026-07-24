@@ -149,6 +149,47 @@ class InMemoryEarlyWarningCandidateStoreTests(unittest.TestCase):
         self.assertEqual(refreshed.content_hash, "abc123")
         self.assertEqual(refreshed.linked_incident_id, "incident-1")
 
+    def test_processing_update_replaces_prior_accepted_state(self) -> None:
+        store = InMemoryEarlyWarningCandidateStore()
+        now = datetime.now(timezone.utc)
+        accepted = _candidate(
+            seen_at=now,
+            query_id="query-1",
+            decision=CandidateDecision.ACCEPT,
+        )
+        stored = store.upsert_candidate(accepted)
+
+        converted = store.upsert_candidate(
+            stored.mark_status(
+                CandidateStatus.CONVERTED,
+                content_hash="abc123",
+                linked_incident_id="incident-1",
+            )
+        )
+
+        self.assertEqual(converted.processing_status, CandidateStatus.CONVERTED)
+        self.assertEqual(converted.linked_incident_id, "incident-1")
+
+    def test_explicit_listing_rejection_replaces_accepted_decision(self) -> None:
+        store = InMemoryEarlyWarningCandidateStore()
+        now = datetime.now(timezone.utc)
+        accepted = store.upsert_candidate(
+            _candidate(
+                seen_at=now,
+                query_id="query-1",
+                decision=CandidateDecision.ACCEPT,
+            ).mark_status(CandidateStatus.ACCEPTED, content_hash="listing-hash")
+        )
+
+        rejected = store.upsert_candidate(
+            accepted.mark_status(CandidateStatus.CLASSIFIED).model_copy(
+                update={"decision": CandidateDecision.REJECT}
+            )
+        )
+
+        self.assertEqual(rejected.processing_status, CandidateStatus.CLASSIFIED)
+        self.assertEqual(rejected.decision, CandidateDecision.REJECT)
+
 
 class ChromaEarlyWarningCandidateTests(unittest.TestCase):
     def test_init_creates_candidate_and_query_collections(self) -> None:

@@ -3,7 +3,8 @@
 countries:
   - code: GB
     name: United Kingdom
-    aliases: [UK, Royaume-Uni, Vereinigtes Königreich]
+    aliases:
+      [UK, Great Britain, England, Scotland, Wales, Northern Ireland, Royaume-Uni, Vereinigtes Königreich]
     languages: [en]
     domains: [food.gov.uk]
     enabled: true
