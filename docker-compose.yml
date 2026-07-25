@@ -1,0 +1,63 @@
+# Food Recall Monitor
+#
+# Prerequisites: Docker Compose, and Ollama installed and running on the HOST
+# (not in Docker). Pull models listed in backend/config/agents.py. Ollama is
+# not started by this file and is not packaged in any service image.
+#
+# Usage (from repo root):
+# docker compose up --build
+# open http://localhost:3000
+
+services:
+  chroma:
+    image: chromadb/chroma:1.4.4
+    volumes:
+      - chroma_data:/data
+    # Optional local debugging of the vector DB; omit in locked-down deploys if unused
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v2/heartbeat"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "8080:8080"
+    environment:
+      CHROMA_HOST: chroma
+      CHROMA_PORT: "8000"
+      BACKEND_RUN_LOGS_DIR: /app/.logs/pipeline_runs
+      # Reach Ollama on the Docker host (Windows/macOS/Linux with Compose v2+)
+      OLLAMA_HOST: http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - backend_logs:/app/.logs
+    depends_on:
+      chroma:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Baked into Next rewrites at image build time (standalone output)
+        BACKEND_URL: http://backend:8080
+        NEXT_PUBLIC_API_URL: /api
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  chroma_data:
+  backend_logs:
