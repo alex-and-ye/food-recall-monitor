@@ -71,20 +71,26 @@ async def stop_daily_pipeline_scheduler(
 async def _early_warning_loop(
     pipeline_service: EarlyWarningPipelineService,
     stop_event: asyncio.Event,
-    *,
-    interval_seconds: float,
-    run_immediately: bool,
 ) -> None:
-    if run_immediately and not stop_event.is_set():
-        await run_early_warning_wrapper(pipeline_service)
     while not stop_event.is_set():
+        delay = seconds_until_next_daily_pipeline_run()
+        LOGGER.info(
+            "Next scheduled early-warning run in %.0f second(s) (daily at %02d:%02d)",
+            delay,
+            DAILY_PIPELINE_HOUR,
+            DAILY_PIPELINE_MINUTE,
+        )
+
         try:
-            await asyncio.wait_for(stop_event.wait(), timeout=interval_seconds)
+            await asyncio.wait_for(stop_event.wait(), timeout=delay)
             break
         except TimeoutError:
             pass
-        if not stop_event.is_set():
-            await run_early_warning_wrapper(pipeline_service)
+
+        if stop_event.is_set():
+            break
+
+        await run_early_warning_wrapper(pipeline_service)
 
 
 def start_early_warning_scheduler(
@@ -94,12 +100,7 @@ def start_early_warning_scheduler(
         return None, None
     stop_event = asyncio.Event()
     task = asyncio.create_task(
-        _early_warning_loop(
-            pipeline_service,
-            stop_event,
-            interval_seconds=pipeline_service.config.scheduler.interval_minutes * 60,
-            run_immediately=pipeline_service.config.scheduler.run_immediately,
-        ),
+        _early_warning_loop(pipeline_service, stop_event),
         name="early-warning-scheduler",
     )
     return task, stop_event

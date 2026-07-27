@@ -11,12 +11,7 @@ from scheduler import (
 
 class EarlyWarningSchedulerTests(unittest.IsolatedAsyncioTestCase):
     async def test_disabled_mode_starts_no_job(self) -> None:
-        service = SimpleNamespace(
-            config=SimpleNamespace(
-                enabled=False,
-                scheduler=SimpleNamespace(interval_minutes=1, run_immediately=False),
-            )
-        )
+        service = SimpleNamespace(config=SimpleNamespace(enabled=False))
 
         task, stop_event = start_early_warning_scheduler(service)  # type: ignore[arg-type]
 

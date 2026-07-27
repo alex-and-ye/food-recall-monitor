@@ -109,10 +109,29 @@ class EarlyWarningPipelineTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.incidents_saved, 0)
         self.assertEqual(store.count_incidents(), 0)
 
-    async def test_overlapping_run_is_skipped(self) -> None:
+    async def test_overlapping_run_waits_for_lock(self) -> None:
         config = load_early_warning_config().model_copy(update={"enabled": True})
         lock = asyncio.Lock()
         await lock.acquire()
+        started = asyncio.Event()
+        finished = asyncio.Event()
+
+        class RecordingProcessor(FakeProcessor):
+            async def process_record(self, record, **kwargs):
+                started.set()
+                return await super().process_record(record, **kwargs)
+
+        async def ingest(url, **_kwargs):
+            return ScrapedRecallRecord(
+                source_name="news.example",
+                payload={
+                    "source_url": url,
+                    "canonical_url": url,
+                    "visible_text": "Recall details",
+                    "content_hash": "wait-for-lock",
+                },
+            )
+
         service = EarlyWarningPipelineService(
             config=config,
             search_client=FakeSearchClient(),  # type: ignore[arg-type]
@@ -120,15 +139,27 @@ class EarlyWarningPipelineTests(unittest.IsolatedAsyncioTestCase):
             incident_service=EarlyWarningIncidentService(
                 InMemoryEarlyWarningIncidentStore()
             ),
-            processing_service=FakeProcessor(),  # type: ignore[arg-type]
+            processing_service=RecordingProcessor(),  # type: ignore[arg-type]
+            ingest=ingest,
             run_lock=lock,
         )
-        try:
-            result = await service.run()
-        finally:
-            lock.release()
 
-        self.assertTrue(result.skipped_due_to_overlap)
+        async def run_and_mark() -> None:
+            await service.run()
+            finished.set()
+
+        task = asyncio.create_task(run_and_mark())
+        try:
+            await asyncio.sleep(0)
+            self.assertFalse(started.is_set())
+            self.assertFalse(finished.is_set())
+            lock.release()
+            await asyncio.wait_for(finished.wait(), timeout=5)
+            self.assertTrue(started.is_set())
+        finally:
+            if lock.locked():
+                lock.release()
+            await task
 
     async def test_run_is_incremental_and_idempotent(self) -> None:
         config = load_early_warning_config()

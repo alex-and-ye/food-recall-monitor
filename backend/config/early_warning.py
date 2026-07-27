@@ -259,11 +259,6 @@ class CrawlConfig(_StrictConfigModel):
     retry_delay_minutes: int = Field(default=360, ge=1, le=10080)
 
 
-class SchedulerConfig(_StrictConfigModel):
-    interval_minutes: int = Field(default=360, ge=1, le=10080)
-    run_immediately: bool = False
-
-
 class IncidentConfidenceConfig(_StrictConfigModel):
     source_kind_base_weights: dict[str, int] = Field(default_factory=dict)
     corroboration_per_source: int = Field(default=5, ge=0, le=100)
@@ -330,7 +325,6 @@ class EarlyWarningConfig(_StrictConfigModel):
     confidence: ConfidenceWeights = Field(default_factory=ConfidenceWeights)
     brave: BraveSearchConfig = Field(default_factory=BraveSearchConfig)
     crawl: CrawlConfig = Field(default_factory=CrawlConfig)
-    scheduler: SchedulerConfig = Field(default_factory=SchedulerConfig)
     incident_confidence: IncidentConfidenceConfig = Field(default_factory=IncidentConfidenceConfig)
     semantic_matching: SemanticMatchingConfig = Field(default_factory=SemanticMatchingConfig)
     # Runtime switch injected from config/pipelines.yaml — not set in this file.

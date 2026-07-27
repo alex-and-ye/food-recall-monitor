@@ -108,12 +108,9 @@ class EarlyWarningPipelineService:
     async def run(self, *, dry_run: bool = False) -> EarlyWarningRunResult:
         if self.run_lock is None:
             return await self._run(dry_run=dry_run)
-        if self.run_lock.locked():
-            LOGGER.warning("Skipping overlapping early-warning pipeline run")
-            return EarlyWarningRunResult(
-                dry_run=dry_run,
-                skipped_due_to_overlap=True,
-            )
+        # Share the process-wide pipeline lock with the official pipeline so only
+        # one heavy run executes at a time. Wait (do not skip) when the lock is
+        # held — otherwise empty-DB bootstrap / co-scheduled daily runs never run.
         async with self.run_lock:
             return await self._run(dry_run=dry_run)
 

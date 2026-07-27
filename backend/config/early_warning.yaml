@@ -110,10 +110,6 @@ crawl:
   max_attempts: 3
   retry_delay_minutes: 360
 
-scheduler:
-  interval_minutes: 360
-  run_immediately: false
-
 incident_confidence:
   source_kind_base_weights:
     official_recall: 100
