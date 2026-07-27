@@ -10,14 +10,19 @@
 
 services:
   chroma:
-    image: chromadb/chroma:1.4.4
+    image: chromadb/chroma:1.5.9
     volumes:
       - chroma_data:/data
     # Optional local debugging of the vector DB; omit in locked-down deploys if unused
     ports:
       - "8000:8000"
+    # chromadb/chroma has no curl/wget; probe via bash /dev/tcp
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v2/heartbeat"]
+      test:
+        [
+          "CMD-SHELL",
+          "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8000 && printf \"GET /api/v2/heartbeat HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n\" >&3 && grep -q \"nanosecond heartbeat\" <&3'",
+        ]
       interval: 10s
       timeout: 5s
       retries: 10
