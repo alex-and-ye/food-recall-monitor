@@ -118,6 +118,26 @@ class EarlyWarningIngestionTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(selected, "2026-07-18")
 
+    def test_preferred_publication_date_keeps_old_non_future_candidate(self) -> None:
+        fixed_now = datetime(2026, 7, 23, 12, 0, tzinfo=UTC)
+
+        with patch(
+            "agents.fetchers.extraction.date_candidates.datetime"
+        ) as mocked_datetime:
+            mocked_datetime.now.return_value = fixed_now
+            mocked_datetime.fromisoformat.side_effect = datetime.fromisoformat
+            selected = _preferred_publication_date(
+                {
+                    "published_date_candidates": ["2026-06-01", "2027-12-08"],
+                    "published_date_candidate_sources": {
+                        "2026-06-01": "structured",
+                        "2027-12-08": "selector",
+                    },
+                }
+            )
+
+        self.assertEqual(selected, "2026-06-01")
+
 
 if __name__ == "__main__":
     unittest.main()

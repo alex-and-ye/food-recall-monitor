@@ -8,7 +8,10 @@ from urllib.parse import urljoin, urlsplit
 import httpx
 from bs4 import BeautifulSoup
 
-from agents.fetchers.extraction.date_candidates import select_recent_recall_date
+from agents.fetchers.extraction.date_candidates import (
+    select_non_future_recall_date,
+    select_recent_recall_date,
+)
 from agents.fetchers.extraction.detail_extractor import extract_detail_payload
 from agents.fetchers.rendering.browser_fetch import fetch_browser_html
 from agents.fetchers.rendering.static_fetch import StaticPage, fetch_static_page
@@ -228,10 +231,15 @@ def _preferred_publication_date(payload: dict[str, Any]) -> str | None:
     values = [str(value) for value in candidates if str(value).strip()]
     if not values:
         return None
-    # Same selection policy as official recalls: reject future dates and
-    # prefer structured/selector candidates within the lookback window.
-    return select_recent_recall_date(
+    # Prefer structured/selector candidates within the lookback window. If the
+    # page was discovered late, retain its best non-future publication date so
+    # the incident can display the actual date rather than "Not available".
+    recent_date = select_recent_recall_date(
         values,
         lookback_days=EARLY_WARNING_PUBLICATION_LOOKBACK_DAYS,
+        candidate_sources=source_map,
+    )
+    return recent_date or select_non_future_recall_date(
+        values,
         candidate_sources=source_map,
     )
