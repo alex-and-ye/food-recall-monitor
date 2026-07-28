@@ -32,7 +32,7 @@ class EarlyWarningConfigTests(unittest.TestCase):
             config.validate_runtime(brave_api_key=None)
         config.validate_runtime(brave_api_key="secret")
 
-    def test_rejects_unknown_language_and_overlapping_thresholds(self) -> None:
+    def test_rejects_unknown_language_and_obsolete_filter_config(self) -> None:
         payload = load_early_warning_config().model_dump()
         payload["countries"][0]["languages"] = ["zz"]
         with self.assertRaises(ValidationError):
@@ -45,7 +45,10 @@ class EarlyWarningConfigTests(unittest.TestCase):
 
     def test_rejects_url_in_domain_field(self) -> None:
         payload = load_early_warning_config().model_dump()
-        payload["domains"]["trusted"] = ["https://example.com/path"]
+        payload["domains"]["profiles"]["https://example.com/path"] = {
+            "source_kind": "unknown",
+            "trust_tier": "unknown",
+        }
 
         with self.assertRaises(ValidationError):
             EarlyWarningConfig.model_validate(payload)

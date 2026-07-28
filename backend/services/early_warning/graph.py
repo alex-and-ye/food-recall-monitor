@@ -104,10 +104,15 @@ Never return MIME types, nested product objects, or any keys other than
 content_type and reason."""
 
 BORDERLINE_PROMPT = """Decide whether this search-result metadata is sufficiently
-likely to describe a current concrete food-safety incident to justify fetching.
-Accept recalls, withdrawals, outbreaks, illness clusters, contamination reports,
-investigations, public-health warnings, and food-safety advisories. Reject generic
-advice, recipes, historical pages, encyclopedia pages, and non-food product recalls.
+likely to describe a current, concrete food-safety incident to justify fetching.
+Accept ONLY alerts about food, beverages, dietary supplements, or food-contact
+materials: recalls, withdrawals, outbreaks, illness clusters, contamination reports,
+investigations, public-health warnings, and food-safety advisories. The alert itself
+must be food-related; do not accept it merely because the source, search query, or
+surrounding text mentions food. Reject generic advice, recipes, historical pages,
+encyclopedia pages, and every non-food product recall (including electronics,
+batteries, vehicles, toys, furniture, cosmetics, appliances, and software). When
+the metadata does not explicitly support a food-related safety incident, reject it.
 Return JSON:
 {"relevant": true|false, "reason": "..."}."""
 

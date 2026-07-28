@@ -44,31 +44,7 @@ languages:
     contamination: [verunreinigung, kontaminiert]
     investigation: [lebensmitteluntersuchung]
 
-terms:
-  path_signals: [recall, recalls, alert, alerts, warning, warnung, withdrawal, rappel, alerte, rueckruf, rückruf]
-  exclusions:
-    [
-      automobile, vehicle recall, software update, wikipedia,
-      electronics, electronic device, smartphone, mobile phone, laptop, computer,
-      television, tv recall, battery recall, charger recall, power bank,
-      toy recall, furniture recall, appliance recall, cosmetic recall,
-      automobile recall, car recall, motorcycle recall, tyre recall,
-      rappel voiture, rappel automobile, appareil électronique, téléphone,
-      rappel de jouet, rappel de meuble, rappel de cosmétique,
-      elektronik, elektrogerät, smartphone, laptop, spielzeugrückruf,
-      fahrzeugrückruf, autorückruf, kosmetikrückruf
-    ]
-
 domains:
-  trusted:
-    - food.gov.uk
-    - gouv.fr
-    - bundesregierung.de
-    - lebensmittelwarnung.de
-    - who.int
-    - fao.org
-    - foodsafetynews.com
-  excluded: [facebook.com, instagram.com, linkedin.com, x.com, youtube.com, wikipedia.org]
   profiles:
     food.gov.uk: {source_kind: official_recall, trust_tier: official}
     gouv.fr: {source_kind: government_investigation, trust_tier: official}
@@ -82,18 +58,6 @@ budgets:
   results_per_query: 10
   candidates_per_run: 200
   max_pages_per_query: 1
-
-thresholds:
-  accept: 0.68
-  reject: 0.32
-
-confidence:
-  recall_term: 0.30
-  food_term: 0.20
-  trusted_domain: 0.20
-  country_domain: 0.10
-  path_signal: 0.10
-  description: 0.10
 
 brave:
   freshness: pw

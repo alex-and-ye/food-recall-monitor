@@ -32,8 +32,6 @@ class PipelineSwitchesTests(unittest.TestCase):
                         "  en:",
                         "    recall: [food recall]",
                         "    food: [food]",
-                        "terms:",
-                        "  path_signals: [recall]",
                     ]
                 ),
                 encoding="utf-8",

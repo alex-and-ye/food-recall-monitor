@@ -27,7 +27,6 @@ from models.pipeline_run_log import PipelineKind
 from models.scraped_record import ScrapedRecallRecord
 from services.alert_events import AlertChangeBroadcaster
 from services.early_warning.brave_search import BraveSearchClient
-from services.early_warning.candidate_filter import CandidateFilter
 from services.early_warning.graph import EarlyWarningProcessingService
 from services.early_warning.incidents import EarlyWarningIncidentService
 from services.early_warning.ingestion import (
@@ -134,7 +133,7 @@ class EarlyWarningPipelineService:
                 raise RuntimeError("early warning is enabled but Brave Search is unavailable")
 
             self._log(PipelineStage.EARLY_WARNING, "Starting early-warning discovery")
-            candidates = await self._search_and_filter(result)
+            candidates = await self._search_and_queue(result)
             if result.queries_searched > 0 and result.search_results == 0:
                 self._warn(
                     WarningCategory.EARLY_WARNING_SEARCH_FAILED,
@@ -153,7 +152,7 @@ class EarlyWarningPipelineService:
                     )
                 return result
 
-            accepted = await self._review_borderline(candidates, result)
+            accepted = await self._review_candidates(candidates, result)
             records = await self._scrape(accepted, result)
             records = await self._expand_listing_pages(records, result)
 
@@ -291,7 +290,7 @@ class EarlyWarningPipelineService:
 
     run_pipeline = run
 
-    async def _search_and_filter(
+    async def _search_and_queue(
         self,
         result: EarlyWarningRunResult,
     ) -> list[DiscoveryCandidate]:
@@ -301,7 +300,6 @@ class EarlyWarningPipelineService:
             self.config.budgets.queries_per_run,
         )
         queries = QueryGenerator(self.config).generate(rotation=rotation)
-        candidate_filter = CandidateFilter(self.config)
         discovered: dict[str, DiscoveryCandidate] = {}
         remaining = self.config.budgets.candidates_per_run
 
@@ -335,19 +333,24 @@ class EarlyWarningPipelineService:
                 result.queries_searched += 1
                 result.search_results += len(response.candidates)
                 useful_this_page = 0
-                for filtered in candidate_filter.filter(response.candidates):
+                for search_candidate in response.candidates:
+                    # Every search result must be reviewed by the LLM before it can
+                    # be fetched. Do not use lexical, URL, or domain heuristics to
+                    # pre-accept or reject pages: they routinely misclassify
+                    # non-food recalls.
+                    candidate = DiscoveryCandidate.from_search(
+                        search_candidate,
+                        decision=CandidateDecision.BORDERLINE,
+                        confidence=0.5,
+                        reasons=["awaiting LLM food-safety relevance review"],
+                    )
                     candidate = self.candidate_store.upsert_candidate(
-                        filtered.to_discovery_candidate()
+                        candidate
                     )
                     discovered[candidate.candidate_id] = candidate
-                    if candidate.decision == CandidateDecision.ACCEPT:
-                        result.candidates_accepted += 1
-                        useful_this_page += 1
-                    elif candidate.decision == CandidateDecision.BORDERLINE:
+                    if self._eligible_for_processing(candidate):
                         result.candidates_borderline += 1
                         useful_this_page += 1
-                    else:
-                        result.candidates_rejected += 1
                 remaining -= useful_this_page
                 if (
                     not response.more_results_available
@@ -365,7 +368,7 @@ class EarlyWarningPipelineService:
                 )
         return list(discovered.values())
 
-    async def _review_borderline(
+    async def _review_candidates(
         self,
         candidates: list[DiscoveryCandidate],
         result: EarlyWarningRunResult,
@@ -382,12 +385,12 @@ class EarlyWarningPipelineService:
         for stored in self.candidate_store.list_candidates():
             if stored.candidate_id in seen_ids:
                 continue
-            if stored.decision != CandidateDecision.ACCEPT:
-                continue
             if not self._eligible_for_processing(stored):
                 continue
             seen_ids.add(stored.candidate_id)
-            accepted.append(stored)
+            reviewed = await self._review_one_candidate(stored, result)
+            if reviewed is not None:
+                accepted.append(reviewed)
         return accepted
 
     async def _review_one_candidate(
@@ -397,13 +400,10 @@ class EarlyWarningPipelineService:
     ) -> DiscoveryCandidate | None:
         if not self._eligible_for_processing(candidate):
             return None
-        if candidate.decision == CandidateDecision.ACCEPT:
-            return candidate
-        if candidate.decision != CandidateDecision.BORDERLINE:
-            return None
         try:
-            # Metadata classification calls the synchronous Ollama client.
-            # Keep it off FastAPI's event loop just like full record processing.
+            # Metadata classification calls the synchronous Ollama client. Every
+            # eligible search result (including candidates accepted by older runs)
+            # is reviewed before fetch.
             relevance = await asyncio.to_thread(
                 self.processing_service.classify_borderline,
                 candidate,

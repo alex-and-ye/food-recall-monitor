@@ -9,6 +9,7 @@ from db.chroma_warnings_client import InMemoryPipelineWarningsStore
 from models.early_warning_incident import EarlyWarningIncidentCreate, IncidentType, SourceKind
 from models.scraped_record import ScrapedRecallRecord
 from models.search_candidate import SearchCandidate, SearchResponse
+from services.early_warning.graph import BorderlineRelevance
 from services.early_warning.incidents import EarlyWarningIncidentService
 from services.early_warning.pipeline import (
     EarlyWarningPipelineService,
@@ -38,6 +39,9 @@ class FakeSearchClient:
 
 
 class FakeProcessor:
+    def __init__(self) -> None:
+        self.metadata_reviews = 0
+
     async def process_record(self, record, **_kwargs):
         return EarlyWarningIncidentCreate(
             incident_type=IncidentType.POTENTIAL_RECALL,
@@ -51,7 +55,8 @@ class FakeProcessor:
         )
 
     def classify_borderline(self, _candidate):
-        raise AssertionError("accepted candidate should not need LLM metadata review")
+        self.metadata_reviews += 1
+        return BorderlineRelevance(relevant=True, reason="food recall metadata")
 
 
 class EarlyWarningPipelineTests(unittest.IsolatedAsyncioTestCase):
@@ -191,12 +196,13 @@ class EarlyWarningPipelineTests(unittest.IsolatedAsyncioTestCase):
                 },
             )
 
+        processor = FakeProcessor()
         service = EarlyWarningPipelineService(
             config=config,
             search_client=FakeSearchClient(),  # type: ignore[arg-type]
             candidate_store=InMemoryEarlyWarningCandidateStore(),
             incident_service=EarlyWarningIncidentService(incident_store),
-            processing_service=FakeProcessor(),  # type: ignore[arg-type]
+            processing_service=processor,  # type: ignore[arg-type]
             ingest=ingest,
         )
 
@@ -207,6 +213,54 @@ class EarlyWarningPipelineTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(second.new_incidents, 0)
         self.assertEqual(incident_store.count_incidents(), 1)
         self.assertEqual(first.pages_scraped, 1)
+        self.assertGreaterEqual(processor.metadata_reviews, 1)
+
+    async def test_llm_rejection_prevents_non_food_result_from_being_scraped(self) -> None:
+        class NonFoodProcessor(FakeProcessor):
+            def classify_borderline(self, _candidate):
+                self.metadata_reviews += 1
+                return BorderlineRelevance(
+                    relevant=False,
+                    reason="battery charger recall is not food-related",
+                )
+
+        config = load_early_warning_config().model_copy(
+            update={
+                "enabled": True,
+                "budgets": load_early_warning_config().budgets.model_copy(
+                    update={
+                        "queries_per_run": 1,
+                        "results_per_query": 1,
+                        "candidates_per_run": 1,
+                    }
+                ),
+            }
+        )
+        processor = NonFoodProcessor()
+        scrape_calls = 0
+
+        async def ingest(_url, **_kwargs):
+            nonlocal scrape_calls
+            scrape_calls += 1
+            raise AssertionError("a rejected search result must not be scraped")
+
+        service = EarlyWarningPipelineService(
+            config=config,
+            search_client=FakeSearchClient(),  # type: ignore[arg-type]
+            candidate_store=InMemoryEarlyWarningCandidateStore(),
+            incident_service=EarlyWarningIncidentService(
+                InMemoryEarlyWarningIncidentStore()
+            ),
+            processing_service=processor,  # type: ignore[arg-type]
+            ingest=ingest,
+        )
+
+        result = await service.run()
+
+        self.assertEqual(processor.metadata_reviews, 1)
+        self.assertEqual(scrape_calls, 0)
+        self.assertEqual(result.candidates_rejected, 1)
+        self.assertEqual(result.pages_scraped, 0)
 
     async def test_run_notifies_broadcaster_after_each_saved_incident(self) -> None:
         from unittest.mock import Mock

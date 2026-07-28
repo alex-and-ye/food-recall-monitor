@@ -118,25 +118,8 @@ class LanguageTerms(_StrictConfigModel):
         return _normalized_strings(value, lower=True)
 
 
-class GeneralTerms(_StrictConfigModel):
-    path_signals: list[str] = Field(min_length=1)
-    exclusions: list[str] = Field(default_factory=list)
-
-    @field_validator("path_signals", "exclusions", mode="before")
-    @classmethod
-    def _normalize_terms(cls, value: object) -> list[str]:
-        return _normalized_strings(value, lower=True)
-
-
 class DomainConfig(_StrictConfigModel):
-    trusted: list[str] = Field(default_factory=list)
-    excluded: list[str] = Field(default_factory=list)
     profiles: dict[str, "DomainProfile"] = Field(default_factory=dict)
-
-    @field_validator("trusted", "excluded", mode="before")
-    @classmethod
-    def _normalize_domains(cls, value: object) -> list[str]:
-        return [_normalize_domain(item) for item in _normalized_strings(value, lower=True)]
 
     @field_validator("profiles", mode="before")
     @classmethod
@@ -146,13 +129,6 @@ class DomainConfig(_StrictConfigModel):
         if not isinstance(value, dict):
             raise ValueError("profiles must be a mapping")
         return {_normalize_domain(domain): profile for domain, profile in value.items()}
-
-    @model_validator(mode="after")
-    def _domains_do_not_overlap(self) -> DomainConfig:
-        overlap = set(self.trusted).intersection(self.excluded)
-        if overlap:
-            raise ValueError(f"domains cannot be both trusted and excluded: {sorted(overlap)}")
-        return self
 
 
 class DomainProfile(_StrictConfigModel):
@@ -191,45 +167,6 @@ class SearchBudgets(_StrictConfigModel):
     results_per_query: int = Field(default=10, ge=1, le=20)
     candidates_per_run: int = Field(default=200, ge=1, le=10000)
     max_pages_per_query: int = Field(default=1, ge=1, le=10)
-
-
-class FilterThresholds(_StrictConfigModel):
-    accept: float = Field(default=0.68, ge=0.0, le=1.0)
-    reject: float = Field(default=0.32, ge=0.0, le=1.0)
-
-    @model_validator(mode="after")
-    def _validate_order(self) -> FilterThresholds:
-        if self.reject >= self.accept:
-            raise ValueError("reject threshold must be lower than accept threshold")
-        return self
-
-
-class ConfidenceWeights(_StrictConfigModel):
-    recall_term: float = Field(default=0.30, ge=0.0, le=1.0)
-    food_term: float = Field(default=0.20, ge=0.0, le=1.0)
-    trusted_domain: float = Field(default=0.20, ge=0.0, le=1.0)
-    country_domain: float = Field(default=0.10, ge=0.0, le=1.0)
-    path_signal: float = Field(default=0.10, ge=0.0, le=1.0)
-    description: float = Field(default=0.10, ge=0.0, le=1.0)
-
-    @model_validator(mode="after")
-    def _at_least_one_weight(self) -> ConfidenceWeights:
-        if self.total <= 0:
-            raise ValueError("at least one confidence weight must be positive")
-        return self
-
-    @property
-    def total(self) -> float:
-        return sum(
-            (
-                self.recall_term,
-                self.food_term,
-                self.trusted_domain,
-                self.country_domain,
-                self.path_signal,
-                self.description,
-            )
-        )
 
 
 class BraveSearchConfig(_StrictConfigModel):
@@ -318,11 +255,8 @@ class SemanticMatchingConfig(_StrictConfigModel):
 class EarlyWarningConfig(_StrictConfigModel):
     countries: list[CountryConfig] = Field(min_length=1)
     languages: dict[str, LanguageTerms] = Field(min_length=1)
-    terms: GeneralTerms
     domains: DomainConfig = Field(default_factory=DomainConfig)
     budgets: SearchBudgets = Field(default_factory=SearchBudgets)
-    thresholds: FilterThresholds = Field(default_factory=FilterThresholds)
-    confidence: ConfidenceWeights = Field(default_factory=ConfidenceWeights)
     brave: BraveSearchConfig = Field(default_factory=BraveSearchConfig)
     crawl: CrawlConfig = Field(default_factory=CrawlConfig)
     incident_confidence: IncidentConfidenceConfig = Field(default_factory=IncidentConfidenceConfig)

@@ -3,8 +3,10 @@ import time
 import unittest
 from datetime import date
 
+from models.discovery_candidate import CandidateDecision, DiscoveryCandidate
 from models.early_warning_incident import SourceKind, TrustTier
 from models.scraped_record import ScrapedRecallRecord
+from models.search_candidate import SearchCandidate
 from services.early_warning.graph import (
     EarlyWarningProcessingService,
     IncidentExtraction,
@@ -16,6 +18,36 @@ from services.early_warning.graph import (
 
 
 class EarlyWarningGraphTests(unittest.IsolatedAsyncioTestCase):
+    def test_metadata_relevance_prompt_requires_food_related_alert(self) -> None:
+        captured: dict[str, str] = {}
+        candidate = DiscoveryCandidate.from_search(
+            SearchCandidate(
+                title="Battery charger recall",
+                url="https://example.test/charger-recall",
+                description="Return the charger immediately.",
+                rank=1,
+                query_id="test-query",
+                query="food recall United Kingdom",
+                country="GB",
+                language="en",
+            ),
+            decision=CandidateDecision.BORDERLINE,
+            confidence=0.5,
+            reasons=["awaiting review"],
+        )
+
+        def json_chat(**kwargs):
+            captured["system_prompt"] = kwargs["system_prompt"]
+            return {"relevant": False, "reason": "not food-related"}
+
+        relevance = EarlyWarningProcessingService(json_chat=json_chat).classify_borderline(
+            candidate
+        )
+
+        self.assertFalse(relevance.relevant)
+        self.assertIn("The alert itself\nmust be food-related", captured["system_prompt"])
+        self.assertIn("every non-food product recall", captured["system_prompt"])
+
     async def test_record_inference_does_not_block_event_loop(self) -> None:
         record = ScrapedRecallRecord(
             source_name="example",
