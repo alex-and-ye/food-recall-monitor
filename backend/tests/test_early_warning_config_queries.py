@@ -93,6 +93,18 @@ class QueryGeneratorTests(unittest.TestCase):
         self.assertEqual(len(second), 5)
         self.assertEqual(second[0], build_query_catalog(self.config)[5])
 
+    def test_first_run_distributes_queries_across_enabled_countries(self) -> None:
+        queries = generate_queries(self.config, rotation=0, budget=12)
+
+        self.assertEqual({query.country for query in queries}, {"GB", "FR", "DE"})
+        self.assertEqual(
+            {
+                country: sum(query.country == country for query in queries)
+                for country in ("GB", "FR", "DE")
+            },
+            {"GB": 4, "FR": 4, "DE": 4},
+        )
+
     def test_zero_budget_returns_no_queries(self) -> None:
         self.assertEqual(generate_queries(self.config, budget=0), [])
 

@@ -97,7 +97,7 @@ incident_confidence:
 # Keep disabled until similarity thresholds have been calibrated against
 # labelled duplicate/non-duplicate incident fixtures.
 semantic_matching:
-  enabled: false
+  enabled: true
   collection_name: safety_event_similarity_v1
   model_name: all-MiniLM-L6-v2
   review_threshold: 0.82

@@ -26,7 +26,7 @@ def build_query_catalog(config: EarlyWarningConfig) -> list[SearchQuery]:
     Broad illness/contamination queries are appended later so rotation does not
     spend the whole budget on low-precision matches. Site probes stay last.
     """
-    queries: list[SearchQuery] = []
+    queries_by_country: dict[str, list[SearchQuery]] = {}
     seen_text: set[tuple[str, str, str, str | None]] = set()
 
     def add(
@@ -43,7 +43,7 @@ def build_query_catalog(config: EarlyWarningConfig) -> list[SearchQuery]:
         if identity in seen_text:
             return
         seen_text.add(identity)
-        queries.append(
+        queries_by_country.setdefault(country_code, []).append(
             SearchQuery.create(
                 text=normalized,
                 country=country_code,
@@ -93,7 +93,7 @@ def build_query_catalog(config: EarlyWarningConfig) -> list[SearchQuery]:
                         language=language,
                         domain=domain,
                     )
-    return queries
+    return _interleave_country_queries(queries_by_country)
 
 
 def generate_queries(
@@ -116,3 +116,30 @@ def generate_queries(
     count = min(limit, len(catalog))
     start = (rotation * count) % len(catalog)
     return [catalog[(start + index) % len(catalog)] for index in range(count)]
+
+
+def _interleave_country_queries(
+    queries_by_country: dict[str, list[SearchQuery]],
+) -> list[SearchQuery]:
+    """Distribute country coverage throughout the catalog.
+
+    A country can contribute many aliases and site probes. Keeping each
+    country's queries contiguous starves later countries whenever the per-run
+    query budget is smaller than the first country's catalog slice.
+    """
+    country_codes = list(queries_by_country)
+    positions = {country_code: 0 for country_code in country_codes}
+    queries: list[SearchQuery] = []
+
+    while True:
+        added = False
+        for country_code in country_codes:
+            index = positions[country_code]
+            country_queries = queries_by_country[country_code]
+            if index >= len(country_queries):
+                continue
+            queries.append(country_queries[index])
+            positions[country_code] += 1
+            added = True
+        if not added:
+            return queries
