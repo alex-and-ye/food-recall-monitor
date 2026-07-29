@@ -73,7 +73,9 @@ class ChromaClientDedupeTests(unittest.TestCase):
 
         self.assertEqual(len(client.save_alerts([original])), 1)
         original_id = client.collection.added["ids"][0]
-        self.assertEqual(len(client.save_alerts([corrected])), 0)
+        updated = client.save_alerts([corrected])
+        self.assertEqual(len(updated), 1)
+        self.assertEqual(updated[0].alert_id, original_id)
 
         self.assertEqual(client.collection.updated["ids"], [original_id])
         self.assertEqual(

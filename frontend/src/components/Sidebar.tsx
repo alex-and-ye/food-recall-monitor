@@ -100,11 +100,72 @@ function WarningIcon() {
   );
 }
 
-const NAV_LINKS = [
-  { href: "/", label: "Feeds", icon: FeedIcon },
-  { href: "/stats", label: "Statistics", icon: StatsIcon },
-  { href: "/globe", label: "Globe Map", icon: GlobeIcon },
-  { href: "/warnings", label: "Warnings", icon: WarningIcon },
+function IncidentIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-5 w-5 shrink-0"
+      aria-hidden="true"
+    >
+      <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
+      <circle cx="12" cy="12" r="4" />
+      <path d="m5.64 5.64 2.12 2.12M16.24 16.24l2.12 2.12M18.36 5.64l-2.12 2.12M7.76 16.24l-2.12 2.12" />
+    </svg>
+  );
+}
+
+const NAV_SECTIONS = [
+  {
+    label: "Official recalls",
+    links: [
+      {
+        href: "/",
+        label: "Official Recalls",
+        icon: FeedIcon,
+        activePrefixes: ["/alerts"],
+      },
+      {
+        href: "/stats",
+        label: "Statistics",
+        icon: StatsIcon,
+        activePrefixes: [],
+      },
+      {
+        href: "/globe",
+        label: "Globe Map",
+        icon: GlobeIcon,
+        activePrefixes: [],
+      },
+    ],
+  },
+  {
+    label: "Discovery",
+    links: [
+      {
+        href: "/early-warnings",
+        label: "Early Warnings",
+        icon: IncidentIcon,
+        activePrefixes: ["/incidents"],
+      },
+    ],
+  },
+  {
+    label: "Operations",
+    links: [
+      {
+        href: "/warnings",
+        label: "Pipeline Issues",
+        icon: WarningIcon,
+        activePrefixes: [],
+      },
+    ],
+  },
 ] as const;
 
 interface SidebarProps {
@@ -178,39 +239,59 @@ export default function Sidebar({ isOpen, onToggle, onClose }: SidebarProps) {
           </button>
         </div>
 
-        <nav className="flex flex-1 flex-col gap-1 p-3">
-          {NAV_LINKS.map(({ href, label, icon: Icon }) => {
-            const isActive =
-              href === "/"
-                ? pathname === "/"
-                : pathname.startsWith(href);
+        <nav className="flex flex-1 flex-col gap-5 p-3">
+          {NAV_SECTIONS.map((section) => (
+            <div key={section.label}>
+              <p className="mb-1.5 px-3 text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                {section.label}
+              </p>
+              <div className="space-y-1">
+                {section.links.map(
+                  ({ href, label, icon: Icon, activePrefixes }) => {
+                    const isActive =
+                      href === "/"
+                        ? pathname === "/" ||
+                          activePrefixes.some((prefix) =>
+                            pathname.startsWith(prefix),
+                          )
+                        : pathname.startsWith(href) ||
+                          activePrefixes.some((prefix) =>
+                            pathname.startsWith(prefix),
+                          );
 
-            return (
-              <Link
-                key={href}
-                href={href}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                  isActive
-                    ? "bg-emerald-600 text-white"
-                    : "text-slate-300 hover:bg-slate-700 hover:text-white"
-                }`}
-              >
-                <Icon />
-                <span className="flex-1">{label}</span>
-                {href === "/warnings" && unacknowledgedCount > 0 ? (
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                      isActive
-                        ? "bg-white/20 text-white"
-                        : "bg-amber-500 text-slate-900"
-                    }`}
-                  >
-                    {unacknowledgedCount > 99 ? "99+" : unacknowledgedCount}
-                  </span>
-                ) : null}
-              </Link>
-            );
-          })}
+                    return (
+                      <Link
+                        key={href}
+                        href={href}
+                        className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                          isActive
+                            ? "bg-emerald-600 text-white"
+                            : "text-slate-300 hover:bg-slate-700 hover:text-white"
+                        }`}
+                      >
+                        <Icon />
+                        <span className="flex-1">{label}</span>
+                        {href === "/warnings" &&
+                        unacknowledgedCount > 0 ? (
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                              isActive
+                                ? "bg-white/20 text-white"
+                                : "bg-amber-500 text-slate-900"
+                            }`}
+                          >
+                            {unacknowledgedCount > 99
+                              ? "99+"
+                              : unacknowledgedCount}
+                          </span>
+                        ) : null}
+                      </Link>
+                    );
+                  },
+                )}
+              </div>
+            </div>
+          ))}
         </nav>
       </aside>
     </>

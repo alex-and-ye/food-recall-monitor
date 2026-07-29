@@ -100,7 +100,7 @@ export default function StatsPage() {
 
   useAlertsChangeStream(() => {
     loadStats({ silent: true });
-  }, status !== "pending");
+  });
 
   if (status === "pending") {
     return <LoadingState />;

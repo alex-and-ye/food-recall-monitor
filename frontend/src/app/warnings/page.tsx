@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import LoadingState from "@/components/LoadingState";
 import {
   bodySecondaryClassName,
@@ -32,6 +38,64 @@ function formatWarningTimestamp(value: string): string {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
+}
+
+function ExpandableWarningMessage({ message }: { message: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [canToggle, setCanToggle] = useState(false);
+  const textRef = useRef<HTMLParagraphElement>(null);
+
+  useLayoutEffect(() => {
+    setExpanded(false);
+    setCanToggle(false);
+  }, [message]);
+
+  useLayoutEffect(() => {
+    const element = textRef.current;
+    if (!element || expanded) {
+      return;
+    }
+
+    const measure = () => {
+      if (element.scrollHeight > element.clientHeight + 1) {
+        setCanToggle(true);
+      }
+    };
+
+    measure();
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+    };
+  }, [message, expanded]);
+
+  return (
+    <div>
+      <p
+        ref={textRef}
+        className={`${bodyTextClassName} break-words ${
+          expanded ? "" : "line-clamp-3"
+        }`}
+      >
+        {message}
+      </p>
+      {canToggle ? (
+        <button
+          type="button"
+          className="mt-1 text-sm font-medium text-emerald-700 underline-offset-2 hover:underline"
+          onClick={() => {
+            setExpanded((current) => !current);
+          }}
+        >
+          {expanded ? "Shrink" : "Extend"}
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 export default function WarningsPage() {
@@ -148,7 +212,7 @@ export default function WarningsPage() {
                       <span className={mutedTextClassName}>Acknowledged</span>
                     ) : null}
                   </div>
-                  <p className={bodyTextClassName}>{warning.message}</p>
+                  <ExpandableWarningMessage message={warning.message} />
                   <p className={`mt-2 ${mutedTextClassName}`}>
                     {formatWarningTimestamp(warning.created_at)}
                   </p>

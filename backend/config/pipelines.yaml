@@ -1,0 +1,13 @@
+# Master switches for scheduled/manual pipelines.
+# This is the only place to enable or disable either pipeline.
+# Secrets (BRAVE_API_KEY) stay in backend/.env.
+
+official_pipeline:
+  enabled: true
+  # When true and the alerts DB is empty, run one official scrape at startup.
+  bootstrap_on_empty_db: true
+
+early_warning:
+  enabled: true
+  # When true and the incidents DB is empty, run one discovery pass at startup.
+  bootstrap_on_empty_db: true

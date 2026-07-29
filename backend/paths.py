@@ -4,17 +4,13 @@ from pathlib import Path
 
 from settings import get_backend_root, get_settings
 
+
 def get_chroma_server_data_path() -> Path:
     return _resolve_backend_path(
         get_settings().chroma_server_data_path,
         ".chroma_data",
     )
 
-def get_run_logs_dir() -> Path:
-    return _resolve_backend_path(
-        get_settings().backend_run_logs_dir,
-        ".logs/pipeline_runs",
-    )
 
 def _resolve_backend_path(raw_path: str | None, default_relative: str) -> Path:
     backend_root = get_backend_root()
@@ -25,6 +21,6 @@ def _resolve_backend_path(raw_path: str | None, default_relative: str) -> Path:
         return candidate
     return (backend_root / default_relative).resolve()
 
+
 def ensure_backend_data_dirs() -> None:
     get_chroma_server_data_path().mkdir(parents=True, exist_ok=True)
-    get_run_logs_dir().mkdir(parents=True, exist_ok=True)

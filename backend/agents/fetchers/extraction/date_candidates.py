@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Iterable, Mapping
 
 from agents.fetchers.extraction.date_parser import search_adaptive_dates
@@ -66,7 +66,37 @@ def select_recent_recall_date(
     incorrectly favors UI chrome dates such as "today" on listing pages.
     """
     current = now or datetime.now(tz=UTC)
-    oldest_allowed = current.date() - timedelta(days=lookback_days)
+    return _select_recall_date(
+        candidates,
+        current=current,
+        oldest_allowed=current.date() - timedelta(days=lookback_days),
+        candidate_sources=candidate_sources,
+    )
+
+
+def select_non_future_recall_date(
+    candidates: Iterable[str],
+    *,
+    now: datetime | None = None,
+    candidate_sources: Mapping[str, str] | None = None,
+) -> str | None:
+    """Pick the best publication date without applying a lookback window."""
+    current = now or datetime.now(tz=UTC)
+    return _select_recall_date(
+        candidates,
+        current=current,
+        oldest_allowed=None,
+        candidate_sources=candidate_sources,
+    )
+
+
+def _select_recall_date(
+    candidates: Iterable[str],
+    *,
+    current: datetime,
+    oldest_allowed: date | None,
+    candidate_sources: Mapping[str, str] | None,
+) -> str | None:
     sources = candidate_sources or {}
 
     scored: list[tuple[int, int, str]] = []
@@ -75,7 +105,7 @@ def select_recent_recall_date(
             parsed = datetime.fromisoformat(candidate)
         except ValueError:
             continue
-        if parsed.date() < oldest_allowed:
+        if oldest_allowed is not None and parsed.date() < oldest_allowed:
             continue
         if parsed.date() > current.date():
             continue

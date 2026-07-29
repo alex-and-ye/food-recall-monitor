@@ -95,6 +95,19 @@ class DateCandidatesTests(unittest.TestCase):
         )
         self.assertEqual(selected, "2026-07-03")
 
+    def test_select_recent_recall_date_rejects_future_dates(self) -> None:
+        selected = select_recent_recall_date(
+            ["2027-12-08", "2026-07-18", "2026-07-31"],
+            lookback_days=14,
+            now=datetime(2026, 7, 23, 12, 0, tzinfo=UTC),
+            candidate_sources={
+                "2027-12-08": "structured",
+                "2026-07-18": "generic",
+                "2026-07-31": "selector",
+            },
+        )
+        self.assertEqual(selected, "2026-07-18")
+
     def test_select_recent_recall_date_prefers_source_and_document_order(self) -> None:
         selected = select_recent_recall_date(
             ["2026-07-10", "2026-07-12"],
@@ -155,6 +168,49 @@ class DateCandidatesTests(unittest.TestCase):
 
         self.assertEqual(payload["published_date_candidates"][0], "2026-06-24")
         self.assertEqual(payload["published_date_candidate_sources"]["2026-06-24"], "structured")
+
+    def test_search_adaptive_dates_handles_time_prefixed_bylines_with_trailing_text(
+        self,
+    ) -> None:
+        reference = datetime(2026, 7, 23, 12, 0, tzinfo=UTC)
+        candidates = search_adaptive_dates(
+            "By Mia O'Hare 08:16, 18 Jul 2026 A series of food and product recall alerts",
+            languages=["en"],
+            reference_date=reference,
+        )
+        self.assertIn("2026-07-18", candidates)
+        self.assertNotIn("2026-07-01", candidates)
+
+    def test_detail_extractor_reads_meta_json_ld_and_time_text(self) -> None:
+        html = """
+        <html lang="en">
+          <head>
+            <meta property="article:published_time" content="2026-07-18T07:16:52Z"/>
+            <script type="application/ld+json">
+              {"@type":"NewsArticle","datePublished":"2026-07-18T07:16:52Z"}
+            </script>
+          </head>
+          <body>
+            <main>
+              <h1>Recall heading</h1>
+              <ul><li class="byline-date"><time>08:16, 18 Jul 2026</time></li></ul>
+              <p>A series of food recall alerts have been issued this week.</p>
+            </main>
+          </body>
+        </html>
+        """
+
+        payload = extract_detail_payload(
+            source_url="https://example.com/news/amp-article",
+            html=html,
+            date_languages=["en"],
+        )
+
+        self.assertIn("2026-07-18", payload["published_date_candidates"])
+        self.assertEqual(
+            payload["published_date_candidate_sources"]["2026-07-18"],
+            "structured",
+        )
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import time
@@ -347,7 +348,8 @@ async def discover_source_config(
             },
         )
 
-    listing_payload, listing_meta = _request_listing_urls(
+    listing_payload, listing_meta = await asyncio.to_thread(
+        _request_listing_urls,
         homepage_url=homepage_final_url,
         candidates=ranked,
     )
@@ -416,7 +418,8 @@ async def discover_source_config(
         all_child_links,
         limit=CHILD_LINK_SAMPLE_SIZE,
     )
-    pattern_payload, pattern_meta = _request_detail_patterns(
+    pattern_payload, pattern_meta = await asyncio.to_thread(
+        _request_detail_patterns,
         seed_urls=seed_urls,
         child_links=child_samples,
     )

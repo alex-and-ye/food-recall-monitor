@@ -78,7 +78,7 @@ function HomePageContent() {
 
   useAlertsChangeStream(() => {
     loadAlerts({ silent: true });
-  }, status !== "pending");
+  });
 
   useEffect(() => {
     setCurrentPage(1);

@@ -18,6 +18,8 @@ const nextConfig: NextConfig = {
   output: "standalone",
   ...(allowedDevOrigins.length > 0 ? { allowedDevOrigins } : {}),
   async rewrites() {
+    // SSE proxies live under app/api/stream/* so they never shadow
+    // /api/alerts or /api/incidents list endpoints rewritten here.
     return [
       {
         source: "/api/:path*",

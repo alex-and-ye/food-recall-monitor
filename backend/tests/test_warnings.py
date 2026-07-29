@@ -1,7 +1,11 @@
 import unittest
 
 from db.chroma_warnings_client import InMemoryPipelineWarningsStore
-from models.pipeline_warning import MAX_WARNINGS_RETAINED, PipelineWarningCreate
+from models.pipeline_warning import (
+    MAX_WARNING_MESSAGE_LENGTH,
+    MAX_WARNINGS_RETAINED,
+    PipelineWarningCreate,
+)
 from services.warnings import WarningsService
 
 
@@ -64,11 +68,11 @@ class WarningsServiceTests(unittest.TestCase):
     def test_emit_truncates_long_message(self) -> None:
         store = InMemoryPipelineWarningsStore()
         service = WarningsService(store)
-        long_message = "x" * 500
+        long_message = "x" * (MAX_WARNING_MESSAGE_LENGTH + 200)
 
         warning = service.emit(category="pipeline_failed", message=long_message)
 
-        self.assertLessEqual(len(warning.message), 280)
+        self.assertLessEqual(len(warning.message), MAX_WARNING_MESSAGE_LENGTH)
         self.assertTrue(warning.message.endswith("…"))
         self.assertEqual(service.get_summary().unacknowledged_count, 1)
 

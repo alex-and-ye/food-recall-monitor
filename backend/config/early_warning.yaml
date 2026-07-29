@@ -1,0 +1,105 @@
+# Keep discovery query/country policy here. Enable/disable early warning in
+# config/pipelines.yaml (together with the official pipeline switch).
+countries:
+  - code: GB
+    name: United Kingdom
+    aliases:
+      [UK, Great Britain, England, Scotland, Wales, Northern Ireland, Royaume-Uni, Vereinigtes Königreich]
+    languages: [en]
+    domains: [food.gov.uk]
+    enabled: true
+  - code: FR
+    name: France
+    aliases: [France, Frankreich]
+    languages: [fr]
+    domains: [gouv.fr]
+    enabled: true
+  - code: DE
+    name: Germany
+    aliases: [Deutschland, Allemagne]
+    languages: [de]
+    domains: [bund.de, lebensmittelwarnung.de]
+    enabled: true
+
+languages:
+  en:
+    recall: [food recall, product withdrawal, food safety alert, product recall]
+    food: [food, beverage, grocery]
+    outbreak: [foodborne outbreak]
+    illness: [food poisoning]
+    contamination: [food contamination, contaminated food]
+    investigation: [food safety investigation]
+  fr:
+    recall: [rappel de produit, alerte alimentaire, retrait de produit, rappel produit, rappel]
+    food: [aliment, boisson, alimentaire, oeufs, viande, fromage]
+    outbreak: [éclosion d'origine alimentaire]
+    illness: [intoxication alimentaire]
+    contamination: [contamination alimentaire, contaminé]
+    investigation: [enquête de sécurité alimentaire]
+  de:
+    recall: [lebensmittelwarnung, produktrückruf, rückrufaktion, rückruf]
+    food: [lebensmittel, getränk]
+    outbreak: [lebensmittelbedingter ausbruch]
+    illness: [lebensmittelvergiftung]
+    contamination: [verunreinigung, kontaminiert]
+    investigation: [lebensmitteluntersuchung]
+
+domains:
+  profiles:
+    food.gov.uk: {source_kind: official_recall, trust_tier: official}
+    gouv.fr: {source_kind: government_investigation, trust_tier: official}
+    lebensmittelwarnung.de: {source_kind: official_recall, trust_tier: official}
+    who.int: {source_kind: who_fao, trust_tier: high}
+    fao.org: {source_kind: who_fao, trust_tier: high}
+    foodsafetynews.com: {source_kind: trade_publication, trust_tier: medium}
+
+budgets:
+  queries_per_run: 12
+  results_per_query: 10
+  candidates_per_run: 200
+  max_pages_per_query: 1
+
+brave:
+  freshness: pw
+  timeout_seconds: 15
+  minimum_interval_seconds: 1
+  max_retries: 3
+  backoff_seconds: 0.5
+  jitter_seconds: 0.2
+
+crawl:
+  concurrency: 4
+  minimum_text_characters: 240
+  timeout_seconds: 20
+  max_attempts: 3
+  retry_delay_minutes: 360
+
+incident_confidence:
+  source_kind_base_weights:
+    official_recall: 100
+    government_investigation: 95
+    who_fao: 90
+    company_release: 85
+    major_news: 75
+    trade_publication: 65
+    unknown: 40
+    blog: 20
+  corroboration_per_source: 5
+  corroboration_cap: 15
+  explicit_product_modifier: 4
+  explicit_hazard_modifier: 4
+  explicit_date_modifier: 2
+  trusted_domain_modifier: 5
+  stale_reporting_modifier: -10
+  vague_reporting_modifier: -10
+  unofficial_cap: 99
+
+# Keep disabled until similarity thresholds have been calibrated against
+# labelled duplicate/non-duplicate incident fixtures.
+semantic_matching:
+  enabled: true
+  collection_name: safety_event_similarity_v1
+  model_name: all-MiniLM-L6-v2
+  review_threshold: 0.82
+  auto_merge_threshold: 0.92
+  result_limit: 10
