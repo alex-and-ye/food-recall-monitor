@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { getIncidentsEventsUrl, isMockDataMode } from "@/services/api/client";
+import { getIncidentsEventsUrl } from "@/services/api/client";
 
 const REFRESH_DEBOUNCE_MS = 300;
 const INITIAL_RETRY_MS = 1_000;
@@ -18,7 +18,7 @@ export function useIncidentsChangeStream(
   }, [onIncidentsChanged]);
 
   useEffect(() => {
-    if (!enabled || isMockDataMode()) {
+    if (!enabled) {
       return;
     }
 
