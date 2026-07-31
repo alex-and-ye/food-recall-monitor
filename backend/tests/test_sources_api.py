@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import unittest
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
@@ -8,7 +6,6 @@ from db.chroma_source_client import InMemoryScraperSourceConfigStore
 from models.scraper_config import ScraperHints, ScraperSourceConfig
 from models.source_registry import SourceCreateRequest, SourceRegistryDocument
 from services.sources import SourcesService
-
 
 def _ready_document(name: str = "demo") -> SourceRegistryDocument:
     now = datetime.now(timezone.utc)
@@ -26,7 +23,6 @@ def _ready_document(name: str = "demo") -> SourceRegistryDocument:
         discovered_at=now,
         updated_at=now,
     )
-
 
 class SourcesServiceTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
@@ -79,7 +75,6 @@ class SourcesServiceTests(unittest.IsolatedAsyncioTestCase):
         ):
             result = await self.service.rediscover_source("demo")
         self.assertEqual(result.config.seed_urls, ["https://demo.example/new-recalls"])
-
 
 if __name__ == "__main__":
     unittest.main()

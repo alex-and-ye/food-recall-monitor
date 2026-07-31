@@ -1,12 +1,9 @@
-from __future__ import annotations
-
 from datetime import datetime, timezone
 from enum import StrEnum
 
 from pydantic import BaseModel, Field, field_validator
 
 from models.scraper_config import ScraperSourceConfig
-
 
 class DiscoveryStatus(StrEnum):
     READY = "ready"
@@ -68,7 +65,6 @@ class SourceRegistryDocument(BaseModel):
                 "discovered_at": self.discovered_at or now,
             }
         )
-
 
 class SourceCreateRequest(BaseModel):
     name: str = Field(min_length=1)

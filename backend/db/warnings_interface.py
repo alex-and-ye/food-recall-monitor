@@ -1,9 +1,6 @@
-from __future__ import annotations
-
 from abc import ABC, abstractmethod
 
 from models.pipeline_warning import PipelineWarning, PipelineWarningCreate
-
 
 class PipelineWarningsDBInterface(ABC):
     @abstractmethod

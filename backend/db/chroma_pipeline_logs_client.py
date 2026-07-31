@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import cast
 
 import chromadb
@@ -11,7 +9,6 @@ from models.pipeline_run_log import (
     PipelineKind,
     PipelineRunLogEvent,
 )
-
 
 class PipelineRunLogsChromaClient(PipelineRunLogsDBInterface):
     COLLECTION_NAME = "pipeline_run_logs_collection"
@@ -91,7 +88,6 @@ class PipelineRunLogsChromaClient(PipelineRunLogsDBInterface):
         stale_ids = [event.event_id for event in events[:overflow]]
         if stale_ids:
             self.collection.delete(ids=stale_ids)
-
 
 class InMemoryPipelineRunLogsStore(PipelineRunLogsDBInterface):
     def __init__(self) -> None:

@@ -3,7 +3,6 @@ import unittest
 
 from services.alert_events import AlertChangeBroadcaster
 
-
 class AlertChangeBroadcasterTests(unittest.IsolatedAsyncioTestCase):
     async def test_notify_delivers_event_to_subscriber(self) -> None:
         broadcaster = AlertChangeBroadcaster()
@@ -46,7 +45,6 @@ class AlertChangeBroadcasterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(event.saved_count, 1)
 
         await stream.aclose()
-
 
 if __name__ == "__main__":
     unittest.main()

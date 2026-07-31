@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 # Homepage / listing entry URLs only. Full scraper config is discovered on first use.
 from models.food_recall_alert import WebSource
 

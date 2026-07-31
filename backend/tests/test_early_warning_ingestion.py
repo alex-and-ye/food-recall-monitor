@@ -12,7 +12,6 @@ from services.early_warning.ingestion import (
     ingest_early_warning_url,
 )
 
-
 class EarlyWarningIngestionTests(unittest.IsolatedAsyncioTestCase):
     async def test_static_html_produces_provenance_and_content_hash(self) -> None:
         html = """
@@ -137,7 +136,6 @@ class EarlyWarningIngestionTests(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(selected, "2026-06-01")
-
 
 if __name__ == "__main__":
     unittest.main()

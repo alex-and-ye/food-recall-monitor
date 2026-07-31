@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import json
 import re
 from typing import Any, Iterable
@@ -33,7 +31,6 @@ _JSON_LD_DATE_KEYS = frozenset(
         "uploaddate",
     }
 )
-
 
 def extract_detail_payload(
     *,
@@ -96,14 +93,12 @@ def extract_detail_payload(
         ),
     }
 
-
 def _html_language(soup: BeautifulSoup) -> str | None:
     html_tag = soup.find("html")
     if html_tag is None:
         return None
     lang = html_tag.get("lang")
     return str(lang).strip() if lang else None
-
 
 def _content_root(soup: BeautifulSoup) -> Tag:
     main_tag = soup.select_one("body main") or soup.find("main")
@@ -113,7 +108,6 @@ def _content_root(soup: BeautifulSoup) -> Tag:
         return soup.body
     return soup
 
-
 def _datetime_attribute_values(node: Tag) -> list[str]:
     values: list[str] = []
     for attribute in ("datetime", "content", "data-date", "data-published", "data-datetime"):
@@ -121,7 +115,6 @@ def _datetime_attribute_values(node: Tag) -> list[str]:
         if raw_value:
             values.append(str(raw_value))
     return values
-
 
 def _structured_dates_in_document(soup: BeautifulSoup, content_root: Tag) -> list[str]:
     values: list[str] = []
@@ -139,7 +132,6 @@ def _structured_dates_in_document(soup: BeautifulSoup, content_root: Tag) -> lis
         values.extend(_json_ld_date_values(raw))
     return values
 
-
 def _time_element_texts(content_root: Tag) -> list[str]:
     """Collect <time> body text when pages omit a machine-readable datetime attr."""
     values: list[str] = []
@@ -148,7 +140,6 @@ def _time_element_texts(content_root: Tag) -> list[str]:
         if text:
             values.append(text)
     return values
-
 
 def _json_ld_date_values(raw: str) -> list[str]:
     text = raw.strip()
@@ -162,7 +153,6 @@ def _json_ld_date_values(raw: str) -> list[str]:
     _collect_json_ld_dates(payload, values)
     return values
 
-
 def _collect_json_ld_dates(node: object, values: list[str]) -> None:
     if isinstance(node, dict):
         for key, value in node.items():
@@ -175,7 +165,6 @@ def _collect_json_ld_dates(node: object, values: list[str]) -> None:
         for item in node:
             _collect_json_ld_dates(item, values)
 
-
 def _merge_date_candidates(*candidate_groups: list[str]) -> list[str]:
     seen: set[str] = set()
     merged: list[str] = []
@@ -186,7 +175,6 @@ def _merge_date_candidates(*candidate_groups: list[str]) -> list[str]:
             seen.add(candidate)
             merged.append(candidate)
     return merged
-
 
 def _date_candidate_sources(
     structured_candidates: list[str],

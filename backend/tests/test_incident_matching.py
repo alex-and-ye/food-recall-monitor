@@ -19,7 +19,6 @@ from services.early_warning.matching import (
 from services.early_warning.incidents import EarlyWarningIncidentService
 from services.early_warning.verification import IncidentVerificationService
 
-
 class IncidentMatcherTests(unittest.TestCase):
     def test_canonical_url_match_is_checked_first(self) -> None:
         incoming = _incident(
@@ -186,7 +185,6 @@ class IncidentMatcherTests(unittest.TestCase):
         self.assertTrue(result.requires_review)
         self.assertIn("product_name", result.entity_overlap)
 
-
 class VerificationTests(unittest.TestCase):
     def test_official_link_updates_only_incident(self) -> None:
         store = InMemoryEarlyWarningIncidentStore()
@@ -210,7 +208,6 @@ class VerificationTests(unittest.TestCase):
         self.assertEqual(result.incident.linked_official_alert_ids, ["official-1"])
         self.assertEqual(official, original_official)
         self.assertEqual(result.incident.first_discovered_at, incident.first_discovered_at)
-
 
 class SemanticIndexGuardTests(unittest.TestCase):
     def test_high_similarity_merges_only_with_primary_entity_overlap(self) -> None:
@@ -245,7 +242,6 @@ class SemanticIndexGuardTests(unittest.TestCase):
             any(reason.startswith("possible_duplicate:existing:") for reason in saved.processing_errors)
         )
 
-
 class _FakeSemanticIndex:
     def __init__(self, record_id: str, score: float) -> None:
         self.record_id = record_id
@@ -257,7 +253,6 @@ class _FakeSemanticIndex:
 
     def upsert_incident(self, incident: EarlyWarningIncident) -> None:
         self.upserted.append(incident.incident_id)
-
 
 def _incident(
     incident_id: str,
@@ -300,7 +295,6 @@ def _incident(
         ],
     )
 
-
 def _official_alert() -> FoodRecallAlert:
     return FoodRecallAlert(
         alert_id="official-1",
@@ -317,7 +311,6 @@ def _official_alert() -> FoodRecallAlert:
         source_url="https://inspection.example.test/recall",
         affected_regions=["Canada"],
     )
-
 
 if __name__ == "__main__":
     unittest.main()

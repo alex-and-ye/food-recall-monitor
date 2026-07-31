@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import hashlib
 import re
 import unicodedata
@@ -11,7 +9,6 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from models.early_warning_incident import EarlyWarningIncident, IncidentEvidence
 from models.food_recall_alert import FoodRecallAlert
-
 
 TRACKING_QUERY_KEYS = frozenset(
     {
@@ -29,14 +26,12 @@ TRACKING_QUERY_KEYS = frozenset(
     }
 )
 
-
 class MatchKind(StrEnum):
     EXACT_URL = "exact_url"
     CONTENT_HASH = "content_hash"
     TITLE = "title"
     ENTITY_DATE = "entity_date"
     SEMANTIC = "semantic"
-
 
 @dataclass(frozen=True)
 class MatchResult:
@@ -46,9 +41,7 @@ class MatchResult:
     entity_overlap: tuple[str, ...] = ()
     requires_review: bool = False
 
-
 SemanticScorer = Callable[[EarlyWarningIncident, EarlyWarningIncident], float | None]
-
 
 def canonicalize_url(url: str) -> str:
     text = url.strip()
@@ -80,13 +73,11 @@ def canonicalize_url(url: str) -> str:
     )
     return urlunsplit((scheme, netloc, path, query, ""))
 
-
 def normalized_title_fingerprint(title: str) -> str:
     normalized = normalize_text(title)
     if not normalized:
         return ""
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
-
 
 def normalize_text(value: str) -> str:
     normalized = unicodedata.normalize("NFKD", value)
@@ -94,7 +85,6 @@ def normalize_text(value: str) -> str:
     # Treat "&" as "and" so "Waitrose & Partners" matches "Waitrose and Partners".
     ascii_text = ascii_text.replace("&", " and ")
     return " ".join(re.findall(r"\w+", ascii_text.casefold()))
-
 
 def entity_text_match(left: str, right: str, *, min_tokens: int = 2) -> bool:
     """Match entity strings exactly or when one token-set contains the other."""
@@ -114,7 +104,6 @@ def entity_text_match(left: str, right: str, *, min_tokens: int = 2) -> bool:
     # Require enough shared specificity to avoid collapsing on a single token,
     # unless the caller lowers min_tokens (e.g. company after a product match).
     return len(shorter) >= min_tokens and shorter <= longer
-
 
 class IncidentMatcher:
     """Matches incidents in increasing-cost order."""
@@ -199,7 +188,6 @@ class IncidentMatcher:
             key=lambda result: (-result.score, result.matched_id),
         )[0]
 
-
 def find_incident_match(
     incoming: EarlyWarningIncident,
     candidates: Iterable[EarlyWarningIncident],
@@ -211,7 +199,6 @@ def find_incident_match(
         date_window_days=date_window_days,
         semantic_scorer=semantic_scorer,
     ).find_match(incoming, candidates)
-
 
 def find_official_match(
     incident: EarlyWarningIncident,
@@ -246,7 +233,6 @@ def find_official_match(
         )
     return None
 
-
 def entity_overlap(
     left: EarlyWarningIncident,
     right: EarlyWarningIncident,
@@ -269,7 +255,6 @@ def entity_overlap(
         overlaps.append("hazard_type")
     return tuple(overlaps)
 
-
 def _entity_date_match(
     left: EarlyWarningIncident,
     right: EarlyWarningIncident,
@@ -286,26 +271,21 @@ def _entity_date_match(
         return "product_name" in overlap and "company_name" in overlap
     return _dates_within(left.publication_date, right.publication_date, date_window_days)
 
-
 def _dates_within(left: date | None, right: date | None, window_days: int) -> bool:
     if left is None or right is None:
         return False
     return abs((left - right).days) <= window_days
 
-
 def _has_exact_url(left: EarlyWarningIncident, right: EarlyWarningIncident) -> bool:
     return bool(_incident_urls(left).intersection(_incident_urls(right)))
-
 
 def _has_exact_content_hash(left: EarlyWarningIncident, right: EarlyWarningIncident) -> bool:
     left_hashes = _content_hashes(left.evidence)
     return bool(left_hashes.intersection(_content_hashes(right.evidence)))
 
-
 def _has_exact_title(left: EarlyWarningIncident, right: EarlyWarningIncident) -> bool:
     left_titles = _title_fingerprints(left.evidence)
     return bool(left_titles.intersection(_title_fingerprints(right.evidence)))
-
 
 def _incident_urls(incident: EarlyWarningIncident) -> set[str]:
     urls = {incident.primary_source_url}
@@ -314,14 +294,12 @@ def _incident_urls(incident: EarlyWarningIncident) -> set[str]:
         urls.update(evidence.redirected_url_aliases)
     return {canonicalize_url(url) for url in urls if canonicalize_url(url)}
 
-
 def _content_hashes(evidence: Iterable[IncidentEvidence]) -> set[str]:
     return {
         item.content_hash.strip().lower()
         for item in evidence
         if item.content_hash.strip()
     }
-
 
 def _title_fingerprints(evidence: Iterable[IncidentEvidence]) -> set[str]:
     return {

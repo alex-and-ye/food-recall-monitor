@@ -1,10 +1,8 @@
-import asyncio
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from bootstrap import run_early_warning_bootstrap
-
 
 class EarlyWarningBootstrapTests(unittest.IsolatedAsyncioTestCase):
     async def test_empty_incidents_db_starts_bootstrap_run(self) -> None:
@@ -30,7 +28,6 @@ class EarlyWarningBootstrapTests(unittest.IsolatedAsyncioTestCase):
             await run_early_warning_bootstrap(incident_service, pipeline_service)  # type: ignore[arg-type]
 
         create_task.assert_not_called()
-
 
 if __name__ == "__main__":
     unittest.main()

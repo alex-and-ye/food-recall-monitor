@@ -1,8 +1,5 @@
-from __future__ import annotations
-
 from config.early_warning import EarlyWarningConfig
 from models.search_candidate import SearchQuery
-
 
 class QueryGenerator:
     def __init__(self, config: EarlyWarningConfig) -> None:
@@ -18,7 +15,6 @@ class QueryGenerator:
         budget: int | None = None,
     ) -> list[SearchQuery]:
         return generate_queries(self._config, rotation=rotation, budget=budget)
-
 
 def build_query_catalog(config: EarlyWarningConfig) -> list[SearchQuery]:
     """Build discovery queries with recall intents first.
@@ -95,7 +91,6 @@ def build_query_catalog(config: EarlyWarningConfig) -> list[SearchQuery]:
                     )
     return _interleave_country_queries(queries_by_country)
 
-
 def generate_queries(
     config: EarlyWarningConfig,
     *,
@@ -116,7 +111,6 @@ def generate_queries(
     count = min(limit, len(catalog))
     start = (rotation * count) % len(catalog)
     return [catalog[(start + index) % len(catalog)] for index in range(count)]
-
 
 def _interleave_country_queries(
     queries_by_country: dict[str, list[SearchQuery]],

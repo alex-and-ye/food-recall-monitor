@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import hashlib
 import uuid
 from collections import Counter
@@ -29,9 +27,7 @@ from services.early_warning.matching import (
     normalize_text,
 )
 
-
 INCIDENT_ID_NAMESPACE = uuid.UUID("257e537e-d840-531f-aec4-5ca8f741fd37")
-
 
 class IncidentSemanticIndex(Protocol):
     def query_incidents(
@@ -42,7 +38,6 @@ class IncidentSemanticIndex(Protocol):
     ) -> list[object]: ...
 
     def upsert_incident(self, incident: EarlyWarningIncident) -> None: ...
-
 
 class EarlyWarningIncidentService:
     def __init__(
@@ -326,7 +321,6 @@ class EarlyWarningIncidentService:
 
 IncidentsService = EarlyWarningIncidentService
 
-
 def build_cluster_fingerprint(
     incident: EarlyWarningIncidentCreate | EarlyWarningIncident,
 ) -> str:
@@ -344,10 +338,8 @@ def build_cluster_fingerprint(
     raw = "\0".join(entity_parts)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
-
 def build_incident_id(cluster_fingerprint: str) -> str:
     return str(uuid.uuid5(INCIDENT_ID_NAMESPACE, cluster_fingerprint))
-
 
 def _preferred_country(*candidates: str) -> str:
     """Prefer the more descriptive non-empty country label without alias maps."""
@@ -357,7 +349,6 @@ def _preferred_country(*candidates: str) -> str:
         if len(text) > len(best):
             best = text
     return best
-
 
 def _preferred_entity_label(*candidates: str) -> str:
     """Prefer the more specific non-empty entity label (more tokens / longer text)."""
@@ -372,7 +363,6 @@ def _preferred_entity_label(*candidates: str) -> str:
             best = text
             best_tokens = token_count
     return best
-
 
 def _with_derived_confidence(
     incident: EarlyWarningIncident,
@@ -390,7 +380,6 @@ def _with_derived_confidence(
             "confidence_reasons": list(result.reasons),
         }
     )
-
 
 def _ensure_primary_evidence(
     evidence: list[IncidentEvidence],
@@ -413,7 +402,6 @@ def _ensure_primary_evidence(
             )
         )
     return _merge_evidence([], evidence)
-
 
 def _merge_evidence(
     existing: list[IncidentEvidence],
@@ -438,7 +426,6 @@ def _merge_evidence(
         by_url[key] = IncidentEvidence.model_validate(payload)
     return [by_url[key] for key in sorted(by_url)]
 
-
 def _independent_source_count(evidence: list[IncidentEvidence]) -> int:
     identities = {
         (item.domain.strip().casefold() or canonicalize_url(item.url))
@@ -447,17 +434,14 @@ def _independent_source_count(evidence: list[IncidentEvidence]) -> int:
     }
     return max(1, len(identities))
 
-
 def _highest_weight_source_kind(source_kinds: list[SourceKind]) -> SourceKind:
     return max(
         source_kinds or [SourceKind.UNKNOWN],
         key=lambda source_kind: (SOURCE_KIND_BASE_WEIGHTS[source_kind], source_kind.value),
     )
 
-
 def _ordered_union(left: list[str], right: list[str]) -> list[str]:
     return list(dict.fromkeys([*left, *right]))
-
 
 def _sort_incidents(
     incidents: list[EarlyWarningIncident],

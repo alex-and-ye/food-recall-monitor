@@ -6,13 +6,6 @@ import type {
 } from "@/types/incident";
 import type { PipelineWarning, PipelineWarningsSummary } from "@/types/warning";
 import { ApiError } from "@/services/api/errors";
-// TODO: Remove this before final project delivery
-import {
-  fetchMockAlertById,
-  fetchMockAlerts,
-  fetchMockAlertsVersion,
-  fetchMockStats,
-} from "@/services/mockData";
 
 export { ApiError } from "@/services/api/errors";
 
@@ -28,16 +21,6 @@ export function getAlertsEventsUrl(): string {
 
 export function getIncidentsEventsUrl(): string {
   return `${API_BASE_URL}/stream/incidents`;
-}
-
-// TODO: Remove this before final project delivery
-export function isMockDataMode(): boolean {
-  return process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true";
-}
-
-// TODO: Remove this before final project delivery
-function shouldUseMockData(): boolean {
-  return isMockDataMode();
 }
 
 interface AlertsResponse {
@@ -110,11 +93,6 @@ function buildQueryString(
 export async function getAlerts(
   params: GetAlertsParams = {},
 ): Promise<FoodRecallAlert[]> {
-  // TODO: Remove this before final project delivery
-  if (shouldUseMockData()) {
-    return fetchMockAlerts(params);
-  }
-
   const query = buildQueryString({
     search: params.search,
     risk_level: params.risk_level,
@@ -127,29 +105,14 @@ export async function getAlerts(
 }
 
 export async function getAlertStats(): Promise<FoodRecallAlertStats> {
-  // TODO: Remove this before final project delivery
-  if (shouldUseMockData()) {
-    return fetchMockStats();
-  }
-
   return apiFetch<FoodRecallAlertStats>("/alerts/stats");
 }
 
 export async function getAlertsVersion(): Promise<FoodRecallAlertsVersion> {
-  // TODO: Remove this before final project delivery
-  if (shouldUseMockData()) {
-    return fetchMockAlertsVersion();
-  }
-
   return apiFetch<FoodRecallAlertsVersion>("/alerts/version");
 }
 
 export async function getAlertById(id: string): Promise<FoodRecallAlert> {
-  // TODO: Remove this before final project delivery
-  if (shouldUseMockData()) {
-    return fetchMockAlertById(id);
-  }
-
   return apiFetch<FoodRecallAlert>(`/alerts/${encodeURIComponent(id)}`);
 }
 

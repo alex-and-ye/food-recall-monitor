@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Any, TypedDict
 
 from models.food_recall_alert import FoodRecallAlertCreate

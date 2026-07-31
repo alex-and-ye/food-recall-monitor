@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import unittest
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
@@ -11,7 +9,6 @@ from db.chroma_source_client import InMemoryScraperSourceConfigStore
 from models.scraped_record import ScrapedRecallRecord
 from models.scraper_config import ScraperHints, ScraperSourceConfig
 from models.source_registry import SourceRegistryDocument
-
 
 def _document(
     *,
@@ -36,7 +33,6 @@ def _document(
         discovered_at=now,
         updated_at=now,
     )
-
 
 class ResolveSourceConfigTests(unittest.IsolatedAsyncioTestCase):
     async def test_resolve_returns_ready_document(self) -> None:
@@ -66,7 +62,6 @@ class ResolveSourceConfigTests(unittest.IsolatedAsyncioTestCase):
         discovery.assert_awaited_once()
         self.assertEqual(resolved.config.seed_urls, ["https://example.com/new-listing"])
         self.assertEqual(store.get_source("uk").config.seed_urls, ["https://example.com/new-listing"])
-
 
 class FetchSourceRecordsRegistryTests(unittest.IsolatedAsyncioTestCase):
     async def test_fetch_source_records_uses_db_config(self) -> None:
@@ -135,7 +130,6 @@ class FetchSourceRecordsRegistryTests(unittest.IsolatedAsyncioTestCase):
         discovery.assert_awaited_once()
         self.assertEqual(len(records), 1)
         self.assertEqual(store.get_source("uk").config.seed_urls, ["https://example.com/better-listing"])
-
 
 if __name__ == "__main__":
     unittest.main()

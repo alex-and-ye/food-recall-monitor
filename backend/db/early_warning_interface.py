@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from abc import ABC, abstractmethod
 
 from models.early_warning_incident import (
@@ -8,7 +6,6 @@ from models.early_warning_incident import (
     SourceKind,
     VerificationStatus,
 )
-
 
 class EarlyWarningIncidentsDBInterface(ABC):
     @abstractmethod
@@ -38,7 +35,6 @@ class EarlyWarningIncidentsDBInterface(ABC):
     @abstractmethod
     def count_incidents(self) -> int:
         pass
-
 
 # Singular alias retained for callers that treat the repository as one aggregate.
 EarlyWarningIncidentDBInterface = EarlyWarningIncidentsDBInterface

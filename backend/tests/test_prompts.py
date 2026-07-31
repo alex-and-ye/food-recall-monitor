@@ -6,7 +6,6 @@ from agents.prompts import (
     TRANSLATION_SYSTEM_PROMPT,
 )
 
-
 class PromptContractTests(unittest.TestCase):
     def test_translation_prompt_targets_scraped_record_envelope(self) -> None:
         self.assertIn('"record"', TRANSLATION_SYSTEM_PROMPT)
@@ -24,7 +23,6 @@ class PromptContractTests(unittest.TestCase):
         self.assertIn("Use an empty string if unavailable", STRUCTURING_SYSTEM_PROMPT)
         self.assertIn('"country_source"', STRUCTURING_SYSTEM_PROMPT)
         self.assertIn("Infer it from the source JSON context only", STRUCTURING_SYSTEM_PROMPT)
-
 
 if __name__ == "__main__":
     unittest.main()

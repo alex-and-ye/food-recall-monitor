@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import hashlib
 import ipaddress
 import posixpath
@@ -18,7 +16,6 @@ _TRACKING_QUERY_KEYS = {
     "ref_src",
 }
 _TRACKING_QUERY_PREFIXES = ("utm_",)
-
 
 def canonicalize_url(value: str) -> str:
     text = value.strip()
@@ -74,11 +71,9 @@ def canonicalize_url(value: str) -> str:
     query = urlencode(query_items, doseq=True)
     return urlunsplit((scheme, netloc, normalized_path, query, ""))
 
-
 def stable_search_id(*parts: str) -> str:
     payload = "\0".join(part.strip() for part in parts)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
-
 
 class SearchQuery(BaseModel):
     query_id: str
@@ -113,7 +108,6 @@ class SearchQuery(BaseModel):
             domain=normalized_domain,
         )
 
-
 class SearchCandidate(BaseModel):
     title: str = Field(min_length=1)
     url: str
@@ -137,7 +131,6 @@ class SearchCandidate(BaseModel):
     @classmethod
     def _validate_url(cls, value: object) -> str:
         return canonicalize_url(str(value))
-
 
 class SearchResponse(BaseModel):
     query: SearchQuery

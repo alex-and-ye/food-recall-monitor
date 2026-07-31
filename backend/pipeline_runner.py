@@ -28,7 +28,6 @@ async def run_pipeline_wrapper(pipeline_service: PipelineService, *, context: st
             context
         )
 
-
 async def run_early_warning_wrapper(
     pipeline_service: EarlyWarningPipelineService,
     *,

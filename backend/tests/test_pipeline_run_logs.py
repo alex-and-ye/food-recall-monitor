@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import unittest
 from datetime import date, datetime, timezone
 from unittest.mock import AsyncMock
@@ -13,7 +11,6 @@ from models.pipeline_run_log import (
     PipelineRunLogEvent,
 )
 from services.pipeline_progress import PipelineProgressTracker
-
 
 class InMemoryPipelineRunLogsStoreTests(unittest.TestCase):
     def test_append_and_list_by_run_and_kind(self) -> None:
@@ -67,7 +64,6 @@ class InMemoryPipelineRunLogsStoreTests(unittest.TestCase):
         self.assertNotIn("event-1", event_ids)
         self.assertNotIn("event-2", event_ids)
 
-
 class PipelineProgressTrackerDbTests(unittest.TestCase):
     def test_official_run_persists_start_and_complete_events(self) -> None:
         store = InMemoryPipelineRunLogsStore()
@@ -106,7 +102,6 @@ class PipelineProgressTrackerDbTests(unittest.TestCase):
         self.assertTrue(
             all(event.pipeline_kind == PipelineKind.EARLY_WARNING for event in events)
         )
-
 
 class EarlyWarningPipelineLoggingTests(unittest.IsolatedAsyncioTestCase):
     async def test_dry_run_writes_db_logs(self) -> None:
@@ -189,7 +184,6 @@ class EarlyWarningPipelineLoggingTests(unittest.IsolatedAsyncioTestCase):
             any(event.message == "Starting early-warning discovery" for event in events)
         )
         self.assertEqual(events[-1].message, "Early-warning pipeline run completed")
-
 
 if __name__ == "__main__":
     unittest.main()

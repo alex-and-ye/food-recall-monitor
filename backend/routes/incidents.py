@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import json
 from datetime import date
 
@@ -20,7 +18,6 @@ from services.early_warning.incidents import EarlyWarningIncidentService
 
 router = APIRouter(prefix="/api/incidents", tags=["early warnings"])
 VALID_SORTS = {"latest", "oldest", "confidence_high", "confidence_low"}
-
 
 @router.get("", response_model=dict, status_code=status.HTTP_200_OK)
 async def list_incidents(
@@ -55,20 +52,17 @@ async def list_incidents(
         )
     }
 
-
 @router.get("/stats", response_model=IncidentStatusCounts)
 async def incident_stats(
     service: EarlyWarningIncidentService = Depends(get_early_warning_incident_service),
 ) -> IncidentStatusCounts:
     return service.get_status_counts()
 
-
 @router.get("/version", response_model=IncidentsVersion)
 async def incident_version(
     service: EarlyWarningIncidentService = Depends(get_early_warning_incident_service),
 ) -> IncidentsVersion:
     return service.get_version()
-
 
 @router.get("/events")
 async def stream_incident_events(
@@ -91,7 +85,6 @@ async def stream_incident_events(
             "X-Accel-Buffering": "no",
         },
     )
-
 
 @router.get("/{incident_id}", response_model=EarlyWarningIncident)
 async def get_incident(

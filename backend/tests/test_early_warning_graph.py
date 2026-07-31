@@ -16,7 +16,6 @@ from services.early_warning.graph import (
     _to_incident,
 )
 
-
 class EarlyWarningGraphTests(unittest.IsolatedAsyncioTestCase):
     def test_metadata_relevance_prompt_requires_food_related_alert(self) -> None:
         captured: dict[str, str] = {}
@@ -339,7 +338,6 @@ class EarlyWarningGraphTests(unittest.IsolatedAsyncioTestCase):
     def test_taxonomy_rejects_mime_content_type(self) -> None:
         with self.assertRaises(ValueError):
             TaxonomyResult.model_validate({"content_type": "text/html", "reason": "x"})
-
 
 if __name__ == "__main__":
     unittest.main()

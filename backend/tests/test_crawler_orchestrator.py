@@ -6,7 +6,6 @@ import httpx
 from agents.fetchers.crawler.orchestrator import crawl_source_pages
 from models.scraper_config import ScraperHints, ScraperSourceConfig
 
-
 class CrawlerOrchestratorTests(unittest.IsolatedAsyncioTestCase):
     async def test_orchestrator_never_blocks_its_seed_url(self) -> None:
         source_config = ScraperSourceConfig(
@@ -213,7 +212,6 @@ class CrawlerOrchestratorTests(unittest.IsolatedAsyncioTestCase):
             ],
         )
         self.assertEqual([page["source_url"] for page in pages], detail_links)
-
 
 if __name__ == "__main__":
     unittest.main()

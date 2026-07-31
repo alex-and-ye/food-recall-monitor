@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import asyncio
 import json
 import re
@@ -151,7 +149,6 @@ type). Choose exactly one of:
 Prefer major_news for ordinary news reporting. Do not use domain allowlists; judge
 from page content, byline, publisher name, and how the outlet presents itself."""
 
-
 class TaxonomyResult(BaseModel):
     content_type: ContentTaxonomy
     reason: str = ""
@@ -171,7 +168,6 @@ class TaxonomyResult(BaseModel):
     def _coerce_reason(cls, value: object) -> str:
         return _coerce_string(value)
 
-
 class BorderlineRelevance(BaseModel):
     relevant: bool
     reason: str = ""
@@ -180,7 +176,6 @@ class BorderlineRelevance(BaseModel):
     @classmethod
     def _coerce_reason(cls, value: object) -> str:
         return _coerce_string(value)
-
 
 class IncidentExtraction(BaseModel):
     product_name: str = ""
@@ -235,7 +230,6 @@ class IncidentExtraction(BaseModel):
             return SourceKind.UNKNOWN
         return text
 
-
 def _coerce_string(value: object) -> str:
     if value is None:
         return ""
@@ -248,7 +242,6 @@ def _coerce_string(value: object) -> str:
     if isinstance(value, dict):
         return json.dumps(value, ensure_ascii=False)
     return str(value).strip()
-
 
 class EarlyWarningProcessingService:
     def __init__(
@@ -402,10 +395,8 @@ class EarlyWarningProcessingService:
                 last_error = exc
         raise AgentOutputError(f"early-warning incident extraction failed: {last_error}")
 
-
 def create_early_warning_graph() -> EarlyWarningProcessingService:
     return EarlyWarningProcessingService()
-
 
 def _normalize_taxonomy_payload(payload: object) -> dict[str, Any]:
     if not isinstance(payload, dict):
@@ -418,7 +409,6 @@ def _normalize_taxonomy_payload(payload: object) -> dict[str, Any]:
                 break
     return data
 
-
 def _clean_header_value(value: str, *, maximum: int = 160) -> str:
     """Keep card headers concise and free of copied markup/JSON."""
     text = " ".join(str(value or "").split()).strip(" \t\r\n-–—|:;\"'")
@@ -426,14 +416,12 @@ def _clean_header_value(value: str, *, maximum: int = 160) -> str:
         return ""
     return text
 
-
 def _requires_specific_product(content_type: ContentTaxonomy) -> bool:
     return content_type in {
         "official_recall",
         "potential_recall",
         "company_withdrawal",
     }
-
 
 def _is_specific_product(product_name: str) -> bool:
     text = _clean_header_value(product_name)
@@ -457,7 +445,6 @@ def _is_specific_product(product_name: str) -> bool:
     separators = text.count(",") + text.count(";") + text.count("|")
     return separators < 4 and normalized.count(" and ") < 4
 
-
 def _is_explicitly_non_food(extraction: IncidentExtraction) -> bool:
     """Block clearly non-food recalls even if an LLM assigns food taxonomy."""
     text = " ".join(
@@ -477,7 +464,6 @@ def _is_explicitly_non_food(extraction: IncidentExtraction) -> bool:
         re.search(rf"\b{re.escape(term)}\b", normalized) is not None
         for term in _NON_FOOD_PRODUCT_TERMS
     )
-
 
 def _to_incident(
     record: ScrapedRecallRecord,
@@ -536,7 +522,6 @@ def _to_incident(
         extraction_completeness=extraction.extraction_completeness,
     )
 
-
 def _resolve_source_profile(
     *,
     configured_kind: SourceKind,
@@ -555,7 +540,6 @@ def _resolve_source_profile(
         source_kind, TrustTier.UNKNOWN
     )
 
-
 def _safe_date(value: object) -> date | None:
     text = str(value or "").strip()
     if not text:
@@ -564,7 +548,6 @@ def _safe_date(value: object) -> date | None:
         return date.fromisoformat(text[:10])
     except ValueError:
         return None
-
 
 def _sanitize_publication_date(
     value: date | None,

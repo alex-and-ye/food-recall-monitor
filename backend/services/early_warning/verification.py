@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -10,10 +8,8 @@ from models.early_warning_incident import EarlyWarningIncident, VerificationStat
 from models.food_recall_alert import FoodRecallAlert
 from services.early_warning.matching import MatchResult, find_official_match
 
-
 class OfficialRecallReader(Protocol):
     def get_alerts(self) -> list[FoodRecallAlert]: ...
-
 
 @dataclass(frozen=True)
 class VerificationResult:
@@ -24,7 +20,6 @@ class VerificationResult:
     @property
     def confirmed(self) -> bool:
         return self.official_alert is not None
-
 
 class IncidentVerificationService:
     """Links official recalls by updating incidents only."""
@@ -86,9 +81,7 @@ class IncidentVerificationService:
             return []
         return self.official_store.get_alerts()
 
-
 VerificationService = IncidentVerificationService
-
 
 def link_official_recall(
     incident: EarlyWarningIncident,

@@ -1,10 +1,7 @@
-from __future__ import annotations
-
 import asyncio
 import logging
 
 LOGGER = logging.getLogger(__name__)
-
 
 async def fetch_browser_html(
     url: str,
@@ -39,7 +36,6 @@ async def fetch_browser_html(
             timeout_ms=timeout_ms,
         )
 
-
 async def _fetch_with_async_playwright(
     url: str,
     *,
@@ -73,7 +69,6 @@ async def _fetch_with_async_playwright(
         raise RuntimeError(f"Playwright browser fetch failed for {url}: {exc}") from exc
 
     return html, final_url
-
 
 def _fetch_browser_html_sync(
     url: str,

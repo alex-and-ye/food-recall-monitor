@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from db.warnings_interface import PipelineWarningsDBInterface
 from models.pipeline_warning import (
     MAX_WARNING_MESSAGE_LENGTH,
@@ -8,7 +6,6 @@ from models.pipeline_warning import (
     PipelineWarningsSummary,
     WarningCategory,
 )
-
 
 class WarningsService:
     def __init__(self, db: PipelineWarningsDBInterface) -> None:
@@ -42,7 +39,6 @@ class WarningsService:
 
     def acknowledge_all(self) -> int:
         return self.db.acknowledge_all()
-
 
 def _truncate_message(message: str) -> str:
     text = " ".join(message.strip().split())

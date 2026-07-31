@@ -6,7 +6,6 @@ from services.early_warning.confidence import (
     calculate_confidence,
 )
 
-
 class ConfidenceTests(unittest.TestCase):
     def test_requested_source_kind_base_weights(self) -> None:
         expected = {
@@ -53,7 +52,6 @@ class ConfidenceTests(unittest.TestCase):
 
         self.assertEqual(result.score, 100)
         self.assertIn("official recall match", result.reasons[0])
-
 
 if __name__ == "__main__":
     unittest.main()

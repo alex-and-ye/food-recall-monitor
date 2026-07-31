@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 class SourceFetchError(Exception):
     def __init__(self, failures: dict[str, str]) -> None:
         self.failures = failures

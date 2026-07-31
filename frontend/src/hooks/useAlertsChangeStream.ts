@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { getAlertsEventsUrl, isMockDataMode } from "@/services/api/client";
+import { getAlertsEventsUrl } from "@/services/api/client";
 
 const REFRESH_DEBOUNCE_MS = 300;
 const INITIAL_RETRY_MS = 1_000;
@@ -18,8 +18,7 @@ export function useAlertsChangeStream(
   }, [onAlertsChanged]);
 
   useEffect(() => {
-    // TODO: Remove this before final project delivery
-    if (!enabled || isMockDataMode()) {
+    if (!enabled) {
       return;
     }
 

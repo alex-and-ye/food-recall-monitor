@@ -1,9 +1,6 @@
-from __future__ import annotations
-
 from abc import ABC, abstractmethod
 
 from models.pipeline_run_log import PipelineKind, PipelineRunLogEvent
-
 
 class PipelineRunLogsDBInterface(ABC):
     @abstractmethod

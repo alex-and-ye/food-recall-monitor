@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from datetime import datetime, timezone
 from enum import StrEnum
 
@@ -7,12 +5,10 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from models.search_candidate import SearchCandidate, SearchQuery, canonicalize_url, stable_search_id
 
-
 class CandidateDecision(StrEnum):
     ACCEPT = "accept"
     REJECT = "reject"
     BORDERLINE = "borderline"
-
 
 class CandidateStatus(StrEnum):
     DISCOVERED = "discovered"
@@ -23,7 +19,6 @@ class CandidateStatus(StrEnum):
     CONVERTED = "converted"
     RETRYABLE = "retryable"
     UNSUPPORTED_CONTENT = "unsupported_content"
-
 
 class DiscoveryCandidate(BaseModel):
     candidate_id: str = ""
@@ -190,7 +185,6 @@ class DiscoveryCandidate(BaseModel):
             updates["linked_incident_id"] = linked_incident_id.strip()
         return self.model_copy(update=updates)
 
-
 class EarlyWarningQueryState(BaseModel):
     query: SearchQuery
     last_searched_at: datetime | None = None
@@ -222,17 +216,14 @@ class EarlyWarningQueryState(BaseModel):
             }
         )
 
-
 _DECISION_RANK = {
     CandidateDecision.REJECT: 0,
     CandidateDecision.BORDERLINE: 1,
     CandidateDecision.ACCEPT: 2,
 }
 
-
 def _stronger_decision(
     left: CandidateDecision,
     right: CandidateDecision,
 ) -> CandidateDecision:
     return left if _DECISION_RANK[left] >= _DECISION_RANK[right] else right
-

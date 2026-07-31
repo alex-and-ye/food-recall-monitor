@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import hashlib
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -54,10 +52,8 @@ _DETAIL_LINK_SIGNALS = (
 )
 _MAX_DISCOVERED_DETAIL_LINKS = 50
 
-
 class EarlyWarningIngestionError(ValueError):
     pass
-
 
 class UnsupportedContentError(EarlyWarningIngestionError):
     """Raised for MIME types that should be retained for a later adapter."""
@@ -65,7 +61,6 @@ class UnsupportedContentError(EarlyWarningIngestionError):
     def __init__(self, content_type: str) -> None:
         self.content_type = content_type
         super().__init__(f"unsupported content type: {content_type or 'unknown'}")
-
 
 async def ingest_early_warning_url(
     url: str,
@@ -160,7 +155,6 @@ async def ingest_early_warning_url(
     )
     return ScrapedRecallRecord(source_name=hostname or "early-warning", payload=payload)
 
-
 async def ingest_url(
     url: str,
     *,
@@ -177,11 +171,9 @@ async def ingest_url(
         timeout_seconds=timeout_seconds,
     )
 
-
 def _needs_browser_fallback(html: str, visible_text: str, minimum: int) -> bool:
     lowered = html.casefold()
     return len(visible_text) < minimum or any(marker in lowered for marker in _DYNAMIC_SHELL_MARKERS)
-
 
 def _page_title(html: str, payload: dict[str, Any]) -> str:
     soup = BeautifulSoup(html, "html.parser")
@@ -193,7 +185,6 @@ def _page_title(html: str, payload: dict[str, Any]) -> str:
     if heading is not None:
         return heading.get_text(" ", strip=True)
     return str(payload.get("source_url") or "")
-
 
 def _discover_detail_links(html: str, page_url: str) -> list[dict[str, str]]:
     """Collect likely recall-detail links for bounded listing-page expansion."""
@@ -220,7 +211,6 @@ def _discover_detail_links(html: str, page_url: str) -> list[dict[str, str]]:
         if len(discovered) >= _MAX_DISCOVERED_DETAIL_LINKS:
             break
     return [{"url": url, "title": title} for url, title in discovered.items()]
-
 
 def _preferred_publication_date(payload: dict[str, Any]) -> str | None:
     candidates = payload.get("published_date_candidates")

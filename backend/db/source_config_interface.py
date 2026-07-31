@@ -1,9 +1,6 @@
-from __future__ import annotations
-
 from abc import ABC, abstractmethod
 
 from models.source_registry import SourceRegistryDocument
-
 
 class ScraperSourceConfigDBInterface(ABC):
     @abstractmethod

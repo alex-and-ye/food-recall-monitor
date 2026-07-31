@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import unittest
 from unittest.mock import AsyncMock, patch
 
@@ -9,7 +7,6 @@ from agents.fetchers.crawler.orchestrator import crawl_source_pages
 from agents.fetchers.crawler.source_discovery import discover_source_config
 from models.scraper_config import ScraperHints, ScraperSourceConfig
 from services.pipeline_progress import _is_stage_end_message, _is_stage_start_message
-
 
 class PipelineProgressMessageTests(unittest.TestCase):
     def test_discovery_stage_boundaries(self) -> None:
@@ -27,7 +24,6 @@ class PipelineProgressMessageTests(unittest.TestCase):
         self.assertTrue(_is_stage_end_message("Completed source processing"))
         self.assertFalse(_is_stage_end_message("Detail payloads collected"))
         self.assertFalse(_is_stage_end_message("Accepted cleaned payload"))
-
 
 class CompactReporterCapture:
     def __init__(self) -> None:
@@ -49,7 +45,6 @@ class CompactReporterCapture:
                 "details": details or {},
             }
         )
-
 
 class DiscoveryLoggingTests(unittest.IsolatedAsyncioTestCase):
     async def test_discovery_emits_compact_milestone_logs(self) -> None:
@@ -124,7 +119,6 @@ class DiscoveryLoggingTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("used_listing_fallback", completed)
         self.assertNotIn("html_excerpt", completed)
 
-
 class CrawlLoggingTests(unittest.IsolatedAsyncioTestCase):
     async def test_crawl_logs_omit_html_and_full_payloads(self) -> None:
         source_config = ScraperSourceConfig(
@@ -178,7 +172,6 @@ class CrawlLoggingTests(unittest.IsolatedAsyncioTestCase):
         messages = [str(event["message"]) for event in reporter.events]
         self.assertIn("Starting crawl queue", messages)
         self.assertIn("Source crawl finished", messages)
-
 
 if __name__ == "__main__":
     unittest.main()

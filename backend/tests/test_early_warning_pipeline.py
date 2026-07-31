@@ -18,7 +18,6 @@ from services.early_warning.pipeline import (
 )
 from services.warnings import WarningsService
 
-
 class FakeSearchClient:
     async def search(self, query, **_kwargs):
         return SearchResponse(
@@ -36,7 +35,6 @@ class FakeSearchClient:
                 )
             ],
         )
-
 
 class FakeProcessor:
     def __init__(self) -> None:
@@ -57,7 +55,6 @@ class FakeProcessor:
     def classify_borderline(self, _candidate):
         self.metadata_reviews += 1
         return BorderlineRelevance(relevant=True, reason="food recall metadata")
-
 
 class EarlyWarningPipelineTests(unittest.IsolatedAsyncioTestCase):
     def test_target_country_matching_is_explicit(self) -> None:
@@ -353,7 +350,6 @@ class EarlyWarningPipelineTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(scrape_calls, 0)
         self.assertEqual(incident_store.count_incidents(), 0)
 
-
 class EarlyWarningPipelineWarningTests(unittest.IsolatedAsyncioTestCase):
     def _enabled_config(self):
         config = load_early_warning_config()
@@ -484,7 +480,6 @@ class EarlyWarningPipelineWarningTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(warnings), 1)
         self.assertEqual(warnings[0].category, "early_warning_record_skipped")
         self.assertIn("llm taxonomy failed", warnings[0].message)
-
 
 if __name__ == "__main__":
     unittest.main()

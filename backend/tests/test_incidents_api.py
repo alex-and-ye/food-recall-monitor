@@ -14,7 +14,6 @@ from models.early_warning_incident import (
 from routes.incidents import router
 from services.early_warning.incidents import EarlyWarningIncidentService
 
-
 class IncidentsApiTests(unittest.TestCase):
     def setUp(self) -> None:
         self.service = EarlyWarningIncidentService(InMemoryEarlyWarningIncidentStore())
@@ -85,7 +84,6 @@ class IncidentsApiTests(unittest.TestCase):
             [item["incident_id"] for item in filtered["incidents"]],
             ["newer"],
         )
-
 
 if __name__ == "__main__":
     unittest.main()

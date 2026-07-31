@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from collections.abc import Iterable
 from typing import cast
 
@@ -13,7 +11,6 @@ from models.early_warning_incident import (
     SourceKind,
     VerificationStatus,
 )
-
 
 class EarlyWarningIncidentsChromaClient(EarlyWarningIncidentsDBInterface):
     COLLECTION_NAME = "early_warning_incidents_collection"
@@ -110,7 +107,6 @@ class EarlyWarningIncidentsChromaClient(EarlyWarningIncidentsDBInterface):
     get_incidents = list_incidents
     save_incident = upsert_incident
 
-
 class InMemoryEarlyWarningIncidentStore(EarlyWarningIncidentsDBInterface):
     """Deterministic test double with the same update semantics as Chroma upsert."""
 
@@ -160,10 +156,8 @@ class InMemoryEarlyWarningIncidentStore(EarlyWarningIncidentsDBInterface):
     get_incidents = list_incidents
     save_incident = upsert_incident
 
-
 InMemoryEarlyWarningStore = InMemoryEarlyWarningIncidentStore
 EarlyWarningChromaClient = EarlyWarningIncidentsChromaClient
-
 
 def _filter_and_sort(
     incidents: Iterable[EarlyWarningIncident],

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from datetime import UTC, date, datetime, timedelta
 from typing import Iterable, Mapping
 
@@ -36,7 +34,6 @@ _SOURCE_RANK: dict[str, int] = {
     "generic": 2,
 }
 
-
 def extract_date_candidates(
     text: str,
     *,
@@ -50,7 +47,6 @@ def extract_date_candidates(
         excluded_context_markers=excluded_context_markers,
         reference_date=reference_date,
     )
-
 
 def select_recent_recall_date(
     candidates: Iterable[str],
@@ -73,7 +69,6 @@ def select_recent_recall_date(
         candidate_sources=candidate_sources,
     )
 
-
 def select_non_future_recall_date(
     candidates: Iterable[str],
     *,
@@ -88,7 +83,6 @@ def select_non_future_recall_date(
         oldest_allowed=None,
         candidate_sources=candidate_sources,
     )
-
 
 def _select_recall_date(
     candidates: Iterable[str],

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from pydantic import BaseModel, Field, field_validator
 
 DEFAULT_DETAIL_PAGE_KEYWORDS: list[str] = [
@@ -11,7 +9,6 @@ DEFAULT_DETAIL_PAGE_KEYWORDS: list[str] = [
 DEFAULT_MAX_DEPTH = 1
 DEFAULT_MAX_PAGES_PER_RUN = 30
 DEFAULT_LOOKBACK_DAYS = 1
-
 
 class ScraperHints(BaseModel):
     detail_page_keywords: list[str] = Field(default_factory=lambda: list(DEFAULT_DETAIL_PAGE_KEYWORDS))
@@ -46,7 +43,6 @@ class ScraperHints(BaseModel):
             return list(DEFAULT_DETAIL_PAGE_KEYWORDS)
         normalized = [str(keyword).strip().lower() for keyword in value if str(keyword).strip()]
         return normalized or list(DEFAULT_DETAIL_PAGE_KEYWORDS)
-
 
 class ScraperSourceConfig(BaseModel):
     base_url: str

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import re
 from datetime import UTC, date, datetime
 from typing import Iterable
@@ -34,7 +32,6 @@ COMPLETE_NUMERIC_DATE_PATTERN = re.compile(r"^\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}$")
 COMPLETE_ISO_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 HTML_LANG_PATTERN = re.compile(r"^[a-z]{2}")
 
-
 def infer_document_languages(
     html_lang: str | None,
     *,
@@ -55,7 +52,6 @@ def infer_document_languages(
         languages.insert(0, normalized_html_lang)
 
     return languages
-
 
 def search_adaptive_dates(
     text: str,
@@ -128,7 +124,6 @@ def search_adaptive_dates(
 
     return candidates
 
-
 def extract_structured_dates(values: Iterable[str]) -> list[str]:
     seen: set[str] = set()
     candidates: list[str] = []
@@ -140,7 +135,6 @@ def extract_structured_dates(values: Iterable[str]) -> list[str]:
             candidates.append(normalized)
     return candidates
 
-
 def _normalize_language_code(value: str | None) -> str | None:
     if value is None:
         return None
@@ -149,7 +143,6 @@ def _normalize_language_code(value: str | None) -> str | None:
         return None
     match = HTML_LANG_PATTERN.match(normalized)
     return match.group(0) if match else None
-
 
 def _normalize_structured_date_values(value: str) -> list[str]:
     text = value.strip()
@@ -199,7 +192,6 @@ def _normalize_structured_date_values(value: str) -> list[str]:
     # Named months and other non-ISO attributes.
     return search_adaptive_dates(text)
 
-
 def _calendar_date(parsed: datetime) -> str:
     """Preserve the source's calendar date instead of shifting it through UTC.
 
@@ -207,7 +199,6 @@ def _calendar_date(parsed: datetime) -> str:
     evening timestamp (or an offset timestamp near midnight) can change the day.
     """
     return parsed.date().isoformat()
-
 
 def _is_complete_date_match(matched_text: str) -> bool:
     """Reject incomplete fragments like '2026 07' that borrow today's day."""
@@ -225,7 +216,6 @@ def _is_complete_date_match(matched_text: str) -> bool:
     digit_groups = re.findall(r"\d+", text)
     return len(digit_groups) >= 3
 
-
 def _is_plausible_recall_date(value: str, *, reference: date | None = None) -> bool:
     try:
         parsed = date.fromisoformat(value)
@@ -234,7 +224,6 @@ def _is_plausible_recall_date(value: str, *, reference: date | None = None) -> b
 
     current = reference or datetime.now(tz=UTC).date()
     return date(1900, 1, 1) <= parsed <= current
-
 
 def _is_excluded_date_context(text: str, matched_text: str, markers: tuple[str, ...]) -> bool:
     if not markers:
@@ -248,7 +237,6 @@ def _is_excluded_date_context(text: str, matched_text: str, markers: tuple[str, 
     context_start = max(0, matched_index - 80)
     context = lowered_text[context_start : matched_index + len(matched_text)]
     return any(marker in context for marker in markers)
-
 
 def _unique_matches(values: Iterable[str]) -> list[str]:
     seen: set[str] = set()

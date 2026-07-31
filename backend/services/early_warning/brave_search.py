@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import asyncio
 import random
 import time
@@ -16,12 +14,10 @@ BRAVE_WEB_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search"
 _RETRYABLE_STATUS_CODES = {408, 425, 429, 500, 502, 503, 504}
 SleepCallable = Callable[[float], Awaitable[None]]
 
-
 class BraveSearchError(RuntimeError):
     def __init__(self, message: str, *, status_code: int | None = None) -> None:
         super().__init__(message)
         self.status_code = status_code
-
 
 class BraveSearchClient:
     def __init__(
@@ -202,13 +198,11 @@ class BraveSearchClient:
             more_results_available=more_results_available,
         )
 
-
 def _optional_text(value: object) -> str | None:
     if value is None:
         return None
     text = str(value).strip()
     return text or None
-
 
 def _optional_non_negative_int(value: object) -> int | None:
     try:
@@ -216,7 +210,6 @@ def _optional_non_negative_int(value: object) -> int | None:
     except (TypeError, ValueError):
         return None
     return parsed if parsed >= 0 else None
-
 
 def _parse_page_age(value: object) -> datetime | None:
     text = _optional_text(value)
@@ -229,7 +222,6 @@ def _parse_page_age(value: object) -> datetime | None:
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=timezone.utc)
     return parsed
-
 
 def _rate_limit_delay(headers: httpx.Headers) -> float | None:
     retry_after = headers.get("retry-after")

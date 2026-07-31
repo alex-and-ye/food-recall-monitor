@@ -21,7 +21,6 @@ from dependencies import (
 )
 from paths import ensure_backend_data_dirs
 from routes.alerts import router as alerts_router
-from routes.pipeline import router as pipeline_router
 from routes.sources import router as sources_router
 from routes.warnings import router as warnings_router
 from routes.incidents import router as incidents_router
@@ -105,12 +104,10 @@ app.add_middleware(
 )
 
 app.include_router(alerts_router)
-app.include_router(pipeline_router)
 app.include_router(sources_router)
 app.include_router(warnings_router)
 app.include_router(incidents_router)
 app.include_router(early_warning_router)
-
 
 @app.get("/")
 async def root():
