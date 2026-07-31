@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import logging
 from datetime import datetime, timezone
 
@@ -14,7 +12,6 @@ from models.scraper_config import ScraperHints, ScraperSourceConfig
 from models.source_registry import DiscoveryStatus, SourceCreateRequest, SourceRegistryDocument
 
 LOGGER = logging.getLogger(__name__)
-
 
 class SourcesService:
     def __init__(self, source_db: ScraperSourceConfigDBInterface) -> None:

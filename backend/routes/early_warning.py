@@ -5,7 +5,6 @@ from services.early_warning.pipeline import EarlyWarningPipelineService
 
 router = APIRouter(prefix="/api/early-warnings", tags=["early warnings"])
 
-
 @router.post("/run", status_code=status.HTTP_200_OK)
 async def run_early_warning(
     dry_run: bool = False,

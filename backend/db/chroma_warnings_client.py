@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import json
 import uuid
 from datetime import datetime, timezone
@@ -16,7 +14,6 @@ from models.pipeline_warning import (
     PipelineWarningCreate,
     WarningCategory,
 )
-
 
 class PipelineWarningsChromaClient(PipelineWarningsDBInterface):
     COLLECTION_NAME = "pipeline_warnings_collection"
@@ -166,7 +163,6 @@ class PipelineWarningsChromaClient(PipelineWarningsDBInterface):
             run_id=run_id_raw or None,
         )
 
-
 class InMemoryPipelineWarningsStore(PipelineWarningsDBInterface):
     """Test double and offline fallback for pipeline warnings persistence."""
 
@@ -234,7 +230,6 @@ class InMemoryPipelineWarningsStore(PipelineWarningsDBInterface):
             for warning_id, warning in self._warnings.items()
             if warning_id in keep_ids
         }
-
 
 def _parse_datetime(value: object) -> datetime | None:
     if value is None:

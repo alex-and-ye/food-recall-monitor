@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import os
 import unittest
 from unittest.mock import patch
@@ -9,7 +7,6 @@ from pydantic import ValidationError
 from config.early_warning import EarlyWarningConfig, load_early_warning_config
 from services.early_warning.query_generator import build_query_catalog, generate_queries
 from settings import BackendSettings
-
 
 class EarlyWarningConfigTests(unittest.TestCase):
     def test_brave_secret_is_read_from_environment(self) -> None:
@@ -59,7 +56,6 @@ class EarlyWarningConfigTests(unittest.TestCase):
 
         with self.assertRaises(ValidationError):
             EarlyWarningConfig.model_validate(payload)
-
 
 class QueryGeneratorTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -119,7 +115,6 @@ class QueryGeneratorTests(unittest.TestCase):
 
         self.assertTrue(catalog)
         self.assertEqual({query.country for query in catalog}, {"GB"})
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import heapq
 import logging
 from dataclasses import dataclass, field
@@ -18,14 +16,12 @@ from models.scraper_config import ScraperSourceConfig
 
 LOGGER = logging.getLogger(__name__)
 
-
 @dataclass(order=True)
 class _QueueItem:
     priority: int
     depth: int
     order: int
     url: str = field(compare=False)
-
 
 async def crawl_source_pages(
     *,
@@ -233,7 +229,6 @@ async def crawl_source_pages(
 
     return detail_pages
 
-
 def _is_allowed(url: str, allowed_domains: list[str], blocked_paths: list[str]) -> bool:
     parsed = urlparse(url)
     netloc = parsed.netloc.lower()
@@ -243,7 +238,6 @@ def _is_allowed(url: str, allowed_domains: list[str], blocked_paths: list[str]) 
     if any(path.startswith(blocked.lower()) for blocked in blocked_paths):
         return False
     return True
-
 
 def _build_robot_parser(base_url: str) -> RobotFileParser | None:
     parsed = urlparse(base_url)
@@ -257,12 +251,10 @@ def _build_robot_parser(base_url: str) -> RobotFileParser | None:
     parser.parse([])
     return parser
 
-
 def _looks_dynamic(html: str) -> bool:
     script_tags = html.count("<script")
     text_like = len(" ".join(html.split()))
     return script_tags > 20 and text_like < 3_000
-
 
 def _should_try_browser(
     *,

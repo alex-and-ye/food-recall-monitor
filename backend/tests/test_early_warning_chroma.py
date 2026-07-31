@@ -19,7 +19,6 @@ from models.early_warning_incident import (
 )
 from services.early_warning.incidents import EarlyWarningIncidentService
 
-
 class IncidentEvidenceSerializationTests(unittest.TestCase):
     def test_evidence_round_trips_as_chroma_safe_json(self) -> None:
         evidence = [
@@ -38,7 +37,6 @@ class IncidentEvidenceSerializationTests(unittest.TestCase):
         self.assertEqual(decoded, evidence)
         self.assertIsInstance(encoded, str)
         self.assertIsInstance(json.loads(encoded), list)
-
 
 class InMemoryIncidentStoreTests(unittest.TestCase):
     def test_save_is_idempotent_and_updates_same_url(self) -> None:
@@ -187,7 +185,6 @@ class InMemoryIncidentStoreTests(unittest.TestCase):
             "early_warning_incidents_collection",
         )
 
-
 class ChromaIncidentRepositoryTests(unittest.TestCase):
     def test_upsert_and_read_round_trip_nested_evidence(self) -> None:
         client = cast(Any, object.__new__(EarlyWarningIncidentsChromaClient))
@@ -219,7 +216,6 @@ class ChromaIncidentRepositoryTests(unittest.TestCase):
         assert restored is not None
         self.assertEqual(restored.summary, "Updated")
 
-
 class FakeIncidentCollection:
     def __init__(self) -> None:
         self.records: dict[str, tuple[str, dict[str, object]]] = {}
@@ -245,7 +241,6 @@ class FakeIncidentCollection:
     def delete(self, *, ids) -> None:
         for incident_id in ids:
             self.records.pop(incident_id, None)
-
 
 def _incident(
     *,
@@ -290,7 +285,6 @@ def _incident(
         ],
         extraction_completeness=0.9,
     )
-
 
 if __name__ == "__main__":
     unittest.main()

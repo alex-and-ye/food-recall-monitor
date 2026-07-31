@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import json
 from typing import cast
 
@@ -13,7 +11,6 @@ from models.discovery_candidate import (
     EarlyWarningQueryState,
 )
 from models.search_candidate import canonicalize_url
-
 
 class EarlyWarningCandidatesChromaClient(EarlyWarningCandidateDBInterface):
     CANDIDATE_COLLECTION_NAME = "early_warning_candidates_collection"
@@ -137,7 +134,6 @@ class EarlyWarningCandidatesChromaClient(EarlyWarningCandidateDBInterface):
         states.sort(key=lambda item: item.query_id)
         return states
 
-
 class InMemoryEarlyWarningCandidateStore(EarlyWarningCandidateDBInterface):
     """Test double for candidate and query-state persistence."""
 
@@ -193,7 +189,6 @@ class InMemoryEarlyWarningCandidateStore(EarlyWarningCandidateDBInterface):
     def list_query_states(self) -> list[EarlyWarningQueryState]:
         return sorted(self._query_states.values(), key=lambda item: item.query_id)
 
-
 def _parse_candidate(document: str | None) -> DiscoveryCandidate | None:
     if not document:
         return None
@@ -202,7 +197,6 @@ def _parse_candidate(document: str | None) -> DiscoveryCandidate | None:
         return DiscoveryCandidate.model_validate(payload)
     except (json.JSONDecodeError, ValueError):
         return None
-
 
 def _parse_query_state(document: str | None) -> EarlyWarningQueryState | None:
     if not document:

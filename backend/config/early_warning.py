@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import re
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -12,10 +10,8 @@ from settings import get_backend_root
 _COUNTRY_CODE_RE = re.compile(r"^[A-Z]{2}$")
 _LANGUAGE_CODE_RE = re.compile(r"^[a-z]{2,3}$")
 
-
 class _StrictConfigModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
 
 def _normalized_strings(value: object, *, lower: bool = False) -> list[str]:
     if not isinstance(value, list):
@@ -32,7 +28,6 @@ def _normalized_strings(value: object, *, lower: bool = False) -> list[str]:
         result.append(text)
     return result
 
-
 def _normalize_domain(value: object) -> str:
     text = str(value).strip().lower().rstrip(".")
     if not text:
@@ -46,7 +41,6 @@ def _normalize_domain(value: object) -> str:
         return parsed.hostname.encode("idna").decode("ascii")
     except UnicodeError as exc:
         raise ValueError(f"invalid domain: {text}") from exc
-
 
 class CountryConfig(_StrictConfigModel):
     code: str
@@ -87,7 +81,6 @@ class CountryConfig(_StrictConfigModel):
     def _normalize_domains(cls, value: object) -> list[str]:
         return [_normalize_domain(item) for item in _normalized_strings(value, lower=True)]
 
-
 class LanguageTerms(_StrictConfigModel):
     recall: list[str] = Field(min_length=1)
     food: list[str] = Field(min_length=1)
@@ -117,7 +110,6 @@ class LanguageTerms(_StrictConfigModel):
             return []
         return _normalized_strings(value, lower=True)
 
-
 class DomainConfig(_StrictConfigModel):
     profiles: dict[str, "DomainProfile"] = Field(default_factory=dict)
 
@@ -129,7 +121,6 @@ class DomainConfig(_StrictConfigModel):
         if not isinstance(value, dict):
             raise ValueError("profiles must be a mapping")
         return {_normalize_domain(domain): profile for domain, profile in value.items()}
-
 
 class DomainProfile(_StrictConfigModel):
     source_kind: str = "unknown"
@@ -161,13 +152,11 @@ class DomainProfile(_StrictConfigModel):
             raise ValueError(f"unknown trust tier: {normalized}")
         return normalized
 
-
 class SearchBudgets(_StrictConfigModel):
     queries_per_run: int = Field(default=12, ge=1, le=1000)
     results_per_query: int = Field(default=10, ge=1, le=20)
     candidates_per_run: int = Field(default=200, ge=1, le=10000)
     max_pages_per_query: int = Field(default=1, ge=1, le=10)
-
 
 class BraveSearchConfig(_StrictConfigModel):
     freshness: str = "pw"
@@ -187,14 +176,12 @@ class BraveSearchConfig(_StrictConfigModel):
             return freshness
         raise ValueError("freshness must be pd, pw, pm, py, or a Brave date range")
 
-
 class CrawlConfig(_StrictConfigModel):
     concurrency: int = Field(default=4, ge=1, le=32)
     minimum_text_characters: int = Field(default=240, ge=1, le=10000)
     timeout_seconds: float = Field(default=20.0, gt=0.0, le=120.0)
     max_attempts: int = Field(default=3, ge=1, le=10)
     retry_delay_minutes: int = Field(default=360, ge=1, le=10080)
-
 
 class IncidentConfidenceConfig(_StrictConfigModel):
     source_kind_base_weights: dict[str, int] = Field(default_factory=dict)
@@ -236,7 +223,6 @@ class IncidentConfidenceConfig(_StrictConfigModel):
             normalized[kind] = weight
         return normalized
 
-
 class SemanticMatchingConfig(_StrictConfigModel):
     enabled: bool = False
     collection_name: str = Field(default="safety_event_similarity_v1", min_length=3)
@@ -250,7 +236,6 @@ class SemanticMatchingConfig(_StrictConfigModel):
         if self.review_threshold > self.auto_merge_threshold:
             raise ValueError("semantic review threshold must not exceed auto-merge threshold")
         return self
-
 
 class EarlyWarningConfig(_StrictConfigModel):
     countries: list[CountryConfig] = Field(min_length=1)
@@ -298,9 +283,7 @@ class EarlyWarningConfig(_StrictConfigModel):
         if self.enabled and not (brave_api_key or "").strip():
             raise ValueError("BRAVE_API_KEY is required when early warning is enabled")
 
-
 DEFAULT_EARLY_WARNING_CONFIG_PATH = get_backend_root() / "config" / "early_warning.yaml"
-
 
 def load_early_warning_config(path: str | Path | None = None) -> EarlyWarningConfig:
     config_path = Path(path) if path is not None else DEFAULT_EARLY_WARNING_CONFIG_PATH

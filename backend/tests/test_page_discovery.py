@@ -2,7 +2,6 @@ import unittest
 
 from agents.fetchers.crawler.discovery import classify_page
 
-
 class PageDiscoveryTests(unittest.TestCase):
     def test_classify_detail_page(self) -> None:
         html = "<html><title>Food recall alert</title><body>Recall risk and consumer action.</body></html>"
@@ -39,7 +38,6 @@ class PageDiscoveryTests(unittest.TestCase):
             detail_page_keywords=["/notice-"],
         )
         self.assertEqual(page_class, "irrelevant")
-
 
 if __name__ == "__main__":
     unittest.main()

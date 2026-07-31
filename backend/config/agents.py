@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 TRANSLATION_MODEL: str = "qwen2.5:14b"
 SUMMARIZATION_MODEL: str = "qwen2.5:14b"
 STRUCTURING_MODEL: str = "qwen2.5:14b"

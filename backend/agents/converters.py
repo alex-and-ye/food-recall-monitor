@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Any
 
 from agents.normalizers.protected_fields import clean_text, parse_source_date

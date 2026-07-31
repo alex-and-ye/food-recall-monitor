@@ -1,12 +1,9 @@
-from __future__ import annotations
-
 import re
 from urllib.parse import urldefrag, urljoin, urlparse, urlunparse
 
 from bs4 import BeautifulSoup
 
 PageClass = str
-
 
 def classify_page(
     *,
@@ -30,11 +27,9 @@ def classify_page(
         return "listing"
     return "irrelevant"
 
-
 def matches_detail_url(url: str, detail_page_keywords: list[str]) -> bool:
     lowered = url.lower()
     return any(keyword.lower() in lowered for keyword in detail_page_keywords)
-
 
 def _path_looks_like_index(url: str) -> bool:
     path = urlparse(url).path.lower().rstrip("/")
@@ -61,7 +56,6 @@ def _path_looks_like_index(url: str) -> bool:
             return True
     return False
 
-
 def collapse_repeated_path_segments(path: str) -> str:
     """Collapse duplicated path prefixes such as /DE/Home/DE/Home/foo -> /DE/Home/foo."""
     if not path or path == "/":
@@ -87,12 +81,10 @@ def collapse_repeated_path_segments(path: str) -> str:
         rebuilt += "/"
     return rebuilt or "/"
 
-
 def normalize_resolved_url(url: str) -> str:
     parsed = urlparse(url)
     normalized_path = collapse_repeated_path_segments(parsed.path)
     return urlunparse(parsed._replace(path=normalized_path))
-
 
 def extract_internal_links(
     *,

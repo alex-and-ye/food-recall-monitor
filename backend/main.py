@@ -109,7 +109,6 @@ app.include_router(warnings_router)
 app.include_router(incidents_router)
 app.include_router(early_warning_router)
 
-
 @app.get("/")
 async def root():
     return {

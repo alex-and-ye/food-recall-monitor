@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import json
 from datetime import datetime
 from typing import cast
@@ -10,7 +8,6 @@ from chromadb.api.types import Metadata
 from db.source_config_interface import ScraperSourceConfigDBInterface
 from models.scraper_config import ScraperSourceConfig
 from models.source_registry import DISCOVERY_STATUSES, DiscoveryStatus, SourceRegistryDocument
-
 
 class ScraperSourceConfigChromaClient(ScraperSourceConfigDBInterface):
     COLLECTION_NAME = "scraper_sources_collection"
@@ -128,7 +125,6 @@ class ScraperSourceConfigChromaClient(ScraperSourceConfigDBInterface):
             updated_at=_parse_datetime(metadata.get("updated_at")),
         )
 
-
 class InMemoryScraperSourceConfigStore(ScraperSourceConfigDBInterface):
     """Test double and offline fallback for source registry persistence."""
 
@@ -158,12 +154,10 @@ class InMemoryScraperSourceConfigStore(ScraperSourceConfigDBInterface):
     def count_sources(self) -> int:
         return len(self._sources)
 
-
 def _isoformat(value: datetime | None) -> str:
     if value is None:
         return ""
     return value.isoformat()
-
 
 def _parse_datetime(value: object) -> datetime | None:
     if value is None:

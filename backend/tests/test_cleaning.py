@@ -2,7 +2,6 @@ import unittest
 
 from agents.fetchers.extraction.cleaning import clean_detail_payload
 
-
 class CleaningTests(unittest.TestCase):
     def test_cleaning_removes_html_and_tracking_params(self) -> None:
         payload = {
@@ -28,7 +27,6 @@ class CleaningTests(unittest.TestCase):
         self.assertEqual(cleaned["selected_recall_date_source"], "selector")
         self.assertNotIn("published_date_candidates", cleaned)
         self.assertNotIn("published_date_candidate_sources", cleaned)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Any
 
 REQUIRED_STRUCTURED_FIELDS: set[str] = {

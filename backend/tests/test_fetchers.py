@@ -13,7 +13,6 @@ from models.scraped_record import ScrapedRecallRecord
 from models.scraper_config import DEFAULT_LOOKBACK_DAYS, ScraperHints, ScraperSourceConfig
 from models.source_registry import SourceRegistryDocument
 
-
 def _uk_document(source_config: ScraperSourceConfig) -> SourceRegistryDocument:
     return SourceRegistryDocument(
         source_name="uk",
@@ -22,7 +21,6 @@ def _uk_document(source_config: ScraperSourceConfig) -> SourceRegistryDocument:
         config=source_config,
         discovery_status="ready",
     )
-
 
 class ScraperIngestionTests(unittest.IsolatedAsyncioTestCase):
     async def test_fetch_source_records_broadens_persisted_filtered_seed(self) -> None:
@@ -205,7 +203,6 @@ class ScraperIngestionTests(unittest.IsolatedAsyncioTestCase):
     def test_translator_envelope_wraps_cleaned_payload(self) -> None:
         payload = {"headings": ["Original Product"], "visible_text": "Recall content"}
         self.assertEqual(to_translator_envelope(payload), {"record": payload})
-
 
 if __name__ == "__main__":
     unittest.main()

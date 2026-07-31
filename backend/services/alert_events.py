@@ -4,11 +4,9 @@ from dataclasses import dataclass
 
 KEEPALIVE_INTERVAL_SECONDS = 30.0
 
-
 @dataclass(frozen=True)
 class AlertsChangedEvent:
     saved_count: int
-
 
 class AlertChangeBroadcaster:
     def __init__(self) -> None:

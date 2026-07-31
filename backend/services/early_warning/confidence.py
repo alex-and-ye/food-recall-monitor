@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from typing import Mapping
 
@@ -8,7 +6,6 @@ from models.early_warning_incident import (
     SourceKind,
     VerificationStatus,
 )
-
 
 SOURCE_KIND_BASE_WEIGHTS: dict[SourceKind, int] = {
     SourceKind.OFFICIAL_RECALL: 100,
@@ -20,7 +17,6 @@ SOURCE_KIND_BASE_WEIGHTS: dict[SourceKind, int] = {
     SourceKind.UNKNOWN: 40,
     SourceKind.BLOG: 20,
 }
-
 
 @dataclass(frozen=True)
 class ConfidencePolicy:
@@ -37,12 +33,10 @@ class ConfidencePolicy:
     vague_reporting_modifier: int = -10
     unofficial_cap: int = 99
 
-
 @dataclass(frozen=True)
 class ConfidenceScore:
     score: int
     reasons: tuple[str, ...]
-
 
 def calculate_confidence(
     source_kind: SourceKind | str,
@@ -117,7 +111,6 @@ def calculate_confidence(
         reasons.append(f"unofficial confidence bounded to {bounded}")
     return ConfidenceScore(score=bounded, reasons=tuple(reasons))
 
-
 def _base_weight(
     source_kind: SourceKind,
     weights: Mapping[SourceKind | str, int],
@@ -130,7 +123,6 @@ def _base_weight(
     if value is None:
         value = weights.get(SourceKind.UNKNOWN.value, SOURCE_KIND_BASE_WEIGHTS[SourceKind.UNKNOWN])
     return int(value)
-
 
 def calculate_incident_confidence(
     incident: EarlyWarningIncidentCreate,

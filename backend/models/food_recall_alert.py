@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import json
 from datetime import date
 from enum import StrEnum
@@ -32,11 +30,9 @@ WEB_SOURCE_METADATA_KEY = "web_source"
 
 _country_source_lookup: Any | None = None
 
-
 def set_country_source_lookup(lookup: Any) -> None:
     global _country_source_lookup
     _country_source_lookup = lookup
-
 
 def web_source_to_country_source(web_source: str) -> str:
     key = web_source.strip().lower()

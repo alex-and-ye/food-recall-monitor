@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import re
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -18,7 +16,6 @@ BOILERPLATE_MARKERS = (
 
 HTML_TAG_RE = re.compile(r"<[^>]+>")
 MULTISPACE_RE = re.compile(r"\s+")
-
 
 def clean_detail_payload(payload: dict[str, Any]) -> dict[str, Any]:
     headings = [
@@ -46,12 +43,10 @@ def clean_detail_payload(payload: dict[str, Any]) -> dict[str, Any]:
     _assert_no_html_tags(cleaned)
     return cleaned
 
-
 def _strip_html(value: str) -> str:
     if not value.strip():
         return ""
     return BeautifulSoup(value, "html.parser").get_text(" ", strip=True)
-
 
 def _clean_visible_text(value: str) -> str:
     plain = _normalize_plain_text(_strip_html(value))
@@ -67,10 +62,8 @@ def _clean_visible_text(value: str) -> str:
     ]
     return ". ".join(filtered).strip()
 
-
 def _normalize_plain_text(value: str) -> str:
     return MULTISPACE_RE.sub(" ", value).strip()
-
 
 def _canonicalize_url(url: str) -> str:
     if not url.strip():
@@ -84,7 +77,6 @@ def _canonicalize_url(url: str) -> str:
     ]
     clean_query = urlencode(filtered_query, doseq=True)
     return urlunsplit((parts.scheme, parts.netloc, parts.path, clean_query, ""))
-
 
 def _assert_no_html_tags(cleaned_payload: dict[str, Any]) -> None:
     if HTML_TAG_RE.search(str(cleaned_payload.get("visible_text", ""))):

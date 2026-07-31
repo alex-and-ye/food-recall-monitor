@@ -67,7 +67,6 @@ async def stop_daily_pipeline_scheduler(
     except asyncio.CancelledError:
         pass
 
-
 async def _early_warning_loop(
     pipeline_service: EarlyWarningPipelineService,
     stop_event: asyncio.Event,
@@ -92,7 +91,6 @@ async def _early_warning_loop(
 
         await run_early_warning_wrapper(pipeline_service)
 
-
 def start_early_warning_scheduler(
     pipeline_service: EarlyWarningPipelineService,
 ) -> tuple[asyncio.Task[None] | None, asyncio.Event | None]:
@@ -104,7 +102,6 @@ def start_early_warning_scheduler(
         name="early-warning-scheduler",
     )
     return task, stop_event
-
 
 async def stop_early_warning_scheduler(
     task: asyncio.Task[None] | None,

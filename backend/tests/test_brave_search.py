@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import unittest
 
 import httpx
@@ -8,14 +6,12 @@ from config.early_warning import BraveSearchConfig
 from models.search_candidate import SearchQuery
 from services.early_warning.brave_search import BraveSearchClient, BraveSearchError
 
-
 def _query() -> SearchQuery:
     return SearchQuery.create(
         text='"food recall" Canada',
         country="CA",
         language="en",
     )
-
 
 class BraveSearchClientTests(unittest.IsolatedAsyncioTestCase):
     async def test_normalizes_results_and_request_parameters(self) -> None:
@@ -115,7 +111,6 @@ class BraveSearchClientTests(unittest.IsolatedAsyncioTestCase):
             await client.search(_query(), count=21)
         with self.assertRaises(ValueError):
             await client.search(_query(), offset=10)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import asyncio
 import logging
 import re
@@ -51,13 +49,11 @@ DISCOVERY_MAX_DEPTH = 2
 CHILD_LINK_SAMPLE_SIZE = 40
 LISTING_DENSITY_MIN = 3
 
-
 @dataclass(frozen=True)
 class LinkCandidate:
     url: str
     anchor_text: str
     score: int
-
 
 def derive_base_url_and_domains(homepage_url: str) -> tuple[str, list[str]]:
     parsed = urlparse(homepage_url.strip())
@@ -72,7 +68,6 @@ def derive_base_url_and_domains(homepage_url: str) -> tuple[str, list[str]]:
         domains.append(f"www.{netloc}")
     # Deduplicate while preserving order
     return base_url, list(dict.fromkeys(domains))
-
 
 def score_recall_candidate(
     url: str,
@@ -100,7 +95,6 @@ def score_recall_candidate(
     score += _listing_hub_boost(url, peer_urls)
     return score
 
-
 def score_detail_pattern_candidate(
     url: str,
     anchor_text: str = "",
@@ -127,7 +121,6 @@ def score_detail_pattern_candidate(
     score += _detail_cluster_boost(url, peer_urls)
     return score
 
-
 def looks_like_detail_url(url: str) -> bool:
     """Structure-only detail detection (depth + id-like segments, portal prefixes)."""
     if _is_asset_url(url):
@@ -151,7 +144,6 @@ def looks_like_detail_url(url: str) -> bool:
         return True
     return False
 
-
 def looks_like_probable_detail_url(url: str) -> bool:
     """Broader structural detail heuristic used for keyword clustering."""
     if looks_like_detail_url(url):
@@ -171,7 +163,6 @@ def looks_like_probable_detail_url(url: str) -> bool:
         return True
     return False
 
-
 def looks_like_listing_url(url: str) -> bool:
     """Structure-only listing/hub detection (shallow index, not detail-shaped)."""
     if looks_like_detail_url(url):
@@ -190,12 +181,10 @@ def looks_like_listing_url(url: str) -> bool:
         return True
     return False
 
-
 def max_listing_density(urls: Sequence[str]) -> int:
     """Highest shared path-prefix frequency among URLs (listing signature)."""
     counts = _prefix_counts(urls)
     return max(counts.values()) if counts else 0
-
 
 def select_heuristic_seed_urls(
     ranked: list[LinkCandidate],
@@ -213,7 +202,6 @@ def select_heuristic_seed_urls(
     # Prefer the homepage over detail-like candidates when LLM discovery failed.
     return [homepage_url]
 
-
 def prefer_unfiltered_listing_urls(
     selected_urls: list[str],
     *,
@@ -230,7 +218,6 @@ def prefer_unfiltered_listing_urls(
         else:
             preferred.append(url)
     return list(dict.fromkeys(preferred))
-
 
 def extract_link_candidates(
     *,
@@ -275,10 +262,8 @@ def extract_link_candidates(
     candidates.sort(key=lambda item: (-item.score, item.url))
     return candidates
 
-
 def rank_candidates(candidates: list[LinkCandidate], *, limit: int = DISCOVERY_MAX_CANDIDATES) -> list[LinkCandidate]:
     return candidates[:limit]
-
 
 def rank_detail_pattern_candidates(
     candidates: list[LinkCandidate],
@@ -300,7 +285,6 @@ def rank_detail_pattern_candidates(
     ]
     rescored.sort(key=lambda item: (-item.score, item.url))
     return rescored[:limit]
-
 
 async def discover_source_config(
     *,
@@ -511,24 +495,19 @@ async def discover_source_config(
         )
     return document
 
-
 def _path_parts(url: str) -> list[str]:
     return [part for part in urlparse(url).path.lower().split("/") if part]
 
-
 def _is_index_basename(basename: str) -> bool:
     return basename in INDEX_BASENAMES or basename.endswith("_node.html")
-
 
 def _is_asset_url(url: str) -> bool:
     path = urlparse(url).path.lower()
     haystack = path if path.endswith("/") else f"{path}/"
     return any(marker in haystack or marker in path for marker in ASSET_PATH_MARKERS)
 
-
 def _has_long_numeric_id(parts: Sequence[str]) -> bool:
     return any(re.search(r"\d{4,}", part) for part in parts)
-
 
 def _has_id_like_segment(parts: Sequence[str]) -> bool:
     for part in parts:
@@ -539,7 +518,6 @@ def _has_id_like_segment(parts: Sequence[str]) -> bool:
         if re.search(r"[a-z]{1,6}-\w*\d", stem, re.IGNORECASE):
             return True
     return False
-
 
 def _prefix_counts(urls: Sequence[str]) -> dict[str, int]:
     counts: dict[str, int] = {}
@@ -554,12 +532,10 @@ def _prefix_counts(urls: Sequence[str]) -> dict[str, int]:
             counts[prefix] = counts.get(prefix, 0) + 1
     return counts
 
-
 def _path_under_prefix(url: str, prefix: str) -> bool:
     path = urlparse(url).path.lower()
     normalized = path if path.endswith("/") else f"{path}/"
     return normalized.startswith(prefix) or prefix.rstrip("/") == path.rstrip("/")
-
 
 def _listing_hub_boost(url: str, peer_urls: Sequence[str] | None) -> int:
     if not peer_urls:
@@ -583,7 +559,6 @@ def _listing_hub_boost(url: str, peer_urls: Sequence[str] | None) -> int:
             break
     return boost
 
-
 def _detail_cluster_boost(url: str, peer_urls: Sequence[str] | None) -> int:
     if not peer_urls or not looks_like_probable_detail_url(url):
         return 0
@@ -599,7 +574,6 @@ def _detail_cluster_boost(url: str, peer_urls: Sequence[str] | None) -> int:
     if siblings >= 2:
         return min(siblings, 8)
     return 0
-
 
 def _request_listing_urls(
     *,
@@ -638,7 +612,6 @@ def _request_listing_urls(
                 "candidates_sent": len(ranked_for_prompt),
             },
         )
-
 
 def _request_detail_patterns(
     *,
@@ -681,7 +654,6 @@ def _request_detail_patterns(
             },
         )
 
-
 async def _fetch_html(client: httpx.AsyncClient, url: str) -> tuple[str, str]:
     html = ""
     final_url = url
@@ -706,7 +678,6 @@ async def _fetch_html(client: httpx.AsyncClient, url: str) -> tuple[str, str]:
         raise RuntimeError(f"Empty HTML content fetched for {url}")
     return html, final_url
 
-
 def _should_try_browser(*, static_error: Exception | None, html: str) -> bool:
     if isinstance(static_error, httpx.HTTPStatusError):
         status = static_error.response.status_code
@@ -717,7 +688,6 @@ def _should_try_browser(*, static_error: Exception | None, html: str) -> bool:
     if static_error is not None:
         return True
     return _looks_dynamic(html)
-
 
 async def _explore_candidate_pages(
     *,
@@ -779,7 +749,6 @@ async def _explore_candidate_pages(
 
     return collected, {"pages_seen": pages_seen, "fetch_failures": fetch_failures}
 
-
 def _candidate_summaries(candidates: list[LinkCandidate]) -> list[dict[str, object]]:
     return [
         {
@@ -789,7 +758,6 @@ def _candidate_summaries(candidates: list[LinkCandidate]) -> list[dict[str, obje
         }
         for item in candidates
     ]
-
 
 def _merge_candidates(*groups: list[LinkCandidate]) -> list[LinkCandidate]:
     best: dict[str, LinkCandidate] = {}
@@ -801,7 +769,6 @@ def _merge_candidates(*groups: list[LinkCandidate]) -> list[LinkCandidate]:
     merged = list(best.values())
     merged.sort(key=lambda item: (-item.score, item.url))
     return merged
-
 
 def _filter_allowed_urls(value: object, allowed_domains: list[str]) -> list[str]:
     if not isinstance(value, list):
@@ -820,7 +787,6 @@ def _filter_allowed_urls(value: object, allowed_domains: list[str]) -> list[str]
         filtered.append(url)
     return list(dict.fromkeys(filtered))
 
-
 def _normalize_path_fragments(value: object) -> list[str]:
     if not isinstance(value, list):
         return []
@@ -838,7 +804,6 @@ def _normalize_path_fragments(value: object) -> list[str]:
             continue
         normalized.append(text)
     return list(dict.fromkeys(normalized))
-
 
 def _filter_detail_keywords(
     keywords: list[str],
@@ -875,7 +840,6 @@ def _filter_detail_keywords(
         filtered.append(keyword)
     return filtered
 
-
 def _filter_blocked_paths(blocked_paths: list[str], *, seed_urls: list[str]) -> list[str]:
     """Prevent discovered exclusions from blocking the listing pages themselves."""
     seed_paths = [urlparse(url).path.lower() or "/" for url in seed_urls]
@@ -884,7 +848,6 @@ def _filter_blocked_paths(blocked_paths: list[str], *, seed_urls: list[str]) -> 
         for blocked in blocked_paths
         if not any(seed_path.startswith(blocked.lower()) for seed_path in seed_paths)
     ]
-
 
 def _normalize_languages(value: object) -> list[str]:
     if not isinstance(value, list):
@@ -895,7 +858,6 @@ def _normalize_languages(value: object) -> list[str]:
         if re.fullmatch(r"[a-z]{2}", code):
             languages.append(code)
     return list(dict.fromkeys(languages))
-
 
 def _path_prefix_fragments(parts: list[str]) -> list[str]:
     """Emit generic path prefixes for clustering (no site-specific vocabulary)."""
@@ -911,7 +873,6 @@ def _path_prefix_fragments(parts: list[str]) -> list[str]:
         fragments.append("/" + "/".join(parts[:2]) + "/")
     fragments.append(f"/{parts[0]}/")
     return list(dict.fromkeys(fragments))
-
 
 def _infer_keywords_from_links(links: list[LinkCandidate]) -> list[str]:
     """Heuristic fallback: path prefixes shared by detail-like URLs."""
@@ -945,7 +906,6 @@ def _infer_keywords_from_links(links: list[LinkCandidate]) -> list[str]:
 
     return _ranked_keyword_fragments(probable_counts, prefer_shared=True)[:5]
 
-
 def _ranked_keyword_fragments(
     counts: dict[str, int],
     *,
@@ -958,12 +918,10 @@ def _ranked_keyword_fragments(
             return multi
     return [fragment for fragment, _count in ranked]
 
-
 def _looks_dynamic(html: str) -> bool:
     script_tags = html.count("<script")
     text_like = len(" ".join(html.split()))
     return script_tags > 20 and text_like < 3_000
-
 
 def smoke_match_detail_links(links: list[str], detail_page_keywords: list[str]) -> list[str]:
     return [link for link in links if matches_detail_url(link, detail_page_keywords)]

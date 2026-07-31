@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import json
 from datetime import datetime, timezone
 from enum import StrEnum
@@ -7,11 +5,9 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
-
 class PipelineKind(StrEnum):
     OFFICIAL = "official"
     EARLY_WARNING = "early_warning"
-
 
 class PipelineRunLogEvent(BaseModel):
     event_id: str = Field(min_length=1)
@@ -60,6 +56,5 @@ class PipelineRunLogEvent(BaseModel):
         if not isinstance(payload, dict):
             raise ValueError("pipeline run log document must contain an object")
         return cls.model_validate(payload)
-
 
 MAX_PIPELINE_LOG_EVENTS_RETAINED = 5000

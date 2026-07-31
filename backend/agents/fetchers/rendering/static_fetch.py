@@ -1,17 +1,13 @@
-from __future__ import annotations
-
 from dataclasses import dataclass
 
 import httpx
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
-
 
 @dataclass(frozen=True)
 class StaticPage:
     html: str
     final_url: str
     content_type: str
-
 
 async def fetch_static_html(
     client: httpx.AsyncClient,
@@ -27,7 +23,6 @@ async def fetch_static_html(
         proxy_url=proxy_url,
     )
     return page.html, page.final_url
-
 
 @retry(
     reraise=True,

@@ -2,7 +2,6 @@ import unittest
 
 from agents.fetchers.extraction.detail_extractor import extract_detail_payload
 
-
 class DetailExtractorTests(unittest.TestCase):
     def test_detail_extractor_returns_expected_fields(self) -> None:
         html = """
@@ -93,7 +92,6 @@ class DetailExtractorTests(unittest.TestCase):
         self.assertIn("2026-07-10", payload["published_date_candidates"])
         self.assertNotIn("2026-07-12", payload["published_date_candidates"])
         self.assertEqual(payload["published_date_candidate_sources"]["2026-07-10"], "structured")
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import inspect
 import json
 import logging
@@ -70,7 +68,6 @@ def create_pipeline_graph(*, reporter: ProgressReporter | None = None):
     return graph.compile()
 
 WarningEmitter = Callable[..., None]
-
 
 async def run_pipeline(
     options: PipelineRunOptions,
@@ -191,7 +188,6 @@ async def run_pipeline(
         source_failures=fetch_result.failures,
     )
 
-
 def _emit_warning(
     on_warning: WarningEmitter | None,
     *,
@@ -203,7 +199,6 @@ def _emit_warning(
     if on_warning is None:
         return
     on_warning(category=category, message=message, source=source, run_id=run_id)
-
 
 def _tracked_node(
     node_name: str,
@@ -361,7 +356,6 @@ def repair_and_convert_node(state: PipelineRecordState) -> PipelineRecordState:
     alert = structured_json_to_alert_create(structured_json)
     return {"structured_json": structured_json, "alert": alert}
 
-
 def _best_payload_value(field_name: str, generated_value: Any, payload: dict[str, Any]) -> str:
     fields = _original_string_fields(payload)
     generated_text = clean_text(str(generated_value or ""))
@@ -504,7 +498,6 @@ def _original_string_fields(value: Any, path: str = "") -> list[tuple[str, str]]
         return fields
     return []
 
-
 def _state_snapshot(state: dict[str, Any]) -> dict[str, Any]:
     snapshot: dict[str, Any] = {}
     if "record" in state:
@@ -522,7 +515,6 @@ def _state_snapshot(state: dict[str, Any]) -> dict[str, Any]:
     if "alert" in state:
         snapshot["alert"] = _to_jsonable(state["alert"])
     return snapshot
-
 
 def _to_jsonable(value: Any) -> Any:
     if isinstance(value, (str, int, float, bool)) or value is None:

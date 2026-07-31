@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import asyncio
 import logging
 
@@ -53,7 +51,6 @@ _early_warning_config = load_early_warning_config(_settings.early_warning_config
 )
 _early_warning_config.validate_runtime(brave_api_key=_settings.brave_api_key)
 
-
 def _build_source_config_db() -> ScraperSourceConfigDBInterface:
     try:
         client = ScraperSourceConfigChromaClient(
@@ -68,7 +65,6 @@ def _build_source_config_db() -> ScraperSourceConfigDBInterface:
         ensure_bootstrap_sources(store)
         return store
 
-
 def _build_warnings_db() -> PipelineWarningsDBInterface:
     try:
         return PipelineWarningsChromaClient(
@@ -78,7 +74,6 @@ def _build_warnings_db() -> PipelineWarningsDBInterface:
     except Exception as exc:  # noqa: BLE001 - fall back so local tests/dev can start
         LOGGER.warning("Falling back to in-memory pipeline warnings store: %s", exc)
         return InMemoryPipelineWarningsStore()
-
 
 def _build_pipeline_logs_db() -> PipelineRunLogsDBInterface:
     try:
@@ -90,7 +85,6 @@ def _build_pipeline_logs_db() -> PipelineRunLogsDBInterface:
         LOGGER.warning("Falling back to in-memory pipeline run logs store: %s", exc)
         return InMemoryPipelineRunLogsStore()
 
-
 def _build_early_warning_candidate_db():
     try:
         return EarlyWarningCandidatesChromaClient(
@@ -101,7 +95,6 @@ def _build_early_warning_candidate_db():
         LOGGER.warning("Falling back to in-memory early-warning candidates: %s", exc)
         return InMemoryEarlyWarningCandidateStore()
 
-
 def _build_early_warning_incident_db():
     try:
         return EarlyWarningIncidentsChromaClient(
@@ -111,7 +104,6 @@ def _build_early_warning_incident_db():
     except Exception as exc:  # noqa: BLE001
         LOGGER.warning("Falling back to in-memory early-warning incidents: %s", exc)
         return InMemoryEarlyWarningIncidentStore()
-
 
 _chroma_client: FoodRecallAlertsDBInterface = FoodRecallAlertsChromaClient(
     host=_settings.chroma_host,
@@ -194,14 +186,11 @@ _early_warning_pipeline_service = EarlyWarningPipelineService(
     run_lock=_pipeline_run_lock,
 )
 
-
 def get_pipeline_logs_db() -> PipelineRunLogsDBInterface:
     return _pipeline_logs_db
 
-
 def get_pipeline_progress_tracker() -> PipelineProgressTracker:
     return _pipeline_progress_tracker
-
 
 def _country_source_from_registry(source_name: str) -> str | None:
     document = _source_config_db.get_source(source_name)
@@ -209,64 +198,49 @@ def _country_source_from_registry(source_name: str) -> str | None:
         return None
     return document.country_source
 
-
 set_country_source_lookup(_country_source_from_registry)
 set_source_names_provider(_source_config_db.list_source_names)
-
 
 def get_db() -> FoodRecallAlertsDBInterface:
     return _chroma_client
 
-
 def get_source_config_db() -> ScraperSourceConfigDBInterface:
     return _source_config_db
-
 
 def get_alerts_service(db: FoodRecallAlertsDBInterface = Depends(get_db)) -> AlertsService:
     return AlertsService(db)
 
-
 def get_alert_change_broadcaster() -> AlertChangeBroadcaster:
     return _alert_change_broadcaster
-
 
 def get_incident_change_broadcaster() -> AlertChangeBroadcaster:
     return _incident_change_broadcaster
 
-
 def get_early_warning_incident_service() -> EarlyWarningIncidentService:
     return _early_warning_incident_service
-
 
 def get_incident_verification_service() -> IncidentVerificationService:
     return _incident_verification_service
 
-
 def get_early_warning_pipeline_service() -> EarlyWarningPipelineService:
     return _early_warning_pipeline_service
-
 
 def get_pipeline_switches():
     return _pipeline_switches
 
-
 def get_pipeline_run_lock() -> asyncio.Lock:
     return _pipeline_run_lock
-
 
 def get_sources_service(
     source_db: ScraperSourceConfigDBInterface = Depends(get_source_config_db),
 ) -> SourcesService:
     return SourcesService(source_db)
 
-
 def get_warnings_db() -> PipelineWarningsDBInterface:
     return _warnings_db
 
-
 def get_warnings_service() -> WarningsService:
     return _warnings_service
-
 
 def get_pipeline_service(
     db: FoodRecallAlertsDBInterface = Depends(get_db),

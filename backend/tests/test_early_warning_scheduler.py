@@ -8,7 +8,6 @@ from scheduler import (
     stop_early_warning_scheduler,
 )
 
-
 class EarlyWarningSchedulerTests(unittest.IsolatedAsyncioTestCase):
     async def test_disabled_mode_starts_no_job(self) -> None:
         service = SimpleNamespace(config=SimpleNamespace(enabled=False))
@@ -28,7 +27,6 @@ class EarlyWarningSchedulerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(task)
         self.assertIsNone(stop_event)
         await stop_daily_pipeline_scheduler(task, stop_event)
-
 
 if __name__ == "__main__":
     unittest.main()

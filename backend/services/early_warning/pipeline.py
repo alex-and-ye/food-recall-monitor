@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import asyncio
 import logging
 import re
@@ -54,7 +52,6 @@ _LISTING_TITLE_SIGNALS = (
     "produktwarnungen",
 )
 
-
 @dataclass
 class EarlyWarningRunResult:
     dry_run: bool = False
@@ -71,7 +68,6 @@ class EarlyWarningRunResult:
     officially_confirmed: int = 0
     skipped_due_to_overlap: bool = False
     failures: dict[str, str] = field(default_factory=dict)
-
 
 class EarlyWarningPipelineService:
     def __init__(
@@ -691,7 +687,6 @@ class EarlyWarningPipelineService:
         if self.reporter is not None:
             self.reporter.log(stage=stage, message=message, source=source, details=details)
 
-
 def _safe_metrics(result: EarlyWarningRunResult) -> dict[str, int]:
     return {
         "queries_searched": result.queries_searched,
@@ -708,7 +703,6 @@ def _safe_metrics(result: EarlyWarningRunResult) -> dict[str, int]:
         "failure_count": len(result.failures),
     }
 
-
 def _listing_detail_links(record: ScrapedRecallRecord) -> list[dict[str, str]]:
     raw_links = record.payload.get("detail_links")
     if not isinstance(raw_links, list):
@@ -721,12 +715,10 @@ def _listing_detail_links(record: ScrapedRecallRecord) -> list[dict[str, str]]:
     generic_listing = any(signal in f"{title} {path}" for signal in _LISTING_TITLE_SIGNALS)
     return links if generic_listing or len(links) >= 5 else []
 
-
 def _normalize_place(value: object) -> str:
     text = unicodedata.normalize("NFKD", str(value or ""))
     ascii_text = "".join(character for character in text if not unicodedata.combining(character))
     return " ".join(re.sub(r"[^a-z0-9]+", " ", ascii_text.casefold()).split())
-
 
 def _place_matches_alias(place: object, alias: object) -> bool:
     normalized_place = _normalize_place(place)

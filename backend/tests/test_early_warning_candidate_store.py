@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
@@ -15,7 +13,6 @@ from models.discovery_candidate import (
     EarlyWarningQueryState,
 )
 from models.search_candidate import SearchQuery
-
 
 def _candidate(
     *,
@@ -37,7 +34,6 @@ def _candidate(
         first_seen_at=seen_at,
         last_seen_at=seen_at,
     )
-
 
 class InMemoryEarlyWarningCandidateStoreTests(unittest.TestCase):
     def test_upsert_merges_query_ids_and_observation_times(self) -> None:
@@ -190,7 +186,6 @@ class InMemoryEarlyWarningCandidateStoreTests(unittest.TestCase):
         self.assertEqual(rejected.processing_status, CandidateStatus.CLASSIFIED)
         self.assertEqual(rejected.decision, CandidateDecision.REJECT)
 
-
 class ChromaEarlyWarningCandidateTests(unittest.TestCase):
     def test_init_creates_candidate_and_query_collections(self) -> None:
         fake_client = MagicMock()
@@ -233,7 +228,6 @@ class ChromaEarlyWarningCandidateTests(unittest.TestCase):
         metadata = client.query_collection.upsert.call_args.kwargs["metadatas"][0]
         self.assertNotIn("last_searched_at", metadata)
         self.assertNotIn("", metadata.values())
-
 
 if __name__ == "__main__":
     unittest.main()

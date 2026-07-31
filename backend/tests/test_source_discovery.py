@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import unittest
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
@@ -17,7 +15,6 @@ from db.chroma_source_client import InMemoryScraperSourceConfigStore
 from models.scraper_config import ScraperHints, ScraperSourceConfig
 from models.source_registry import SourceRegistryDocument
 from services.source_bootstrap import ensure_bootstrap_sources
-
 
 class SourceDiscoveryUnitTests(unittest.TestCase):
     def test_derive_base_url_and_domains(self) -> None:
@@ -54,7 +51,6 @@ class SourceDiscoveryUnitTests(unittest.TestCase):
         self.assertEqual(len(ranked), 2)
         # Peer density under /recalls/ should surface the listing hub.
         self.assertEqual(ranked[0].url, "https://example.gov/recalls")
-
 
 class SourceDiscoveryAsyncTests(unittest.IsolatedAsyncioTestCase):
     async def test_discover_source_config_builds_config_from_llm(self) -> None:
@@ -174,7 +170,6 @@ class SourceDiscoveryAsyncTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("/fiche-rappel/", document.config.hints.detail_page_keywords)
         self.assertNotIn("/recall/", document.config.hints.detail_page_keywords)
 
-
 class SourceRegistryStoreTests(unittest.TestCase):
     def test_in_memory_store_roundtrip(self) -> None:
         store = InMemoryScraperSourceConfigStore()
@@ -215,7 +210,6 @@ class SourceRegistryStoreTests(unittest.TestCase):
         self.assertEqual(uk.homepage_url, "https://alerts.food.gov.uk/news-alerts")
         self.assertEqual(uk.discovery_status, "pending")
         self.assertEqual(uk.config.seed_urls, ["https://alerts.food.gov.uk/news-alerts"])
-
 
 if __name__ == "__main__":
     unittest.main()

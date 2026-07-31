@@ -1,12 +1,9 @@
-from __future__ import annotations
-
 import json
 from datetime import date, datetime, timezone
 from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
-
 
 class IncidentType(StrEnum):
     OFFICIAL_RECALL = "official_recall"
@@ -17,14 +14,12 @@ class IncidentType(StrEnum):
     PUBLIC_HEALTH_WARNING = "public_health_warning"
     FOOD_SAFETY_ADVISORY = "food_safety_advisory"
 
-
 class VerificationStatus(StrEnum):
     PENDING = "pending"
     CORROBORATED = "corroborated"
     OFFICIALLY_CONFIRMED = "officially_confirmed"
     DISMISSED = "dismissed"
     SUPERSEDED = "superseded"
-
 
 class SourceKind(StrEnum):
     OFFICIAL_RECALL = "official_recall"
@@ -36,14 +31,12 @@ class SourceKind(StrEnum):
     UNKNOWN = "unknown"
     BLOG = "blog"
 
-
 class TrustTier(StrEnum):
     OFFICIAL = "official"
     HIGH = "high"
     MEDIUM = "medium"
     LOW = "low"
     UNKNOWN = "unknown"
-
 
 class IncidentEvidence(BaseModel):
     """A source record retained as auditable incident evidence."""
@@ -91,10 +84,8 @@ class IncidentEvidence(BaseModel):
             raise ValueError("incident evidence JSON must contain an object")
         return cls.model_validate(payload)
 
-
 # A more concise alias for callers that work with several evidence types.
 EvidenceRecord = IncidentEvidence
-
 
 class EarlyWarningIncidentCreate(BaseModel):
     incident_type: IncidentType
@@ -175,7 +166,6 @@ class EarlyWarningIncidentCreate(BaseModel):
             separators=(",", ":"),
             sort_keys=True,
         )
-
 
 class EarlyWarningIncident(EarlyWarningIncidentCreate):
     incident_id: str = Field(min_length=1)
@@ -275,7 +265,6 @@ class EarlyWarningIncident(EarlyWarningIncidentCreate):
             processing_errors=_parse_json_list(metadata.get("processing_errors_json")),
         )
 
-
 class IncidentStatusCounts(BaseModel):
     pending: int = 0
     corroborated: int = 0
@@ -283,11 +272,9 @@ class IncidentStatusCounts(BaseModel):
     dismissed: int = 0
     superseded: int = 0
 
-
 class IncidentsVersion(BaseModel):
     count: int
     fingerprint: str
-
 
 def serialize_evidence(evidence: list[IncidentEvidence]) -> str:
     return json.dumps(
@@ -296,7 +283,6 @@ def serialize_evidence(evidence: list[IncidentEvidence]) -> str:
         separators=(",", ":"),
         sort_keys=True,
     )
-
 
 def deserialize_evidence(value: object) -> list[IncidentEvidence]:
     if isinstance(value, list):
@@ -309,10 +295,8 @@ def deserialize_evidence(value: object) -> list[IncidentEvidence]:
         raise ValueError("incident evidence JSON must contain an array")
     return [IncidentEvidence.model_validate(item) for item in payload if isinstance(item, dict)]
 
-
 def _json_list(values: list[str]) -> str:
     return json.dumps(values, ensure_ascii=False, separators=(",", ":"))
-
 
 def _parse_json_list(value: object) -> list[str]:
     if isinstance(value, list):
@@ -324,16 +308,13 @@ def _parse_json_list(value: object) -> list[str]:
         return []
     return [str(item) for item in parsed]
 
-
 def _parse_date(value: object) -> date | None:
     text = str(value or "").strip()
     return date.fromisoformat(text) if text else None
 
-
 def _parse_datetime(value: object) -> datetime:
     text = str(value or "").strip()
     return datetime.fromisoformat(text) if text else datetime.now(timezone.utc)
-
 
 def _parse_optional_datetime(value: object) -> datetime | None:
     text = str(value or "").strip()

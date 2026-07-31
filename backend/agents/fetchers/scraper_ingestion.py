@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import logging
 from typing import Any
 
@@ -32,12 +30,10 @@ SOURCE_REQUEST_HEADERS: dict[str, str] = {
     ),
 }
 
-
 def to_translator_envelope(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "record": payload,
     }
-
 
 async def resolve_source_config(
     source: str,
@@ -76,7 +72,6 @@ async def resolve_source_config(
     if document is None:
         raise KeyError(f"Unknown scraper source: {source}")
     return document
-
 
 async def fetch_source_records(
     source: str,
@@ -148,7 +143,6 @@ async def fetch_source_records(
         )
 
     return records
-
 
 async def _crawl_and_filter(
     *,
@@ -251,7 +245,6 @@ async def _crawl_and_filter(
         )
     return detail_payloads, records
 
-
 async def fetch_sources_sequentially(
     sources: list[str],
     *,
@@ -288,7 +281,6 @@ async def fetch_sources_sequentially(
                         details={"error": str(exc)},
                     )
     return FetchSourcesResult(records=records, failures=failures)
-
 
 def _date_candidate_source(payload: dict[str, Any], selected_date: str) -> str:
     sources = payload.get("published_date_candidate_sources")

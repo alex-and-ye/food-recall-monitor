@@ -9,7 +9,6 @@ from services.early_warning.pipeline import EarlyWarningPipelineService
 
 LOGGER = logging.getLogger(__name__)
 
-
 async def run_state_aware_bootstrap(alerts_service: AlertsService, pipeline_service: PipelineService) -> None:
     record_count = alerts_service.get_alert_stats().total_alerts
     if record_count == 0:
@@ -24,7 +23,6 @@ async def run_state_aware_bootstrap(alerts_service: AlertsService, pipeline_serv
         "Database contains %d existing record(s). Scheduling next pipeline run...",
         record_count
     )
-
 
 async def run_early_warning_bootstrap(
     incident_service: EarlyWarningIncidentService,

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from datetime import UTC, datetime
 import logging
 from threading import Lock
@@ -12,7 +10,6 @@ from models.pipeline_progress import PipelineStage
 from models.pipeline_run_log import PipelineKind, PipelineRunLogEvent
 
 LOGGER = logging.getLogger(__name__)
-
 
 class PipelineProgressTracker:
     def __init__(self, log_store: PipelineRunLogsDBInterface) -> None:
@@ -216,7 +213,6 @@ class PipelineProgressTracker:
         self._last_event_monotonic.pop(run_id, None)
         self._stage_started_monotonic.pop(run_id, None)
 
-
 class _TrackerReporter:
     def __init__(self, *, tracker: PipelineProgressTracker, run_id: str) -> None:
         self._tracker = tracker
@@ -238,11 +234,9 @@ class _TrackerReporter:
             details=details,
         )
 
-
 def _is_stage_start_message(message: str) -> bool:
     normalized = message.strip().lower()
     return normalized.startswith("starting ") or normalized.endswith(" started")
-
 
 def _is_stage_end_message(message: str) -> bool:
     normalized = message.strip().lower()
@@ -254,7 +248,6 @@ def _is_stage_end_message(message: str) -> bool:
         "processing failed",
     )
     return any(marker in normalized for marker in terminal_markers)
-
 
 def _stage_key(*, stage: str, source: str | None) -> str:
     return f"{stage}::{source or '*'}"

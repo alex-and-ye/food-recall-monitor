@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from abc import ABC, abstractmethod
 
 from models.discovery_candidate import (
@@ -7,7 +5,6 @@ from models.discovery_candidate import (
     DiscoveryCandidate,
     EarlyWarningQueryState,
 )
-
 
 class EarlyWarningCandidateDBInterface(ABC):
     @abstractmethod

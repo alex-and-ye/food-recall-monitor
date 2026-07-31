@@ -1,12 +1,9 @@
-from __future__ import annotations
-
 import tempfile
 import unittest
 from pathlib import Path
 
 from config.pipelines import load_pipeline_switches
 from config.early_warning import load_early_warning_config
-
 
 class PipelineSwitchesTests(unittest.TestCase):
     def test_default_switches_file_loads(self) -> None:
@@ -38,7 +35,6 @@ class PipelineSwitchesTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(ValueError, "pipelines.yaml"):
                 load_early_warning_config(path)
-
 
 if __name__ == "__main__":
     unittest.main()

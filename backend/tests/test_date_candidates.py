@@ -12,7 +12,6 @@ from agents.fetchers.extraction.date_parser import (
 )
 from agents.fetchers.extraction.detail_extractor import extract_detail_payload
 
-
 class DateCandidatesTests(unittest.TestCase):
     def test_extract_date_candidates_returns_iso_dates(self) -> None:
         candidates = extract_date_candidates("Recall issued on 23 June 2026 and updated 24 June 2026.")
@@ -211,7 +210,6 @@ class DateCandidatesTests(unittest.TestCase):
             payload["published_date_candidate_sources"]["2026-07-18"],
             "structured",
         )
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -18,7 +18,6 @@ from models.pipeline_result import FetchSourcesResult
 from models.pipeline_state import PipelineRecordState
 from models.scraped_record import ScrapedRecallRecord
 
-
 class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
     def test_repair_and_convert_restores_deterministic_values_from_payload(self) -> None:
         scraped_record = _scraped_record()
@@ -419,18 +418,14 @@ class PipelineGraphTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(result.alerts), 1)
         on_alert_processed.assert_called_once_with(second_alert)
 
-
 def _options(sources: list[str], limit: int) -> PipelineRunOptions:
     return PipelineRunOptions.model_construct(sources=sources, limit=limit)
-
 
 def _source_db() -> Mock:
     return Mock()
 
-
 def _valid_summary() -> str:
     return "This product was recalled. It may be unsafe. Consumers should not eat it."
-
 
 def _valid_structured_json() -> dict[str, Any]:
     return {
@@ -448,7 +443,6 @@ def _valid_structured_json() -> dict[str, Any]:
         "affected_regions": ["Ontario"],
     }
 
-
 def _alert_for_source(source: str) -> FoodRecallAlertCreate:
     return FoodRecallAlertCreate(
         web_source=source,
@@ -465,7 +459,6 @@ def _alert_for_source(source: str) -> FoodRecallAlertCreate:
         affected_regions=[],
     )
 
-
 def _scraped_record(source_name: str = "uk") -> ScrapedRecallRecord:
     return ScrapedRecallRecord(
         source_name=source_name,
@@ -476,7 +469,6 @@ def _scraped_record(source_name: str = "uk") -> ScrapedRecallRecord:
             "selected_recall_date": "2026-06-09",
         },
     )
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -8,7 +8,6 @@ from models.pipeline_warning import (
 )
 from services.warnings import WarningsService
 
-
 class InMemoryPipelineWarningsStoreTests(unittest.TestCase):
     def test_create_list_and_acknowledge(self) -> None:
         store = InMemoryPipelineWarningsStore()
@@ -63,7 +62,6 @@ class InMemoryPipelineWarningsStoreTests(unittest.TestCase):
         warnings = store.list_warnings()
         self.assertEqual(len(warnings), MAX_WARNINGS_RETAINED)
 
-
 class WarningsServiceTests(unittest.TestCase):
     def test_emit_truncates_long_message(self) -> None:
         store = InMemoryPipelineWarningsStore()
@@ -75,7 +73,6 @@ class WarningsServiceTests(unittest.TestCase):
         self.assertLessEqual(len(warning.message), MAX_WARNING_MESSAGE_LENGTH)
         self.assertTrue(warning.message.endswith("…"))
         self.assertEqual(service.get_summary().unacknowledged_count, 1)
-
 
 if __name__ == "__main__":
     unittest.main()

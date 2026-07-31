@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from datetime import datetime, timezone
 
 from agents.fetchers.crawler.source_discovery import derive_base_url_and_domains
@@ -8,7 +6,6 @@ from db.source_config_interface import ScraperSourceConfigDBInterface
 from models.food_recall_alert import WEB_SOURCE_TO_COUNTRY_SOURCE
 from models.scraper_config import ScraperHints, ScraperSourceConfig
 from models.source_registry import DiscoveryStatus, SourceRegistryDocument
-
 
 def ensure_bootstrap_sources(source_db: ScraperSourceConfigDBInterface) -> int:
     """Seed pending homepage-only sources when the registry is empty. Returns inserted count."""

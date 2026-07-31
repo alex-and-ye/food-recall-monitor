@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -10,13 +8,11 @@ from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
 from models.early_warning_incident import EarlyWarningIncident
 from models.food_recall_alert import FoodRecallAlert
 
-
 @dataclass(frozen=True)
 class SemanticNeighbor:
     record_id: str
     entity_type: str
     score: float
-
 
 class SafetyEventSemanticIndex:
     """Derived, rebuildable semantic index for English-normalized safety events."""
@@ -129,7 +125,6 @@ class SafetyEventSemanticIndex:
             metadatas=[metadata],
         )
 
-
 def _incident_document(incident: EarlyWarningIncident) -> str:
     return "\n".join(
         value
@@ -144,7 +139,6 @@ def _incident_document(incident: EarlyWarningIncident) -> str:
         if value.split(":", maxsplit=1)[1].strip()
     )
 
-
 def _official_document(alert: FoodRecallAlert) -> str:
     return "\n".join(
         (
@@ -155,7 +149,6 @@ def _official_document(alert: FoodRecallAlert) -> str:
             f"Summary: {alert.summary}",
         )
     )
-
 
 def _first_list(value: Any) -> list[Any]:
     if not isinstance(value, list) or not value:
