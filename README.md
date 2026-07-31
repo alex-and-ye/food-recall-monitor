@@ -57,7 +57,7 @@ Compose sets `CHROMA_HOST=chroma` and builds the frontend with `BACKEND_URL=http
 - **Ollama is a host dependency**, not a Compose service. Installing Docker alone is not enough for LLM features.
 - Pipeline logs persist in the `backend_logs` volume; Chroma data in `chroma_data`.
 - For day-to-day coding you can still run frontend/backend on the host (see `frontend/README.md` and `backend/README.md`) and only use Compose for a release-like deploy check.
-- Local `.env` files are not required for the default Compose wiring; override service `environment` / `build.args` in `docker-compose.yml` when needed.
+- With early warning enabled (`config/pipelines.yaml`), put `BRAVE_API_KEY` in `backend/.env` (see `backend/.env.example`). Compose loads that file into the backend container; it is not baked into the image.
 
 ## Environment variables
 
@@ -73,6 +73,7 @@ To change Ollama model names or inference options, edit `backend/config/agents.p
 
 | Variable | Used by | Description | Required | Default (if optional) | How to set |
 | --- | --- | --- | --- | --- | --- |
+| `BRAVE_API_KEY` | Backend | Brave Search API key used by the early-warning discovery pipeline. | Required when early warning is enabled | _(none)_ | `backend/.env` (recommended); Compose loads it via `env_file` |
 | `CHROMA_HOST` | Backend | Hostname of the ChromaDB server the backend connects to for alert storage. | Optional | `localhost` | `backend/.env` (recommended), Compose, or command-line |
 | `CHROMA_PORT` | Backend | Port of the ChromaDB server the backend connects to. | Optional | `8000` | `backend/.env` (recommended), Compose, or command-line |
 | `CHROMA_SERVER_DATA_PATH` | Backend | Filesystem path passed to `chroma run --path`; the backend ensures this directory exists at startup (relative paths are resolved from `backend/`). | Optional | `backend/.chroma_data` | `backend/.env` (recommended) or command-line |

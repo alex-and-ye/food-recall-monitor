@@ -32,6 +32,11 @@ services:
   backend:
     build:
       context: ./backend
+    # Loads BRAVE_API_KEY (and any other local overrides). Compose `environment`
+    # below wins over values from this file (e.g. CHROMA_HOST stays "chroma").
+    env_file:
+      - path: ./backend/.env
+        required: false
     ports:
       - "8080:8080"
     environment:
