@@ -1,3 +1,10 @@
+"""Priority-queue crawler that collects recall detail payloads from seed URLs.
+
+Fetches listing and detail pages (static or browser-rendered), classifies them,
+extracts structured detail payloads, and enqueues keyword-matching child links
+within configured depth and page limits.
+"""
+
 import heapq
 import logging
 from dataclasses import dataclass, field
@@ -14,10 +21,13 @@ from agents.fetchers.rendering.static_fetch import fetch_static_html
 from models.pipeline_progress import PipelineStage, ProgressReporter
 from models.scraper_config import ScraperSourceConfig
 
+# Module logger for crawl progress and fetch failures.
 LOGGER = logging.getLogger(__name__)
 
 @dataclass(order=True)
 class _QueueItem:
+    """Min-heap entry for breadth-first crawl scheduling by negative relevance score."""
+
     priority: int
     depth: int
     order: int
@@ -30,6 +40,24 @@ async def crawl_source_pages(
     client: httpx.AsyncClient,
     reporter: ProgressReporter | None = None,
 ) -> list[dict[str, object]]:
+    """Crawl a configured source and return extracted detail page payloads.
+
+    Seeds a priority queue from ``source_config.seed_urls``, fetches pages within
+    depth and page limits, and collects structured payloads from classified detail
+    pages.
+
+    Args:
+        source_name: Registry name used for logging and error messages.
+        source_config: Crawl limits, domains, hints, and seed URLs.
+        client: Shared async HTTP client for static fetches.
+        reporter: Optional pipeline progress logger.
+
+    Returns:
+        List of detail extraction payloads (one dict per detail page).
+
+    Raises:
+        RuntimeError: If every fetch attempt failed and no pages were retrieved.
+    """
     detail_page_keywords = source_config.hints.detail_page_keywords
     blocked_paths = source_config.hints.blocked_paths
     queue: list[_QueueItem] = []
@@ -230,6 +258,7 @@ async def crawl_source_pages(
     return detail_pages
 
 def _is_allowed(url: str, allowed_domains: list[str], blocked_paths: list[str]) -> bool:
+    """Return whether a URL passes domain suffix and blocked-path filters."""
     parsed = urlparse(url)
     netloc = parsed.netloc.lower()
     path = parsed.path.lower()
@@ -240,6 +269,7 @@ def _is_allowed(url: str, allowed_domains: list[str], blocked_paths: list[str]) 
     return True
 
 def _build_robot_parser(base_url: str) -> RobotFileParser | None:
+    """Build a robots.txt parser for the source base URL (no network fetch)."""
     parsed = urlparse(base_url)
     if not parsed.scheme or not parsed.netloc:
         return None
@@ -252,6 +282,7 @@ def _build_robot_parser(base_url: str) -> RobotFileParser | None:
     return parser
 
 def _looks_dynamic(html: str) -> bool:
+    """Return whether HTML appears JavaScript-heavy with little visible text."""
     script_tags = html.count("<script")
     text_like = len(" ".join(html.split()))
     return script_tags > 20 and text_like < 3_000
@@ -262,6 +293,7 @@ def _should_try_browser(
     html: str,
     force_browser: bool = False,
 ) -> bool:
+    """Decide whether to fall back to browser rendering after a static fetch."""
     if force_browser:
         return True
     if isinstance(static_error, httpx.HTTPStatusError):

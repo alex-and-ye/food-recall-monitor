@@ -1,10 +1,18 @@
+"""Sanitize extracted recall detail payloads before downstream processing.
+
+Strips HTML, removes boilerplate text, canonicalizes source URLs, and validates
+that cleaned fields contain no remaining markup.
+"""
+
 import re
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from bs4 import BeautifulSoup
 
+# URL query parameter prefixes removed during canonicalization.
 TRACKING_QUERY_PREFIXES = ("utm_", "fbclid", "gclid", "mc_", "ref")
+# Footer and navigation phrases filtered from visible text.
 BOILERPLATE_MARKERS = (
     "cookie",
     "privacy policy",
@@ -14,10 +22,27 @@ BOILERPLATE_MARKERS = (
     "all rights reserved",
 )
 
+# Detects HTML tags that should not remain after cleaning.
 HTML_TAG_RE = re.compile(r"<[^>]+>")
+# Collapses repeated whitespace in plain text.
 MULTISPACE_RE = re.compile(r"\s+")
 
+
 def clean_detail_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Normalize headings, visible text, and source URL in a detail payload.
+
+    Args:
+        payload: Raw extraction result containing ``headings``, ``visible_text``,
+            ``source_url``, and optional recall date fields.
+
+    Returns:
+        A cleaned copy of the payload with HTML removed, boilerplate filtered,
+        and the source URL canonicalized.
+
+    Raises:
+        ValueError: If HTML tags remain in ``visible_text`` or ``headings`` after
+            cleaning.
+    """
     headings = [
         _normalize_plain_text(_strip_html(str(heading)))
         for heading in payload.get("headings", [])
@@ -43,12 +68,16 @@ def clean_detail_payload(payload: dict[str, Any]) -> dict[str, Any]:
     _assert_no_html_tags(cleaned)
     return cleaned
 
+
 def _strip_html(value: str) -> str:
+    """Convert an HTML fragment to plain text."""
     if not value.strip():
         return ""
     return BeautifulSoup(value, "html.parser").get_text(" ", strip=True)
 
+
 def _clean_visible_text(value: str) -> str:
+    """Strip HTML and remove boilerplate sentences from page body text."""
     plain = _normalize_plain_text(_strip_html(value))
     if not plain:
         return ""
@@ -62,10 +91,14 @@ def _clean_visible_text(value: str) -> str:
     ]
     return ". ".join(filtered).strip()
 
+
 def _normalize_plain_text(value: str) -> str:
+    """Collapse whitespace and trim surrounding space."""
     return MULTISPACE_RE.sub(" ", value).strip()
 
+
 def _canonicalize_url(url: str) -> str:
+    """Remove tracking query parameters and URL fragments."""
     if not url.strip():
         return ""
 
@@ -78,7 +111,9 @@ def _canonicalize_url(url: str) -> str:
     clean_query = urlencode(filtered_query, doseq=True)
     return urlunsplit((parts.scheme, parts.netloc, parts.path, clean_query, ""))
 
+
 def _assert_no_html_tags(cleaned_payload: dict[str, Any]) -> None:
+    """Raise if any cleaned text field still contains HTML markup."""
     if HTML_TAG_RE.search(str(cleaned_payload.get("visible_text", ""))):
         raise ValueError("Unexpected HTML tags after cleaning: visible_text")
     for heading in cleaned_payload.get("headings", []):

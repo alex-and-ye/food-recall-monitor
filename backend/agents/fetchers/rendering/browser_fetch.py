@@ -1,7 +1,15 @@
+"""Headless browser HTML fetching via Playwright.
+
+Loads recall source pages in Chromium when static HTTP fetching is insufficient,
+with a thread-based fallback for event loops that cannot run async Playwright.
+"""
+
 import asyncio
 import logging
 
+# Module logger for Playwright event-loop fallback warnings.
 LOGGER = logging.getLogger(__name__)
+
 
 async def fetch_browser_html(
     url: str,
@@ -10,6 +18,20 @@ async def fetch_browser_html(
     proxy_url: str | None = None,
     timeout_ms: int = 20_000,
 ) -> tuple[str, str]:
+    """Fetch page HTML using a headless Chromium browser.
+
+    Args:
+        url: Target page URL.
+        headers: Optional HTTP headers applied to the browser context.
+        proxy_url: Optional proxy server URL for browser launch.
+        timeout_ms: Navigation timeout in milliseconds.
+
+    Returns:
+        A tuple of ``(html, final_url)`` after redirects and JavaScript execution.
+
+    Raises:
+        RuntimeError: If Playwright is not installed or the browser fetch fails.
+    """
     try:
         from playwright.async_api import async_playwright
     except ImportError as exc:
@@ -36,6 +58,7 @@ async def fetch_browser_html(
             timeout_ms=timeout_ms,
         )
 
+
 async def _fetch_with_async_playwright(
     url: str,
     *,
@@ -43,6 +66,7 @@ async def _fetch_with_async_playwright(
     proxy_url: str | None,
     timeout_ms: int,
 ) -> tuple[str, str]:
+    """Load a URL in async Playwright and return rendered HTML."""
     from playwright.async_api import async_playwright
 
     try:
@@ -70,6 +94,7 @@ async def _fetch_with_async_playwright(
 
     return html, final_url
 
+
 def _fetch_browser_html_sync(
     url: str,
     *,
@@ -77,9 +102,23 @@ def _fetch_browser_html_sync(
     proxy_url: str | None = None,
     timeout_ms: int = 20_000,
 ) -> tuple[str, str]:
-    """Run Playwright against a fresh event loop in a worker thread."""
+    """Run Playwright against a fresh event loop in a worker thread.
+
+    Args:
+        url: Target page URL.
+        headers: Optional HTTP headers applied to the browser context.
+        proxy_url: Optional proxy server URL for browser launch.
+        timeout_ms: Navigation timeout in milliseconds.
+
+    Returns:
+        A tuple of ``(html, final_url)`` from the browser fetch.
+
+    Raises:
+        RuntimeError: If the threaded Playwright fallback cannot complete.
+    """
 
     async def _runner() -> tuple[str, str]:
+        """Run the async Playwright fetch inside ``asyncio.run``."""
         return await _fetch_with_async_playwright(
             url,
             headers=headers,
