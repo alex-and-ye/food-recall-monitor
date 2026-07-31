@@ -18,11 +18,6 @@ export function useAlertsChangeStream(
   }, [onAlertsChanged]);
 
   useEffect(() => {
-    // TODO: Remove this before final project delivery
-    if (!enabled || isMockDataMode()) {
-      return;
-    }
-
     let cancelled = false;
     let eventSource: EventSource | null = null;
     let retryTimer: number | null = null;
