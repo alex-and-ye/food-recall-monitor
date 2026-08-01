@@ -1,3 +1,8 @@
+/**
+ * App shell that composes the sidebar, header, and main content area, with
+ * map-page layout adjustments and responsive sidebar open state.
+ */
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -5,8 +10,15 @@ import { usePathname } from "next/navigation";
 import Header from "@/components/Header";
 import Sidebar from "@/components/Sidebar";
 
+/** Minimum viewport width (px) treated as desktop for default-open sidebar. */
 const DESKTOP_BREAKPOINT = 768;
 
+/**
+ * Wraps page children with dashboard chrome and responsive sidebar behavior.
+ *
+ * @param props.children - Route page content.
+ * @returns Shell layout element.
+ */
 export default function DashboardShell({
   children,
 }: Readonly<{ children: React.ReactNode }>) {

@@ -1,3 +1,13 @@
+/**
+ * Compact or full confidence score display for early-warning incidents.
+ */
+
+/**
+ * Clamps a confidence score to an integer in the 0–100 range.
+ *
+ * @param score - Raw confidence value.
+ * @returns Integer percentage between 0 and 100 inclusive.
+ */
 function clampConfidence(score: number): number {
   if (!Number.isFinite(score)) {
     return 0;
@@ -5,6 +15,12 @@ function clampConfidence(score: number): number {
   return Math.min(100, Math.max(0, Math.round(score)));
 }
 
+/**
+ * Maps a clamped confidence score to a qualitative label.
+ *
+ * @param score - Clamped 0–100 score.
+ * @returns Human-readable confidence band label.
+ */
 function confidenceLabel(score: number): string {
   if (score >= 85) return "Very high";
   if (score >= 70) return "High";
@@ -12,6 +28,12 @@ function confidenceLabel(score: number): string {
   return "Low";
 }
 
+/**
+ * Maps a clamped confidence score to a Tailwind background color class.
+ *
+ * @param score - Clamped 0–100 score.
+ * @returns Tailwind `bg-*` utility class.
+ */
 function confidenceColor(score: number): string {
   if (score >= 85) return "bg-emerald-600";
   if (score >= 70) return "bg-sky-600";
@@ -19,6 +41,13 @@ function confidenceColor(score: number): string {
   return "bg-slate-500";
 }
 
+/**
+ * Renders either a compact confidence chip or a labeled progress bar.
+ *
+ * @param props.score - Raw confidence score (typically 0–100).
+ * @param props.compact - When `true`, render the inline chip variant.
+ * @returns Confidence UI element.
+ */
 export default function IncidentConfidence({
   score,
   compact = false,

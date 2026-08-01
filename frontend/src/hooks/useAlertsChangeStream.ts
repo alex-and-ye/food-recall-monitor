@@ -1,12 +1,28 @@
+/**
+ * React hook that listens for official-alert SSE change events and triggers
+ * a debounced refresh callback, with exponential backoff on disconnect.
+ */
+
 "use client";
 
 import { useEffect, useRef } from "react";
 import { getAlertsEventsUrl } from "@/services/api/client";
 
+/** Debounce window before invoking the refresh callback after an SSE event. */
 const REFRESH_DEBOUNCE_MS = 300;
+
+/** Initial reconnect delay after an EventSource error. */
 const INITIAL_RETRY_MS = 1_000;
+
+/** Upper bound for exponential reconnect backoff. */
 const MAX_RETRY_MS = 30_000;
 
+/**
+ * Subscribes to the alerts change stream and calls `onAlertsChanged` when data updates.
+ *
+ * @param onAlertsChanged - Callback invoked (debounced) when alerts change.
+ * @param enabled - When `false`, the stream is not connected.
+ */
 export function useAlertsChangeStream(
   onAlertsChanged: () => void,
   enabled = true,

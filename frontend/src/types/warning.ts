@@ -1,3 +1,8 @@
+/**
+ * Domain types, constants, and labels for pipeline warning records.
+ */
+
+/** Canonical pipeline warning category values returned by the API. */
 export const WARNING_CATEGORIES = [
   "source_skipped",
   "record_skipped",
@@ -8,8 +13,10 @@ export const WARNING_CATEGORIES = [
   "early_warning_pipeline_failed",
 ] as const;
 
+/** Canonical pipeline warning category values. */
 export type PipelineWarningCategory = (typeof WARNING_CATEGORIES)[number];
 
+/** Pipeline warning data structure. */
 export interface PipelineWarning {
   warning_id: string;
   created_at: string;
@@ -20,10 +27,12 @@ export interface PipelineWarning {
   run_id: string | null;
 }
 
+/** Summary statistics for pipeline warnings. */
 export interface PipelineWarningsSummary {
   unacknowledged_count: number;
 }
 
+/** Human-readable labels for pipeline warning categories. */
 export const WARNING_CATEGORY_LABELS: Record<PipelineWarningCategory, string> = {
   source_skipped: "Source skipped",
   record_skipped: "Product skipped",

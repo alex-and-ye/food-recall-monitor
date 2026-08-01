@@ -1,11 +1,14 @@
+/**
+ * Helpers for official food-recall alert search form state, URL query params,
+ * and API fetch parameter mapping.
+ */
+
 import type { ReadonlyURLSearchParams } from "next/navigation";
-import type { CountrySource, FoodRecallAlert, RiskLevel, SortBy } from "@/types/alert";
+import type { CountrySource, RiskLevel, SortBy } from "@/types/alert";
 import {
   isCountrySource,
   isRiskLevel,
   isSortBy,
-  SORT_BY_LATEST,
-  SORT_BY_OLDEST,
 } from "@/types/alert";
 
 export type RiskLevelFilter = RiskLevel | "All";
@@ -30,6 +33,7 @@ export interface AlertSearchPayload {
   sort_by: SortBy | null;
 }
 
+/** Empty filter form used when clearing search controls. */
 export const DEFAULT_ALERT_SEARCH_FORM_STATE: AlertSearchFormState = {
   search: "",
   riskLevel: "All",
@@ -38,6 +42,12 @@ export const DEFAULT_ALERT_SEARCH_FORM_STATE: AlertSearchFormState = {
   recallDate: "",
 };
 
+/**
+ * Converts UI form state into the API payload shape expected by the alerts endpoint.
+ *
+ * @param state - Current alert search form values.
+ * @returns Payload with "All"/empty UI values mapped to `null`.
+ */
 export function buildAlertSearchPayload(
   state: AlertSearchFormState,
 ): AlertSearchPayload {
@@ -50,6 +60,12 @@ export function buildAlertSearchPayload(
   };
 }
 
+/**
+ * Returns whether any alert search filter differs from its default value.
+ *
+ * @param state - Current alert search form values.
+ * @returns `true` if at least one filter is active.
+ */
 export function hasActiveFilters(state: AlertSearchFormState): boolean {
   return (
     state.search.trim().length > 0 ||
@@ -60,6 +76,12 @@ export function hasActiveFilters(state: AlertSearchFormState): boolean {
   );
 }
 
+/**
+ * Parses Next.js URL search params into alert search form state.
+ *
+ * @param searchParams - Current route query parameters.
+ * @returns Validated form state; invalid values fall back to defaults.
+ */
 export function formStateFromSearchParams(
   searchParams: ReadonlyURLSearchParams,
 ): AlertSearchFormState {
@@ -77,6 +99,12 @@ export function formStateFromSearchParams(
   };
 }
 
+/**
+ * Serializes alert search form state into URL search params (omitting defaults).
+ *
+ * @param state - Current alert search form values.
+ * @returns Query params suitable for `router.replace`.
+ */
 export function searchParamsFromFormState(
   state: AlertSearchFormState,
 ): URLSearchParams {
@@ -102,12 +130,24 @@ export function searchParamsFromFormState(
   return params;
 }
 
+/**
+ * Returns whether the current URL query encodes any active alert filters.
+ *
+ * @param searchParams - Current route query parameters.
+ * @returns `true` if filters are present in the URL.
+ */
 export function hasActiveUrlFilters(
   searchParams: ReadonlyURLSearchParams,
 ): boolean {
   return hasActiveFilters(formStateFromSearchParams(searchParams));
 }
 
+/**
+ * Builds optional fetch query fields for `getAlerts` from URL search params.
+ *
+ * @param searchParams - Current route query parameters.
+ * @returns Sparse object of defined alert API query fields.
+ */
 export function alertFetchParamsFromSearchParams(
   searchParams: ReadonlyURLSearchParams,
 ): {
@@ -129,6 +169,12 @@ export function alertFetchParamsFromSearchParams(
   };
 }
 
+/**
+ * Formats a human-readable results count label for the alerts list.
+ *
+ * @param count - Number of matching alerts.
+ * @returns Singular or plural "Showing N result(s)" string.
+ */
 export function formatResultsCount(count: number): string {
   if (count === 1) {
     return "Showing 1 result";

@@ -1,3 +1,7 @@
+/**
+ * Summary card linking to the detail page for an early-warning incident.
+ */
+
 import Link from "next/link";
 import IncidentConfidence from "@/components/IncidentConfidence";
 import IncidentStatusBadge from "@/components/IncidentStatusBadge";
@@ -9,6 +13,12 @@ import {
   type EarlyWarningIncident,
 } from "@/types/incident";
 
+/**
+ * Formats an ISO date string for compact card display.
+ *
+ * @param value - ISO date/datetime or nullish.
+ * @returns Localized medium date, raw value, or a fallback label.
+ */
 function formatDate(value?: string | null): string {
   if (!value) return "Date not reported";
   const date = new Date(value);
@@ -16,6 +26,12 @@ function formatDate(value?: string | null): string {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(date);
 }
 
+/**
+ * Chooses the best available title string for an incident card.
+ *
+ * @param incident - Incident record.
+ * @returns Product, company, category, or type label fallback.
+ */
 function incidentTitle(incident: EarlyWarningIncident): string {
   return (
     incident.product_name?.trim() ||
@@ -25,6 +41,12 @@ function incidentTitle(incident: EarlyWarningIncident): string {
   );
 }
 
+/**
+ * Renders a clickable list card summarizing an early-warning incident.
+ *
+ * @param props.incident - Incident to summarize.
+ * @returns Linked card element.
+ */
 export default function EarlyWarningIncidentCard({
   incident,
 }: {

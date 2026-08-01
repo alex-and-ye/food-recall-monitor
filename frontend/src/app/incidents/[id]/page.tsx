@@ -1,3 +1,7 @@
+/**
+ * Detail page for a single early-warning incident by ID.
+ */
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -9,8 +13,14 @@ import { bodySecondaryClassName, panelClassName } from "@/lib/ui";
 import { ApiError, getIncidentById } from "@/services/api/client";
 import type { EarlyWarningIncident } from "@/types/incident";
 
+/** Status of the incident detail page loading state. */
 type DetailStatus = "pending" | "ready" | "not_found" | "error";
 
+/**
+ * Loads and displays one early-warning incident, or an error/not-found state.
+ *
+ * @returns Incident detail page UI.
+ */
 export default function IncidentDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();

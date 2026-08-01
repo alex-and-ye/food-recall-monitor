@@ -1,3 +1,8 @@
+/**
+ * Early warnings page: paginated, filterable list of discovered food-safety
+ * incidents with live SSE refresh when the incidents collection changes.
+ */
+
 "use client";
 
 import { Suspense, useCallback, useEffect, useState } from "react";
@@ -22,10 +27,17 @@ import { getIncidents } from "@/services/api/client";
 import { useIncidentsChangeStream } from "@/hooks/useIncidentsChangeStream";
 import type { EarlyWarningIncident } from "@/types/incident";
 
+/** Number of incident cards shown per page. */
 const ITEMS_PER_PAGE = 10;
 
+/** Status of the early warnings page loading state. */
 type PageStatus = "pending" | "ready" | "error";
 
+/**
+ * Inner early-warnings content that reads URL search params (requires Suspense).
+ *
+ * @returns Incidents feed UI with toolbar, list, and pagination.
+ */
 function EarlyWarningsPageContent() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -164,6 +176,11 @@ function EarlyWarningsPageContent() {
   );
 }
 
+/**
+ * Early warnings route wrapped in Suspense for `useSearchParams`.
+ *
+ * @returns Suspense boundary around the incidents feed.
+ */
 export default function EarlyWarningsPage() {
   return (
     <Suspense fallback={<LoadingState />}>

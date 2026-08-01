@@ -1,3 +1,8 @@
+/**
+ * Collapsible sidebar navigation with sectioned links and an unacknowledged
+ * pipeline-warning badge.
+ */
+
 "use client";
 
 import Link from "next/link";
@@ -5,6 +10,11 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { getWarningsSummary } from "@/services/api/client";
 
+/**
+ * Renders a hamburger menu icon used for open/close controls.
+ *
+ * @returns SVG icon element.
+ */
 function HamburgerIcon() {
   return (
     <svg
@@ -23,6 +33,11 @@ function HamburgerIcon() {
   );
 }
 
+/**
+ * Renders the official recalls / feed navigation icon.
+ *
+ * @returns SVG icon element.
+ */
 function FeedIcon() {
   return (
     <svg
@@ -42,6 +57,11 @@ function FeedIcon() {
   );
 }
 
+/**
+ * Renders the statistics navigation icon.
+ *
+ * @returns SVG icon element.
+ */
 function StatsIcon() {
   return (
     <svg
@@ -60,6 +80,11 @@ function StatsIcon() {
   );
 }
 
+/**
+ * Renders the globe map navigation icon.
+ *
+ * @returns SVG icon element.
+ */
 function GlobeIcon() {
   return (
     <svg
@@ -80,6 +105,11 @@ function GlobeIcon() {
   );
 }
 
+/**
+ * Renders the pipeline warnings navigation icon.
+ *
+ * @returns SVG icon element.
+ */
 function WarningIcon() {
   return (
     <svg
@@ -100,6 +130,11 @@ function WarningIcon() {
   );
 }
 
+/**
+ * Renders the early-warnings / incidents navigation icon.
+ *
+ * @returns SVG icon element.
+ */
 function IncidentIcon() {
   return (
     <svg
@@ -120,6 +155,7 @@ function IncidentIcon() {
   );
 }
 
+/** Grouped navigation sections and links shown in the sidebar. */
 const NAV_SECTIONS = [
   {
     label: "Official recalls",
@@ -168,12 +204,21 @@ const NAV_SECTIONS = [
   },
 ] as const;
 
+/** Props for the sidebar component. */
 interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
   onClose: () => void;
 }
 
+/**
+ * Renders the dashboard sidebar, floating open button, and mobile overlay.
+ *
+ * @param props.isOpen - Whether the drawer is visible.
+ * @param props.onToggle - Toggles open/closed state.
+ * @param props.onClose - Closes the drawer (e.g. mobile overlay click).
+ * @returns Sidebar chrome and navigation links.
+ */
 export default function Sidebar({ isOpen, onToggle, onClose }: SidebarProps) {
   const pathname = usePathname();
   const [unacknowledgedCount, setUnacknowledgedCount] = useState(0);

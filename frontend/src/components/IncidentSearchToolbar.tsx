@@ -1,3 +1,7 @@
+/**
+ * Search and filter toolbar for the early-warning incidents list.
+ */
+
 "use client";
 
 import { type SubmitEvent, useState } from "react";
@@ -23,6 +27,17 @@ import {
   INCIDENT_TYPE_LABELS,
 } from "@/types/incident";
 
+/**
+ * Controlled search form for incident text, status, type, confidence, and more.
+ *
+ * Most select/date changes apply immediately when enabled; free-text fields
+ * apply on submit (confidence also applies on blur).
+ *
+ * @param props.enabled - Whether filter controls should be interactive.
+ * @param props.formState - Form state derived from the current URL.
+ * @param props.onApplyFilters - Called when filters should be written to the URL.
+ * @returns Search toolbar form element.
+ */
 export default function IncidentSearchToolbar({
   enabled,
   formState: urlFormState,

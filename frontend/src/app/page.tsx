@@ -1,3 +1,8 @@
+/**
+ * Home page: paginated, filterable list of official food recall alerts with
+ * live SSE refresh when the alerts collection changes.
+ */
+
 "use client";
 
 import { Suspense, useCallback, useEffect, useState } from "react";
@@ -20,10 +25,17 @@ import { getAlerts } from "@/services/api/client";
 import { useAlertsChangeStream } from "@/hooks/useAlertsChangeStream";
 import type { FoodRecallAlert } from "@/types/alert";
 
+/** Number of alert cards shown per page. */
 const ITEMS_PER_PAGE = 10;
 
+/** Status of the page loading state. */
 type PageStatus = "pending" | "empty" | "ready";
 
+/**
+ * Inner home page content that reads URL search params (requires Suspense).
+ *
+ * @returns Alerts feed UI with toolbar, list, and pagination.
+ */
 function HomePageContent() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -135,6 +147,11 @@ function HomePageContent() {
   );
 }
 
+/**
+ * Official recalls home route wrapped in Suspense for `useSearchParams`.
+ *
+ * @returns Suspense boundary around the alerts feed.
+ */
 export default function HomePage() {
   return (
     <Suspense fallback={<LoadingState />}>

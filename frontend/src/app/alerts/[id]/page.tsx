@@ -1,3 +1,7 @@
+/**
+ * Detail page for a single official food recall alert by ID.
+ */
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -9,8 +13,14 @@ import { bodySecondaryClassName, panelClassName } from "@/lib/ui";
 import { ApiError, getAlertById } from "@/services/api/client";
 import type { FoodRecallAlert } from "@/types/alert";
 
+/** Status of the alert detail page loading state. */
 type DetailStatus = "pending" | "ready" | "not_found" | "error";
 
+/**
+ * Loads and displays one official recall alert, or an error/not-found state.
+ *
+ * @returns Alert detail page UI.
+ */
 export default function AlertDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();

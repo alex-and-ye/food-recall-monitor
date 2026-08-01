@@ -1,10 +1,20 @@
+/**
+ * Back-navigation control used on detail pages.
+ */
+
 import { backButtonClassName } from "@/lib/ui";
 
+/** Props for the back button component. */
 interface BackButtonProps {
   onClick: () => void;
   label?: string;
 }
 
+/**
+ * Renders a left-chevron icon for the back button.
+ *
+ * @returns SVG icon element.
+ */
 function ChevronLeftIcon() {
   return (
     <svg
@@ -23,6 +33,13 @@ function ChevronLeftIcon() {
   );
 }
 
+/**
+ * Renders a text button that navigates back (typically via `router.back()`).
+ *
+ * @param props.onClick - Click handler for navigation.
+ * @param props.label - Optional button label (defaults to `"Back"`).
+ * @returns Back button element.
+ */
 export default function BackButton({
   onClick,
   label = "Back",

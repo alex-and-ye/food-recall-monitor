@@ -1,3 +1,8 @@
+/**
+ * Helpers for early-warning incident search form state, URL query params,
+ * and API fetch parameter mapping.
+ */
+
 import type { ReadonlyURLSearchParams } from "next/navigation";
 import {
   isIncidentSortBy,
@@ -10,6 +15,7 @@ import {
   type IncidentType,
 } from "@/types/incident";
 
+/** Interface for the incident search form state. */
 export interface IncidentSearchFormState {
   search: string;
   status: IncidentStatus | "All";
@@ -21,6 +27,7 @@ export interface IncidentSearchFormState {
   sortBy: IncidentSortBy | "";
 }
 
+/** Interface for the incident search payload. */
 export interface IncidentSearchPayload {
   search: string | null;
   verification_status: IncidentStatus | null;
@@ -32,6 +39,7 @@ export interface IncidentSearchPayload {
   sort_by: IncidentSortBy | null;
 }
 
+/** Empty filter form used when clearing incident search controls. */
 export const DEFAULT_INCIDENT_SEARCH_FORM_STATE: IncidentSearchFormState = {
   search: "",
   status: "All",
@@ -43,6 +51,12 @@ export const DEFAULT_INCIDENT_SEARCH_FORM_STATE: IncidentSearchFormState = {
   sortBy: "",
 };
 
+/**
+ * Validates and normalizes a confidence string to a 0–100 numeric string.
+ *
+ * @param value - Raw confidence input from the form or URL.
+ * @returns Normalized numeric string, or `""` if invalid.
+ */
 function parseConfidence(value: string | null | undefined): string {
   if (!value?.trim()) {
     return "";
@@ -56,6 +70,12 @@ function parseConfidence(value: string | null | undefined): string {
   return String(numericValue);
 }
 
+/**
+ * Converts UI form state into the API payload shape expected by the incidents endpoint.
+ *
+ * @param state - Current incident search form values.
+ * @returns Payload with "All"/empty UI values mapped to `null`.
+ */
 export function buildIncidentSearchPayload(
   state: IncidentSearchFormState,
 ): IncidentSearchPayload {
@@ -73,6 +93,12 @@ export function buildIncidentSearchPayload(
   };
 }
 
+/**
+ * Returns whether any incident search filter differs from its default value.
+ *
+ * @param state - Current incident search form values.
+ * @returns `true` if at least one filter is active.
+ */
 export function hasActiveIncidentFilters(
   state: IncidentSearchFormState,
 ): boolean {
@@ -88,6 +114,12 @@ export function hasActiveIncidentFilters(
   );
 }
 
+/**
+ * Parses Next.js URL search params into incident search form state.
+ *
+ * @param searchParams - Current route query parameters.
+ * @returns Validated form state; invalid values fall back to defaults.
+ */
 export function incidentFormStateFromSearchParams(
   searchParams: ReadonlyURLSearchParams,
 ): IncidentSearchFormState {
@@ -109,6 +141,12 @@ export function incidentFormStateFromSearchParams(
   };
 }
 
+/**
+ * Serializes incident search form state into URL search params (omitting defaults).
+ *
+ * @param state - Current incident search form values.
+ * @returns Query params suitable for `router.replace`.
+ */
 export function incidentSearchParamsFromFormState(
   state: IncidentSearchFormState,
 ): URLSearchParams {
@@ -133,6 +171,12 @@ export function incidentSearchParamsFromFormState(
   return params;
 }
 
+/**
+ * Builds optional fetch query fields for `getIncidents` from URL search params.
+ *
+ * @param searchParams - Current route query parameters.
+ * @returns Sparse record of defined incident API query fields.
+ */
 export function incidentFetchParamsFromSearchParams(
   searchParams: ReadonlyURLSearchParams,
 ): Record<string, string | undefined> {
@@ -155,6 +199,12 @@ export function incidentFetchParamsFromSearchParams(
   };
 }
 
+/**
+ * Returns whether the current URL query encodes any active incident filters.
+ *
+ * @param searchParams - Current route query parameters.
+ * @returns `true` if filters are present in the URL.
+ */
 export function hasActiveIncidentUrlFilters(
   searchParams: ReadonlyURLSearchParams,
 ): boolean {
