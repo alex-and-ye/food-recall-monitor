@@ -1,3 +1,8 @@
+/**
+ * Full detail view for a single early-warning incident, including confidence,
+ * evidence, linked official recalls, and processing notes.
+ */
+
 import Link from "next/link";
 import IncidentConfidence from "@/components/IncidentConfidence";
 import IncidentStatusBadge from "@/components/IncidentStatusBadge";
@@ -16,10 +21,22 @@ import {
   type IncidentEvidence,
 } from "@/types/incident";
 
+/**
+ * Returns display text for an optional string, or a placeholder when empty.
+ *
+ * @param value - Raw field value.
+ * @returns Trimmed value, or `"Not available"`.
+ */
 function formatText(value?: string | null): string {
   return value?.trim() || "Not available";
 }
 
+/**
+ * Formats an ISO date/datetime for detail display.
+ *
+ * @param value - ISO date/datetime or nullish.
+ * @returns Localized date (and time when `T` is present), raw value, or fallback.
+ */
 function formatDate(value?: string | null): string {
   if (!value) return "Not available";
   const date = new Date(value);
@@ -30,12 +47,25 @@ function formatDate(value?: string | null): string {
   }).format(date);
 }
 
+/**
+ * Resolves a human-readable label for a source kind value.
+ *
+ * @param value - Source kind string or nullish.
+ * @returns Known label, formatted raw value, or `"Not available"`.
+ */
 function sourceKindLabel(value?: string | null): string {
   return value && isIncidentSourceKind(value)
     ? INCIDENT_SOURCE_KIND_LABELS[value]
     : formatText(value);
 }
 
+/**
+ * Renders a single evidence source row within the evidence list.
+ *
+ * @param props.evidence - Evidence record.
+ * @param props.index - Zero-based index used for untitled fallbacks.
+ * @returns List item element.
+ */
 function EvidenceItem({
   evidence,
   index,
@@ -78,6 +108,12 @@ function EvidenceItem({
   );
 }
 
+/**
+ * Renders structured fields, confidence, evidence, and linked recalls for one incident.
+ *
+ * @param props.incident - Incident record to display.
+ * @returns Detail content element.
+ */
 export default function EarlyWarningIncidentDetails({
   incident,
 }: {

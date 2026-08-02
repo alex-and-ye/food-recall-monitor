@@ -1,3 +1,8 @@
+/**
+ * Globe map page: desktop 3D globe of official recall pins with a side panel
+ * for alert details and pin-placement disclaimer; mobile shows a fallback notice.
+ */
+
 "use client";
 
 import dynamic from "next/dynamic";
@@ -16,11 +21,13 @@ import {
 import { getAlerts } from "@/services/api/client";
 import type { FoodRecallAlert } from "@/types/alert";
 
+/** Client-only globe (WebGL); disabled SSR to avoid hydration issues. */
 const GlobeComponent = dynamic(() => import("@/components/GlobeComponent"), {
   ssr: false,
   loading: () => <LoadingState />,
 });
 
+/** Disclaimer bullet points explaining approximate pin placement rules. */
 const GLOBE_PIN_DISCLAIMER_POINTS = [
   "Each pin represents one food recall alert, not every affected region listed for that alert.",
   "If an alert has no affected regions, the pin is placed using the alert country source.",
@@ -31,9 +38,17 @@ const GLOBE_PIN_DISCLAIMER_POINTS = [
   "Pin locations are approximate and intended for exploratory visualization in this proof of concept, not for precise geographic or regulatory mapping.",
 ] as const;
 
+/** Status of the globe map page loading state. */
 type PageStatus = "pending" | "empty" | "ready" | "error";
+
+/** Type for the side panel view. */
 type SidePanelView = "alert" | "disclaimer" | null;
 
+/**
+ * Loads alerts onto the interactive globe and manages the detail/disclaimer side panel.
+ *
+ * @returns Globe map page UI.
+ */
 export default function MapPage() {
   const [status, setStatus] = useState<PageStatus>("pending");
   const [alerts, setAlerts] = useState<FoodRecallAlert[]>([]);

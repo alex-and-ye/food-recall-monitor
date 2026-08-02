@@ -1,5 +1,14 @@
+/**
+ * Empty-state placeholder shown when no records are available to display.
+ */
+
 import { bodySecondaryClassName, cardClassName } from "@/lib/ui";
 
+/**
+ * Renders a centered card informing the user that no records are available.
+ *
+ * @returns Empty-state UI element.
+ */
 export default function EmptyState() {
   return (
     <div

@@ -1,5 +1,14 @@
+/**
+ * Loading spinner and message shown while page or panel data is fetching.
+ */
+
 import { bodySecondaryClassName } from "@/lib/ui";
 
+/**
+ * Renders a centered spinner with a "Loading data..." label.
+ *
+ * @returns Loading-state UI element.
+ */
 export default function LoadingState() {
   return (
     <div className="flex flex-col items-center justify-center gap-4 py-24">

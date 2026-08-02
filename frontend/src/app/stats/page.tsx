@@ -1,3 +1,8 @@
+/**
+ * Statistics page summarizing official food recall alert totals and top-N
+ * hazard, category, and region breakdowns, with live SSE refresh.
+ */
+
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
@@ -13,14 +18,24 @@ import { getAlertStats } from "@/services/api/client";
 import { useAlertsChangeStream } from "@/hooks/useAlertsChangeStream";
 import type { FoodRecallAlertStats } from "@/types/alert";
 
+/** Status of the statistics page loading state. */
 type StatsStatus = "pending" | "ready";
 
+/** Props for the ranked list component. */
 interface RankedListProps {
   title: string;
   items: [string, number][];
   accentClassName?: string;
 }
 
+/**
+ * Renders a ranked list of name/count pairs with relative bar widths.
+ *
+ * @param props.title - Section heading.
+ * @param props.items - Ordered `[name, count]` tuples.
+ * @param props.accentClassName - Optional Tailwind class for count text.
+ * @returns Ranked list card.
+ */
 function RankedList({
   title,
   items,
@@ -65,11 +80,19 @@ function RankedList({
   );
 }
 
+/** Props for the summary card component. */
 interface SummaryCardProps {
   label: string;
   value: number;
 }
 
+/**
+ * Renders a large numeric summary metric card.
+ *
+ * @param props.label - Metric label.
+ * @param props.value - Numeric value to display.
+ * @returns Summary metric card.
+ */
 function SummaryCard({ label, value }: SummaryCardProps) {
   return (
     <div className={`${cardClassName} p-6`}>
@@ -79,6 +102,11 @@ function SummaryCard({ label, value }: SummaryCardProps) {
   );
 }
 
+/**
+ * Loads and displays official recall alert statistics.
+ *
+ * @returns Statistics page UI.
+ */
 export default function StatsPage() {
   const [status, setStatus] = useState<StatsStatus>("pending");
   const [stats, setStats] = useState<FoodRecallAlertStats | null>(null);

@@ -1,7 +1,12 @@
+/**
+ * Previous/next page controls that wrap a paginated list of child content.
+ */
+
 import { useEffect } from "react";
 import type { ReactNode } from "react";
 import { bodySecondaryClassName, secondaryButtonClassName } from "@/lib/ui";
 
+/** Props for the pagination component. */
 interface PaginationProps {
   currentPage: number;
   totalPages: number;
@@ -10,6 +15,16 @@ interface PaginationProps {
   children: ReactNode;
 }
 
+/**
+ * Renders paginated children and scrolls to the top when the page changes.
+ *
+ * @param props.currentPage - 1-based current page index.
+ * @param props.totalPages - Total number of pages.
+ * @param props.onPrevious - Called when Previous is clicked.
+ * @param props.onNext - Called when Next is clicked.
+ * @param props.children - List content for the current page.
+ * @returns Paginated layout with navigation controls.
+ */
 export default function Pagination({
   currentPage,
   totalPages,

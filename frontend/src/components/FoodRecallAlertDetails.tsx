@@ -1,3 +1,7 @@
+/**
+ * Full detail view for a single official food recall alert.
+ */
+
 import { getRiskBadgeClassName } from "@/lib/alertStyles";
 import {
   detailLabelClassName,
@@ -8,12 +12,30 @@ import {
 } from "@/lib/ui";
 import type { FoodRecallAlert } from "@/types/alert";
 
+/**
+ * Returns display text for an optional string, or a placeholder when empty.
+ *
+ * @param value - Raw field value.
+ * @returns Trimmed value, or `"Not available"`.
+ */
 const formatText = (value?: string | null) =>
   value && value.trim() ? value : "Not available";
 
+/**
+ * Joins a string array for display, or returns a placeholder when empty.
+ *
+ * @param value - Optional list of region or similar labels.
+ * @returns Comma-separated string, or `"Not available"`.
+ */
 const formatTextArray = (value?: string[] | null) =>
   value && value.length > 0 ? value.join(", ") : "Not available";
 
+/**
+ * Renders structured fields and the official source link for one alert.
+ *
+ * @param props.alert - Alert record to display.
+ * @returns Detail content element.
+ */
 export default function FoodRecallAlertDetails({
   alert,
 }: {

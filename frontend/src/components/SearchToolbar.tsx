@@ -1,3 +1,7 @@
+/**
+ * Search and filter toolbar for the official food recall alerts feed.
+ */
+
 "use client";
 
 import { type SubmitEvent, useCallback, useEffect, useState } from "react";
@@ -16,12 +20,24 @@ import {
 } from "@/lib/ui";
 import { COUNTRY_SOURCES, RISK_LEVELS, SORT_BY_LATEST, SORT_BY_OLDEST } from "@/types/alert";
 
+/** Props for the alert search toolbar component. */
 interface AlertSearchToolbarProps {
   hasFeeds: boolean;
   formState: AlertSearchFormState;
   onApplyFilters: (state: AlertSearchFormState) => void;
 }
 
+/**
+ * Controlled search form for alert text, risk, country, sort, and recall date.
+ *
+ * Select and date changes apply immediately when feeds are available; text
+ * search applies on submit.
+ *
+ * @param props.hasFeeds - Whether filter controls should be enabled.
+ * @param props.formState - Form state derived from the current URL.
+ * @param props.onApplyFilters - Called when filters should be written to the URL.
+ * @returns Search toolbar form element.
+ */
 export default function AlertSearchToolbar({
   hasFeeds,
   formState: urlFormState,

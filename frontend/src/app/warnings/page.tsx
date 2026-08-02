@@ -1,3 +1,8 @@
+/**
+ * Pipeline warnings page: list, acknowledge individually or in bulk, with
+ * expandable long messages.
+ */
+
 "use client";
 
 import {
@@ -27,8 +32,15 @@ import {
   type PipelineWarning,
 } from "@/types/warning";
 
+/** Status of the warnings page loading state. */
 type WarningsStatus = "pending" | "ready" | "error";
 
+/**
+ * Formats a warning timestamp for display.
+ *
+ * @param value - ISO datetime string.
+ * @returns Localized medium date and short time, or the raw value if invalid.
+ */
 function formatWarningTimestamp(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -40,6 +52,12 @@ function formatWarningTimestamp(value: string): string {
   }).format(date);
 }
 
+/**
+ * Warning message that clamps to three lines and offers expand/collapse when truncated.
+ *
+ * @param props.message - Full warning message text.
+ * @returns Expandable message block.
+ */
 function ExpandableWarningMessage({ message }: { message: string }) {
   const [expanded, setExpanded] = useState(false);
   const [canToggle, setCanToggle] = useState(false);
@@ -98,6 +116,11 @@ function ExpandableWarningMessage({ message }: { message: string }) {
   );
 }
 
+/**
+ * Loads and displays pipeline warnings with acknowledge actions.
+ *
+ * @returns Warnings page UI.
+ */
 export default function WarningsPage() {
   const [status, setStatus] = useState<WarningsStatus>("pending");
   const [warnings, setWarnings] = useState<PipelineWarning[]>([]);

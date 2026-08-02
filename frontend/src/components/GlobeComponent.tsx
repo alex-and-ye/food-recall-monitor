@@ -1,40 +1,51 @@
+/**
+ * Interactive 3D globe that plots official food recall alerts as risk-colored pins.
+ */
+
 "use client";
 
 import { useEffect, useRef, useState } from "react";
 import Globe, { type GlobeMethods } from "react-globe.gl";
 import type { FoodRecallAlert, RiskLevel } from "@/types/alert";
 
+/** CDN URL for Natural Earth country polygons used as hex-polygon overlays. */
 const COUNTRIES_GEOJSON_URL =
   "https://cdn.jsdelivr.net/gh/vasturiano/react-globe.gl@master/example/datasets/ne_110m_admin_0_countries.geojson";
 
+/** Interface for the GeoJSON geometry. */
 interface GeoJsonGeometry {
   type: string;
   coordinates: number[] | number[][] | number[][][] | number[][][][];
 }
 
+/** Interface for the country feature. */
 interface CountryFeature {
   type: string;
   properties: Record<string, unknown>;
   geometry: GeoJsonGeometry;
 }
 
+/** Interface for the countries GeoJSON. */
 interface CountriesGeoJson {
   type: string;
   features: CountryFeature[];
 }
 
+/** Interface for the globe point. */
 interface GlobePoint extends FoodRecallAlert {
   lat: number;
   lng: number;
   selected: boolean;
 }
 
+/** Props for the globe component. */
 interface GlobeComponentProps {
   alerts: FoodRecallAlert[];
   selectedAlertId: string | null;
   onPointClick: (alert: FoodRecallAlert) => void;
 }
 
+/** Hex colors for map pins by risk level. */
 const RISK_PIN_COLORS: Record<RiskLevel, string> = {
   High: "#b91c1c",
   Medium: "#f59e0b",
@@ -42,6 +53,13 @@ const RISK_PIN_COLORS: Record<RiskLevel, string> = {
   Unknown: "#475569",
 };
 
+/**
+ * Maps alerts to globe HTML-element points with lat/lng and selection state.
+ *
+ * @param alerts - Alerts to plot on the globe.
+ * @param selectedAlertId - Currently selected alert ID, if any.
+ * @returns Points suitable for `react-globe.gl` HTML elements.
+ */
 function toGlobePoints(
   alerts: FoodRecallAlert[],
   selectedAlertId: string | null,
@@ -54,10 +72,23 @@ function toGlobePoints(
   }));
 }
 
+/**
+ * Resolves the pin fill color for a risk level.
+ *
+ * @param riskLevel - Alert risk level.
+ * @returns CSS hex color string.
+ */
 function riskColor(riskLevel: RiskLevel): string {
   return RISK_PIN_COLORS[riskLevel] ?? "#475569";
 }
 
+/**
+ * Builds a DOM pin button for a globe HTML element, including click handling.
+ *
+ * @param alert - Globe point (alert + lat/lng + selected).
+ * @param onPointClick - Invoked when the pin is clicked.
+ * @returns Configured button element hosting the pin SVG.
+ */
 function createPinElement(
   alert: GlobePoint,
   onPointClick: (alert: FoodRecallAlert) => void,
@@ -124,6 +155,12 @@ function createPinElement(
   return wrapper;
 }
 
+/**
+ * Renders a full-size interactive globe with country overlays and alert pins.
+ *
+ * @param props - Alerts, selection, and pin click handler.
+ * @returns Globe container element.
+ */
 export default function GlobeComponent({
   alerts,
   selectedAlertId,

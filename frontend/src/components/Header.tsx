@@ -1,3 +1,12 @@
+/**
+ * Top application header displaying the Food Recall Monitor brand title.
+ */
+
+/**
+ * Renders the site-wide emerald header bar with the product name.
+ *
+ * @returns Header element.
+ */
 export default function Header() {
   return (
     <header className="border-b border-emerald-700 bg-emerald-600 px-6 py-8 shadow-sm">

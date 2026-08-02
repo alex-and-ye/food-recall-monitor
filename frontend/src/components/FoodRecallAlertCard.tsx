@@ -1,3 +1,7 @@
+/**
+ * Summary card linking to the detail page for an official food recall alert.
+ */
+
 "use client";
 
 import Link from "next/link";
@@ -5,13 +9,26 @@ import { getRiskBadgeClassName } from "@/lib/alertStyles";
 import { bodySecondaryClassName, cardClassName } from "@/lib/ui";
 import type { FoodRecallAlert } from "@/types/alert";
 
+/** Props for the food recall alert card component. */
 interface FoodRecallAlertCardProps {
   alert: FoodRecallAlert;
 }
 
+/**
+ * Returns display text for an optional string, or a placeholder when empty.
+ *
+ * @param value - Raw field value.
+ * @returns Trimmed value, or `"Not available"`.
+ */
 const formatText = (value?: string | null) =>
   value && value.trim() ? value : "Not available";
 
+/**
+ * Renders a clickable list card summarizing an official recall alert.
+ *
+ * @param props.alert - Alert to summarize.
+ * @returns Linked card element.
+ */
 export default function FoodRecallAlertCard({ alert }: FoodRecallAlertCardProps) {
   return (
     <Link
