@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import hashlib
 from datetime import date
 from typing import List, Optional, cast
