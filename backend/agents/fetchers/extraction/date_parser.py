@@ -1,3 +1,9 @@
+"""Adaptive date parsing for recall publication timestamps.
+
+Extracts and normalizes calendar dates from unstructured text, structured HTML
+attributes, and machine-readable metadata using locale-aware heuristics.
+"""
+
 import re
 from datetime import UTC, date, datetime
 from typing import Iterable
@@ -5,10 +11,13 @@ from typing import Iterable
 from dateparser import parse as parse_date
 from dateparser.search import search_dates
 
+# Date component orders tried when parsing ambiguous numeric dates.
 DATE_ORDERS: tuple[str, ...] = ("DMY", "MDY", "YMD")
+# Matches slash, dot, or dash separated numeric dates embedded in text.
 NUMERIC_DATE_PATTERN = re.compile(
     r"\b(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4})\b",
 )
+# Matches ISO 8601 calendar dates embedded in text.
 ISO_DATE_PATTERN = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
 # Explicit named-month spans so trailing prose cannot make dateparser invent
 # wrong calendar days (e.g. "08:16, 18 Jul 2026 A series" -> 2026-07-01).
@@ -28,15 +37,30 @@ NAMED_MONTH_DATE_PATTERN = re.compile(
     r"\d{4}\b",
     re.IGNORECASE,
 )
+# Full-string match for complete numeric date tokens.
 COMPLETE_NUMERIC_DATE_PATTERN = re.compile(r"^\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}$")
+# Full-string match for complete ISO date tokens.
 COMPLETE_ISO_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+# Two-letter language code prefix extracted from HTML ``lang`` attributes.
 HTML_LANG_PATTERN = re.compile(r"^[a-z]{2}")
+
 
 def infer_document_languages(
     html_lang: str | None,
     *,
     configured_languages: Iterable[str] | None = None,
 ) -> list[str]:
+    """Build an ordered language hint list for date parsing.
+
+    The document ``lang`` attribute takes precedence over configured defaults.
+
+    Args:
+        html_lang: Value of the page ``<html lang="...">`` attribute.
+        configured_languages: Fallback language codes from source configuration.
+
+    Returns:
+        Deduplicated ISO 639-1 language codes, with the document language first.
+    """
     languages: list[str] = []
     seen: set[str] = set()
 
@@ -53,6 +77,7 @@ def infer_document_languages(
 
     return languages
 
+
 def search_adaptive_dates(
     text: str,
     *,
@@ -60,6 +85,17 @@ def search_adaptive_dates(
     excluded_context_markers: Iterable[str] | None = None,
     reference_date: datetime | None = None,
 ) -> list[str]:
+    """Scan free text for plausible recall publication dates.
+
+    Args:
+        text: Unstructured page or snippet text.
+        languages: Optional BCP 47 language hints for ``dateparser``.
+        excluded_context_markers: Substrings that disqualify dates found nearby.
+        reference_date: Upper bound for plausibility checks; defaults to UTC now.
+
+    Returns:
+        Unique ISO calendar dates (``YYYY-MM-DD``) in discovery order.
+    """
     if not text.strip():
         return []
 
@@ -70,6 +106,7 @@ def search_adaptive_dates(
     candidates: list[str] = []
 
     def _add_candidate(parsed: datetime, matched_text: str) -> None:
+        """Append a plausible, non-duplicate ISO date if context is allowed."""
         if _is_excluded_date_context(text, matched_text, markers):
             return
         as_date = _calendar_date(parsed)
@@ -124,7 +161,16 @@ def search_adaptive_dates(
 
     return candidates
 
+
 def extract_structured_dates(values: Iterable[str]) -> list[str]:
+    """Normalize structured date attribute values into ISO calendar dates.
+
+    Args:
+        values: Raw datetime strings from HTML attributes or metadata fields.
+
+    Returns:
+        Unique ISO calendar dates (``YYYY-MM-DD``) in input order.
+    """
     seen: set[str] = set()
     candidates: list[str] = []
     for raw_value in values:
@@ -135,7 +181,9 @@ def extract_structured_dates(values: Iterable[str]) -> list[str]:
             candidates.append(normalized)
     return candidates
 
+
 def _normalize_language_code(value: str | None) -> str | None:
+    """Extract a two-letter language code from a BCP 47 tag."""
     if value is None:
         return None
     normalized = value.strip().lower().replace("_", "-")
@@ -144,7 +192,9 @@ def _normalize_language_code(value: str | None) -> str | None:
     match = HTML_LANG_PATTERN.match(normalized)
     return match.group(0) if match else None
 
+
 def _normalize_structured_date_values(value: str) -> list[str]:
+    """Parse a single structured date attribute into zero or more ISO dates."""
     text = value.strip()
     if not text:
         return []
@@ -192,16 +242,31 @@ def _normalize_structured_date_values(value: str) -> list[str]:
     # Named months and other non-ISO attributes.
     return search_adaptive_dates(text)
 
+
 def _calendar_date(parsed: datetime) -> str:
     """Preserve the source's calendar date instead of shifting it through UTC.
 
     Recall publication values represent civil dates. Converting a timezone-less
     evening timestamp (or an offset timestamp near midnight) can change the day.
+
+    Args:
+        parsed: Parsed datetime value from a source field or text match.
+
+    Returns:
+        ISO calendar date string (``YYYY-MM-DD``).
     """
     return parsed.date().isoformat()
 
+
 def _is_complete_date_match(matched_text: str) -> bool:
-    """Reject incomplete fragments like '2026 07' that borrow today's day."""
+    """Reject incomplete fragments like '2026 07' that borrow today's day.
+
+    Args:
+        matched_text: Substring matched by ``dateparser`` in source text.
+
+    Returns:
+        ``True`` if the match represents a complete calendar date.
+    """
     text = matched_text.strip()
     if not text:
         return False
@@ -216,7 +281,9 @@ def _is_complete_date_match(matched_text: str) -> bool:
     digit_groups = re.findall(r"\d+", text)
     return len(digit_groups) >= 3
 
+
 def _is_plausible_recall_date(value: str, *, reference: date | None = None) -> bool:
+    """Return whether a date falls within a reasonable recall publication range."""
     try:
         parsed = date.fromisoformat(value)
     except ValueError:
@@ -225,7 +292,9 @@ def _is_plausible_recall_date(value: str, *, reference: date | None = None) -> b
     current = reference or datetime.now(tz=UTC).date()
     return date(1900, 1, 1) <= parsed <= current
 
+
 def _is_excluded_date_context(text: str, matched_text: str, markers: tuple[str, ...]) -> bool:
+    """Return whether nearby text indicates the matched date is not a publication date."""
     if not markers:
         return False
 
@@ -238,7 +307,9 @@ def _is_excluded_date_context(text: str, matched_text: str, markers: tuple[str, 
     context = lowered_text[context_start : matched_index + len(matched_text)]
     return any(marker in context for marker in markers)
 
+
 def _unique_matches(values: Iterable[str]) -> list[str]:
+    """Return input strings in first-seen order with duplicates removed."""
     seen: set[str] = set()
     ordered: list[str] = []
     for value in values:

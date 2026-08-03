@@ -1,3 +1,10 @@
+"""LangGraph pipeline for processing scraped food recall records.
+
+Orchestrates fetch, translation, summarization, structuring, and repair/conversion
+stages into ``FoodRecallAlertCreate`` alerts, with progress reporting and warning
+callbacks for skipped sources or records.
+"""
+
 import inspect
 import json
 import logging
@@ -36,11 +43,24 @@ from models.pipeline_state import PipelineRecordState
 from models.pipeline_warning import WarningCategory
 from models.risk_level import RiskLevel
 
+# Module logger for pipeline stage progress and skipped records.
 LOGGER: logging.Logger = logging.getLogger(__name__)
 
+# Maximum LLM attempts before falling back to deterministic structured JSON.
 STRUCTURING_AGENT_MAX_ATTEMPTS: int = 2
 
+
 def create_pipeline_graph(*, reporter: ProgressReporter | None = None):
+    """Build and compile the LangGraph pipeline for a single recall record.
+
+    Nodes run in order: translate_values → summarize → structure → repair_and_convert.
+
+    Args:
+        reporter: Optional progress reporter wrapped around each node for logging.
+
+    Returns:
+        Compiled LangGraph runnable accepting ``PipelineRecordState`` input.
+    """
     graph = StateGraph(PipelineRecordState)
     graph.add_node(
         "translate_values",
@@ -67,7 +87,9 @@ def create_pipeline_graph(*, reporter: ProgressReporter | None = None):
 
     return graph.compile()
 
+
 WarningEmitter = Callable[..., None]
+
 
 async def run_pipeline(
     options: PipelineRunOptions,
@@ -80,6 +102,23 @@ async def run_pipeline(
     on_warning: WarningEmitter | None = None,
     run_id: str | None = None,
 ) -> AgentPipelineResult:
+    """Fetch recall records and run each through the agent pipeline.
+
+    Args:
+        options: Sources to scrape and optional per-source record limit.
+        source_db: Database interface for scraper source configuration.
+        reporter: Optional callback for stage-level progress logging.
+        on_alert_processed: Optional callback invoked for each successfully
+            converted alert; may be sync or async.
+        on_warning: Optional callback for non-fatal source or record skips.
+        run_id: Optional pipeline run identifier passed to warning callbacks.
+
+    Returns:
+        Alerts produced, fetch count, and any per-source fetch failures.
+
+    Raises:
+        SourceFetchError: If no records were fetched and every source failed.
+    """
     graph = create_pipeline_graph(reporter=reporter)
     if reporter is not None:
         reporter.log(
@@ -188,6 +227,7 @@ async def run_pipeline(
         source_failures=fetch_result.failures,
     )
 
+
 def _emit_warning(
     on_warning: WarningEmitter | None,
     *,
@@ -196,16 +236,21 @@ def _emit_warning(
     source: str | None = None,
     run_id: str | None = None,
 ) -> None:
+    """Invoke the warning callback if one was provided."""
     if on_warning is None:
         return
     on_warning(category=category, message=message, source=source, run_id=run_id)
+
 
 def _tracked_node(
     node_name: str,
     node_fn: Callable[[PipelineRecordState], PipelineRecordState],
     reporter: ProgressReporter | None,
 ) -> Callable[[PipelineRecordState], PipelineRecordState]:
+    """Wrap a pipeline node to log start and completion via ``reporter``."""
+
     def wrapped(state: PipelineRecordState) -> PipelineRecordState:
+        """Run ``node_fn`` with optional progress logging before and after."""
         source_name = None
         if "record" in state:
             source_name = state["record"].source_name
@@ -228,7 +273,20 @@ def _tracked_node(
 
     return wrapped
 
+
 def translate_values_node(state: PipelineRecordState) -> PipelineRecordState:
+    """Translate human-language string values in the scraped record to English.
+
+    Args:
+        state: Pipeline state containing the scraped ``record``.
+
+    Returns:
+        State update with ``translated_json``; falls back to the original
+        envelope if translation or validation fails.
+
+    Raises:
+        ValueError: If ``record`` is missing from state.
+    """
     if "record" not in state:
         raise ValueError("Pipeline state is missing required key: record")
     record = state["record"]
@@ -250,7 +308,21 @@ def translate_values_node(state: PipelineRecordState) -> PipelineRecordState:
 
     return {"translated_json": translated_json}
 
+
 def summarize_node(state: PipelineRecordState) -> PipelineRecordState:
+    """Generate a three-sentence public-facing summary from translated JSON.
+
+    Args:
+        state: Pipeline state containing ``translated_json``.
+
+    Returns:
+        State update with ``summary`` text.
+
+    Raises:
+        ValueError: If ``translated_json`` is missing from state.
+        AgentValidationError: If the summary is empty.
+        AgentOutputError: If the LLM response is invalid.
+    """
     if "translated_json" not in state:
         raise ValueError("Pipeline state is missing required key: translated_json")
     user_prompt = json.dumps(
@@ -263,7 +335,22 @@ def summarize_node(state: PipelineRecordState) -> PipelineRecordState:
     validate_summary(summary)
     return {"summary": summary}
 
+
 def structure_node(state: PipelineRecordState) -> PipelineRecordState:
+    """Map summary and translated JSON into structured recall alert fields.
+
+    Retries the structuring LLM up to ``STRUCTURING_AGENT_MAX_ATTEMPTS`` times;
+    uses a deterministic fallback if all attempts fail validation.
+
+    Args:
+        state: Pipeline state with ``record``, ``summary``, and ``translated_json``.
+
+    Returns:
+        State update with ``structured_json``.
+
+    Raises:
+        ValueError: If required state keys are missing (fallback path only).
+    """
     if "record" not in state:
         raise ValueError("Pipeline state is missing required key: record")
     if "summary" not in state:
@@ -298,7 +385,9 @@ def structure_node(state: PipelineRecordState) -> PipelineRecordState:
 
     return {"structured_json": _fallback_structured_json(state)}
 
+
 def _fallback_structured_json(state: PipelineRecordState) -> dict[str, object]:
+    """Build minimal structured JSON from payload and summary when LLM structuring fails."""
     if "record" not in state:
         raise ValueError("Pipeline state is missing required key: record")
     if "summary" not in state:
@@ -321,7 +410,23 @@ def _fallback_structured_json(state: PipelineRecordState) -> dict[str, object]:
         "affected_regions": [],
     }
 
+
 def repair_and_convert_node(state: PipelineRecordState) -> PipelineRecordState:
+    """Merge structured output with source metadata and convert to an alert model.
+
+    Overlays deterministic ``web_source``, repairs key fields from the original
+    payload, and sets ``summary`` from the summarization step.
+
+    Args:
+        state: Pipeline state with ``record``, ``structured_json``, and ``summary``.
+
+    Returns:
+        State update with repaired ``structured_json`` and ``alert``.
+
+    Raises:
+        ValueError: If required state keys are missing.
+        AgentValidationError: If final structured JSON fails validation during conversion.
+    """
     if "record" not in state:
         raise ValueError("Pipeline state is missing required key: record")
     if "structured_json" not in state:
@@ -356,7 +461,9 @@ def repair_and_convert_node(state: PipelineRecordState) -> PipelineRecordState:
     alert = structured_json_to_alert_create(structured_json)
     return {"structured_json": structured_json, "alert": alert}
 
+
 def _best_payload_value(field_name: str, generated_value: Any, payload: dict[str, Any]) -> str:
+    """Choose the best string for a field, preferring exact payload matches."""
     fields = _original_string_fields(payload)
     generated_text = clean_text(str(generated_value or ""))
 
@@ -372,7 +479,9 @@ def _best_payload_value(field_name: str, generated_value: Any, payload: dict[str
         return _best_product_name(generated_text, fields) or generated_text
     return generated_text
 
+
 def _best_generated_product_name(generated_value: Any, payload: dict[str, Any]) -> str:
+    """Resolve product name from LLM output or heuristics over the original payload."""
     fields = _original_string_fields(payload)
     generated_text = clean_text(str(generated_value or ""))
 
@@ -383,13 +492,17 @@ def _best_generated_product_name(generated_value: Any, payload: dict[str, Any]) 
         return generated_text
     return _best_product_name("", fields)
 
+
 def _best_generated_recall_date(generated_value: Any, payload: dict[str, Any]) -> str:
+    """Resolve recall date, trusting LLM output when the source used a generic date field."""
     generated_text = clean_text(str(generated_value or ""))
     if payload.get("selected_recall_date_source") == "generic" and _safe_parse_date(generated_text) is not None:
         return generated_text
     return _best_payload_value("recall_date", generated_value, payload)
 
+
 def _exact_original_match(value: str, fields: list[tuple[str, str]]) -> str:
+    """Return the original payload string if it exactly matches ``value`` after cleaning."""
     if not value:
         return ""
     for _, original_value in fields:
@@ -397,7 +510,9 @@ def _exact_original_match(value: str, fields: list[tuple[str, str]]) -> str:
             return original_value
     return ""
 
+
 def _best_source_url(fields: list[tuple[str, str]]) -> str:
+    """Pick the most likely source URL from flattened payload string fields."""
     candidates = [
         (path, value)
         for path, value in fields
@@ -407,6 +522,7 @@ def _best_source_url(fields: list[tuple[str, str]]) -> str:
         return ""
 
     def score(candidate: tuple[str, str]) -> int:
+        """Rank URL candidates by how strongly their path suggests a source link."""
         path, _ = candidate
         lowered_path = path.lower()
         return (
@@ -418,7 +534,9 @@ def _best_source_url(fields: list[tuple[str, str]]) -> str:
 
     return max(candidates, key=score)[1]
 
+
 def _best_recall_date(generated_value: str, fields: list[tuple[str, str]]) -> str:
+    """Pick the best recall date from payload fields, matching the generated date when possible."""
     generated_date = _safe_parse_date(generated_value)
     candidates = [
         (path, value, _safe_parse_date(value))
@@ -434,6 +552,7 @@ def _best_recall_date(generated_value: str, fields: list[tuple[str, str]]) -> st
                 return value
 
     def score(candidate: tuple[str, str, object]) -> int:
+        """Rank date candidates by path cues for recall versus end/closed dates."""
         path, _, _ = candidate
         lowered_path = path.lower()
         return (
@@ -446,13 +565,17 @@ def _best_recall_date(generated_value: str, fields: list[tuple[str, str]]) -> st
 
     return max(candidates, key=score)[1]
 
+
 def _safe_parse_date(value: str):
+    """Parse a date string, returning ``None`` instead of raising on failure."""
     try:
         return parse_source_date(value)
     except ValueError:
         return None
 
+
 def _best_product_name(generated_value: str, fields: list[tuple[str, str]]) -> str:
+    """Pick the most likely product name from flattened payload string fields."""
     candidates = [
         (path, value)
         for path, value in fields
@@ -462,6 +585,7 @@ def _best_product_name(generated_value: str, fields: list[tuple[str, str]]) -> s
         return ""
 
     def score(candidate: tuple[str, str]) -> int:
+        """Rank product-name candidates by path relevance and similarity to generated text."""
         path, value = candidate
         lowered_path = path.lower()
         lowered_value = clean_text(value).lower()
@@ -482,7 +606,9 @@ def _best_product_name(generated_value: str, fields: list[tuple[str, str]]) -> s
 
     return max(candidates, key=score)[1]
 
+
 def _original_string_fields(value: Any, path: str = "") -> list[tuple[str, str]]:
+    """Recursively collect non-empty string leaves with dot/bracket paths."""
     if isinstance(value, str):
         return [(path, value)] if value.strip() else []
     if isinstance(value, dict):
@@ -498,7 +624,9 @@ def _original_string_fields(value: Any, path: str = "") -> list[tuple[str, str]]
         return fields
     return []
 
+
 def _state_snapshot(state: dict[str, Any]) -> dict[str, Any]:
+    """Build a JSON-serializable snapshot of pipeline state for logging."""
     snapshot: dict[str, Any] = {}
     if "record" in state:
         record = state["record"]
@@ -516,7 +644,9 @@ def _state_snapshot(state: dict[str, Any]) -> dict[str, Any]:
         snapshot["alert"] = _to_jsonable(state["alert"])
     return snapshot
 
+
 def _to_jsonable(value: Any) -> Any:
+    """Convert arbitrary values to JSON-serializable primitives for progress logs."""
     if isinstance(value, (str, int, float, bool)) or value is None:
         return value
     if isinstance(value, dict):

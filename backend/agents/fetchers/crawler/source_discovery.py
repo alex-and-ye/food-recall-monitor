@@ -1,3 +1,10 @@
+"""Automated discovery of scraper configuration from a source homepage.
+
+Explores internal links with structural heuristics, uses LLM prompts to select
+listing seeds and detail-page keywords, and assembles a ready-to-crawl
+``SourceRegistryDocument`` with validated hints and fallbacks.
+"""
+
 import asyncio
 import logging
 import re
@@ -21,8 +28,10 @@ from models.pipeline_progress import PipelineStage, ProgressReporter
 from models.scraper_config import DEFAULT_LOOKBACK_DAYS, ScraperHints, ScraperSourceConfig
 from models.source_registry import DiscoveryStatus, SourceRegistryDocument
 
+# Module logger for discovery progress and LLM ranking steps.
 LOGGER = logging.getLogger(__name__)
 
+# Max ranked candidates included in discovery progress logs.
 TOP_CANDIDATES_LOGGED = 8
 
 # Language-agnostic path noise (assets / static), not recall vocabulary.
@@ -39,23 +48,44 @@ ASSET_PATH_MARKERS: tuple[str, ...] = (
     "/siteglobals/",
 )
 
+# Basenames treated as listing index pages rather than detail notices.
 INDEX_BASENAMES: frozenset[str] = frozenset(
     {"index.html", "home.html", "home_node.html"}
 )
 
+# Upper bounds for breadth-first candidate exploration during discovery.
 DISCOVERY_MAX_CANDIDATES = 40
+# Max pages fetched while exploring listing/detail candidates.
 DISCOVERY_MAX_PAGES = 25
+# Max link-follow depth from seed URLs during discovery.
 DISCOVERY_MAX_DEPTH = 2
+
+# Max child links sampled from listing pages for detail-pattern LLM prompts.
 CHILD_LINK_SAMPLE_SIZE = 40
+
+# Minimum shared path-prefix count to treat a hub as listing-dense.
 LISTING_DENSITY_MIN = 3
 
 @dataclass(frozen=True)
 class LinkCandidate:
+    """Internal hyperlink with anchor text and a structural relevance score."""
+
     url: str
     anchor_text: str
     score: int
 
 def derive_base_url_and_domains(homepage_url: str) -> tuple[str, list[str]]:
+    """Derive canonical base URL and allowed domain variants from a homepage.
+
+    Args:
+        homepage_url: Absolute homepage URL for the recall source.
+
+    Returns:
+        Tuple of ``(base_url, allowed_domains)`` including www and non-www forms.
+
+    Raises:
+        ValueError: If ``homepage_url`` lacks a valid scheme or netloc.
+    """
     parsed = urlparse(homepage_url.strip())
     if not parsed.scheme or not parsed.netloc:
         raise ValueError(f"Invalid homepage URL: {homepage_url}")
@@ -75,7 +105,16 @@ def score_recall_candidate(
     *,
     peer_urls: Sequence[str] | None = None,
 ) -> int:
-    """Listing-oriented structural score (language-agnostic)."""
+    """Score a link for listing-oriented discovery using structure-only heuristics.
+
+    Args:
+        url: Candidate absolute URL.
+        anchor_text: Anchor label (ignored; semantics handled by the LLM).
+        peer_urls: Other URLs on the same page for listing-density boosts.
+
+    Returns:
+        Signed integer score; higher values favor listing hubs.
+    """
     del anchor_text  # Semantics are handled by the LLM; scoring is shape-only.
     if _is_asset_url(url):
         return -20
@@ -101,7 +140,16 @@ def score_detail_pattern_candidate(
     *,
     peer_urls: Sequence[str] | None = None,
 ) -> int:
-    """Prefer likely detail/notice links when sampling children for keyword discovery."""
+    """Score a child link when sampling URLs for detail-keyword discovery.
+
+    Args:
+        url: Candidate absolute URL.
+        anchor_text: Anchor label (ignored).
+        peer_urls: Sibling URLs for cluster-density boosts.
+
+    Returns:
+        Signed integer score; higher values favor likely detail notices.
+    """
     del anchor_text
     if _is_asset_url(url):
         return -20
@@ -122,7 +170,14 @@ def score_detail_pattern_candidate(
     return score
 
 def looks_like_detail_url(url: str) -> bool:
-    """Structure-only detail detection (depth + id-like segments, portal prefixes)."""
+    """Detect detail/notice URLs from path depth and id-like segments only.
+
+    Args:
+        url: Absolute URL to classify.
+
+    Returns:
+        True when structural signals match a single recall notice page.
+    """
     if _is_asset_url(url):
         return False
     parts = _path_parts(url)
@@ -145,7 +200,15 @@ def looks_like_detail_url(url: str) -> bool:
     return False
 
 def looks_like_probable_detail_url(url: str) -> bool:
-    """Broader structural detail heuristic used for keyword clustering."""
+    """Broader structural detail heuristic used for keyword clustering.
+
+    Args:
+        url: Absolute URL to classify.
+
+    Returns:
+        True for likely detail pages under looser path rules than
+        ``looks_like_detail_url``.
+    """
     if looks_like_detail_url(url):
         return True
     if looks_like_listing_url(url):
@@ -164,7 +227,14 @@ def looks_like_probable_detail_url(url: str) -> bool:
     return False
 
 def looks_like_listing_url(url: str) -> bool:
-    """Structure-only listing/hub detection (shallow index, not detail-shaped)."""
+    """Detect listing or hub URLs from shallow index-shaped paths.
+
+    Args:
+        url: Absolute URL to classify.
+
+    Returns:
+        True when the path looks like an index or section root, not a notice.
+    """
     if looks_like_detail_url(url):
         return False
     if _is_asset_url(url):
@@ -182,7 +252,14 @@ def looks_like_listing_url(url: str) -> bool:
     return False
 
 def max_listing_density(urls: Sequence[str]) -> int:
-    """Highest shared path-prefix frequency among URLs (listing signature)."""
+    """Return the highest shared path-prefix frequency among URLs.
+
+    Args:
+        urls: Collection of absolute URLs from a single page or hub.
+
+    Returns:
+        Maximum count of URLs sharing any one- or two-segment path prefix.
+    """
     counts = _prefix_counts(urls)
     return max(counts.values()) if counts else 0
 
@@ -192,6 +269,16 @@ def select_heuristic_seed_urls(
     homepage_url: str,
     limit: int = 3,
 ) -> list[str]:
+    """Choose listing seed URLs when LLM listing discovery fails or is empty.
+
+    Args:
+        ranked: Structure-scored link candidates from exploration.
+        homepage_url: Fallback seed when no positive listing candidates exist.
+        limit: Maximum number of seed URLs to return.
+
+    Returns:
+        Deduplicated listing URLs, or ``[homepage_url]`` as last resort.
+    """
     listing_urls = [
         item.url
         for item in ranked
@@ -207,7 +294,16 @@ def prefer_unfiltered_listing_urls(
     *,
     observed_urls: list[str],
 ) -> list[str]:
-    """Prefer an observed canonical listing over a filtered query variant."""
+    """Prefer canonical listing URLs over filtered query-string variants.
+
+    Args:
+        selected_urls: Seed URLs chosen by discovery or LLM.
+        observed_urls: URLs seen during exploration (lowercased for lookup).
+
+    Returns:
+        Seed list with query-stripped canonical listings substituted when
+        an unfiltered form was observed and looks like a listing page.
+    """
     observed = {url.lower() for url in observed_urls}
     preferred: list[str] = []
     for url in selected_urls:
@@ -226,6 +322,17 @@ def extract_link_candidates(
     allowed_domains: list[str],
     blocked_paths: list[str] | None = None,
 ) -> list[LinkCandidate]:
+    """Parse anchor tags and score each internal link for discovery ranking.
+
+    Args:
+        current_url: Base URL for resolving relative hrefs.
+        html: Page HTML to parse.
+        allowed_domains: Permitted netloc suffixes.
+        blocked_paths: Optional path prefixes to exclude.
+
+    Returns:
+        ``LinkCandidate`` list sorted by descending structural score.
+    """
     soup = BeautifulSoup(html, "html.parser")
     blocked = blocked_paths or []
     raw: list[tuple[str, str]] = []
@@ -263,6 +370,15 @@ def extract_link_candidates(
     return candidates
 
 def rank_candidates(candidates: list[LinkCandidate], *, limit: int = DISCOVERY_MAX_CANDIDATES) -> list[LinkCandidate]:
+    """Return the top-scoring link candidates up to a limit.
+
+    Args:
+        candidates: Pre-sorted or unsorted candidate list.
+        limit: Maximum candidates to retain.
+
+    Returns:
+        First ``limit`` entries (caller should pre-sort for best results).
+    """
     return candidates[:limit]
 
 def rank_detail_pattern_candidates(
@@ -270,6 +386,15 @@ def rank_detail_pattern_candidates(
     *,
     limit: int = CHILD_LINK_SAMPLE_SIZE,
 ) -> list[LinkCandidate]:
+    """Re-score candidates for detail-pattern discovery and return the top set.
+
+    Args:
+        candidates: Child links sampled from listing pages.
+        limit: Maximum candidates to return.
+
+    Returns:
+        Candidates reordered by detail-pattern score, truncated to ``limit``.
+    """
     peer_urls = [item.url for item in candidates]
     rescored = [
         LinkCandidate(
@@ -294,6 +419,21 @@ async def discover_source_config(
     client: httpx.AsyncClient,
     reporter: ProgressReporter | None = None,
 ) -> SourceRegistryDocument:
+    """Discover crawl configuration for a recall source from its homepage.
+
+    Explores internal links, prompts an LLM for listing seeds and detail keywords,
+    validates results against observed URLs, and builds a ready registry document.
+
+    Args:
+        source_name: Registry identifier for the source.
+        homepage_url: Public homepage URL to start discovery.
+        country_source: Display country label; defaults to ``source_name``.
+        client: Async HTTP client for page fetches.
+        reporter: Optional pipeline progress logger.
+
+    Returns:
+        ``SourceRegistryDocument`` with ``DiscoveryStatus.READY`` configuration.
+    """
     base_url, allowed_domains = derive_base_url_and_domains(homepage_url)
     display_country = (country_source or source_name).strip() or source_name
     if reporter is not None:
@@ -496,20 +636,25 @@ async def discover_source_config(
     return document
 
 def _path_parts(url: str) -> list[str]:
+    """Return lowercase non-empty path segments for a URL."""
     return [part for part in urlparse(url).path.lower().split("/") if part]
 
 def _is_index_basename(basename: str) -> bool:
+    """Return whether a path basename denotes a listing index page."""
     return basename in INDEX_BASENAMES or basename.endswith("_node.html")
 
 def _is_asset_url(url: str) -> bool:
+    """Return whether the URL path matches static asset markers."""
     path = urlparse(url).path.lower()
     haystack = path if path.endswith("/") else f"{path}/"
     return any(marker in haystack or marker in path for marker in ASSET_PATH_MARKERS)
 
 def _has_long_numeric_id(parts: Sequence[str]) -> bool:
+    """Return whether any path segment contains four or more consecutive digits."""
     return any(re.search(r"\d{4,}", part) for part in parts)
 
 def _has_id_like_segment(parts: Sequence[str]) -> bool:
+    """Return whether any segment looks like a notice or document identifier."""
     for part in parts:
         stem = part.rsplit(".", maxsplit=1)[0]
         if re.search(r"\d{3,}", stem):
@@ -520,6 +665,7 @@ def _has_id_like_segment(parts: Sequence[str]) -> bool:
     return False
 
 def _prefix_counts(urls: Sequence[str]) -> dict[str, int]:
+    """Count one- and two-segment path prefixes shared by multiple URLs."""
     counts: dict[str, int] = {}
     for url in urls:
         parts = _path_parts(url)
@@ -533,11 +679,13 @@ def _prefix_counts(urls: Sequence[str]) -> dict[str, int]:
     return counts
 
 def _path_under_prefix(url: str, prefix: str) -> bool:
+    """Return whether a URL path equals or nests under a normalized prefix."""
     path = urlparse(url).path.lower()
     normalized = path if path.endswith("/") else f"{path}/"
     return normalized.startswith(prefix) or prefix.rstrip("/") == path.rstrip("/")
 
 def _listing_hub_boost(url: str, peer_urls: Sequence[str] | None) -> int:
+    """Add score when many peer URLs share this URL's path prefix."""
     if not peer_urls:
         return 0
     parts = _path_parts(url)
@@ -560,6 +708,7 @@ def _listing_hub_boost(url: str, peer_urls: Sequence[str] | None) -> int:
     return boost
 
 def _detail_cluster_boost(url: str, peer_urls: Sequence[str] | None) -> int:
+    """Add score when probable detail URLs cluster under a shared two-segment prefix."""
     if not peer_urls or not looks_like_probable_detail_url(url):
         return 0
     parts = _path_parts(url)
@@ -580,6 +729,7 @@ def _request_listing_urls(
     homepage_url: str,
     candidates: list[LinkCandidate],
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Call the listing-discovery LLM and return payload plus timing metadata."""
     ranked_for_prompt = rank_candidates(candidates, limit=DISCOVERY_MAX_CANDIDATES)
     lines = [
         f"- url={item.url} | anchor={item.anchor_text!r} | score={item.score}"
@@ -618,6 +768,7 @@ def _request_detail_patterns(
     seed_urls: list[str],
     child_links: list[LinkCandidate],
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Call the detail-pattern LLM and return payload plus timing metadata."""
     child_lines = [
         f"- url={item.url} | anchor={item.anchor_text!r} | score={item.score}"
         for item in child_links
@@ -655,6 +806,19 @@ def _request_detail_patterns(
         )
 
 async def _fetch_html(client: httpx.AsyncClient, url: str) -> tuple[str, str]:
+    """Fetch page HTML with static-first and optional browser fallback.
+
+    Args:
+        client: Async HTTP client for static fetch.
+        url: Target page URL.
+
+    Returns:
+        Tuple of ``(html, final_url)`` after redirects.
+
+    Raises:
+        httpx.HTTPError: When static and browser fetches both fail.
+        RuntimeError: When fetched content is empty.
+    """
     html = ""
     final_url = url
     static_error: Exception | None = None
@@ -679,6 +843,7 @@ async def _fetch_html(client: httpx.AsyncClient, url: str) -> tuple[str, str]:
     return html, final_url
 
 def _should_try_browser(*, static_error: Exception | None, html: str) -> bool:
+    """Decide whether discovery should retry a fetch with browser rendering."""
     if isinstance(static_error, httpx.HTTPStatusError):
         status = static_error.response.status_code
         # 4xx means the URL is wrong/unavailable; browser will not help and can crash
@@ -695,6 +860,16 @@ async def _explore_candidate_pages(
     seeds: list[str],
     allowed_domains: list[str],
 ) -> tuple[list[LinkCandidate], dict[str, int]]:
+    """Breadth-first explore seed pages to collect ranked link candidates.
+
+    Args:
+        client: Async HTTP client for page fetches.
+        seeds: Starting URLs for exploration.
+        allowed_domains: Permitted netloc suffixes.
+
+    Returns:
+        Tuple of collected candidates and stats ``pages_seen`` / ``fetch_failures``.
+    """
     visited: set[str] = set()
     collected: list[LinkCandidate] = []
     queue = list(dict.fromkeys(seeds))
@@ -750,6 +925,7 @@ async def _explore_candidate_pages(
     return collected, {"pages_seen": pages_seen, "fetch_failures": fetch_failures}
 
 def _candidate_summaries(candidates: list[LinkCandidate]) -> list[dict[str, object]]:
+    """Build compact dict summaries for logging top discovery candidates."""
     return [
         {
             "url": item.url,
@@ -760,6 +936,7 @@ def _candidate_summaries(candidates: list[LinkCandidate]) -> list[dict[str, obje
     ]
 
 def _merge_candidates(*groups: list[LinkCandidate]) -> list[LinkCandidate]:
+    """Merge candidate groups keeping the highest score per URL."""
     best: dict[str, LinkCandidate] = {}
     for group in groups:
         for item in group:
@@ -771,6 +948,7 @@ def _merge_candidates(*groups: list[LinkCandidate]) -> list[LinkCandidate]:
     return merged
 
 def _filter_allowed_urls(value: object, allowed_domains: list[str]) -> list[str]:
+    """Parse and filter a list of HTTP(S) URLs to allowed domains."""
     if not isinstance(value, list):
         return []
     filtered: list[str] = []
@@ -788,6 +966,7 @@ def _filter_allowed_urls(value: object, allowed_domains: list[str]) -> list[str]
     return list(dict.fromkeys(filtered))
 
 def _normalize_path_fragments(value: object) -> list[str]:
+    """Normalize LLM path fragments to lowercase absolute path prefixes."""
     if not isinstance(value, list):
         return []
     normalized: list[str] = []
@@ -811,7 +990,16 @@ def _filter_detail_keywords(
     seed_urls: list[str],
     child_links: list[LinkCandidate],
 ) -> list[str]:
-    """Keep keywords that match observed child links and do not match listing seeds."""
+    """Keep keywords that match observed child links and do not match listing seeds.
+
+    Args:
+        keywords: Candidate detail-page path fragments.
+        seed_urls: Listing seed URLs that keywords must not describe.
+        child_links: Observed child links used to validate keyword matches.
+
+    Returns:
+        Filtered keyword list with seed collisions and non-matching entries removed.
+    """
     seed_haystacks = [url.lower() for url in seed_urls]
     seed_paths = [urlparse(url).path.lower().rstrip("/") for url in seed_urls]
     seed_url_set = set(seed_haystacks)
@@ -841,7 +1029,15 @@ def _filter_detail_keywords(
     return filtered
 
 def _filter_blocked_paths(blocked_paths: list[str], *, seed_urls: list[str]) -> list[str]:
-    """Prevent discovered exclusions from blocking the listing pages themselves."""
+    """Prevent discovered exclusions from blocking the listing pages themselves.
+
+    Args:
+        blocked_paths: Path prefixes to exclude during crawl.
+        seed_urls: Listing seeds that must remain reachable.
+
+    Returns:
+        ``blocked_paths`` with entries that would block any seed removed.
+    """
     seed_paths = [urlparse(url).path.lower() or "/" for url in seed_urls]
     return [
         blocked
@@ -850,6 +1046,7 @@ def _filter_blocked_paths(blocked_paths: list[str], *, seed_urls: list[str]) -> 
     ]
 
 def _normalize_languages(value: object) -> list[str]:
+    """Parse and deduplicate two-letter ISO language codes from an LLM list."""
     if not isinstance(value, list):
         return []
     languages: list[str] = []
@@ -860,7 +1057,14 @@ def _normalize_languages(value: object) -> list[str]:
     return list(dict.fromkeys(languages))
 
 def _path_prefix_fragments(parts: list[str]) -> list[str]:
-    """Emit generic path prefixes for clustering (no site-specific vocabulary)."""
+    """Emit generic path prefixes for clustering (no site-specific vocabulary).
+
+    Args:
+        parts: Lowercase URL path segments.
+
+    Returns:
+        Deduplicated ``/segment/`` style prefixes for keyword inference.
+    """
     fragments: list[str] = []
     if not parts:
         return fragments
@@ -875,7 +1079,14 @@ def _path_prefix_fragments(parts: list[str]) -> list[str]:
     return list(dict.fromkeys(fragments))
 
 def _infer_keywords_from_links(links: list[LinkCandidate]) -> list[str]:
-    """Heuristic fallback: path prefixes shared by detail-like URLs."""
+    """Infer detail-page keyword path prefixes from structurally detail-like URLs.
+
+    Args:
+        links: Candidate links observed during discovery.
+
+    Returns:
+        Up to five shared path-prefix keywords, preferring confirmed detail URLs.
+    """
     confirmed_counts: dict[str, int] = {}
     probable_counts: dict[str, int] = {}
 
@@ -911,6 +1122,7 @@ def _ranked_keyword_fragments(
     *,
     prefer_shared: bool = True,
 ) -> list[str]:
+    """Sort path fragments by frequency, optionally requiring multi-URL support."""
     ranked = sorted(counts.items(), key=lambda pair: (-pair[1], pair[0]))
     if prefer_shared:
         multi = [fragment for fragment, count in ranked if count >= 2]
@@ -919,9 +1131,19 @@ def _ranked_keyword_fragments(
     return [fragment for fragment, _count in ranked]
 
 def _looks_dynamic(html: str) -> bool:
+    """Return whether HTML appears JavaScript-heavy with little visible text."""
     script_tags = html.count("<script")
     text_like = len(" ".join(html.split()))
     return script_tags > 20 and text_like < 3_000
 
 def smoke_match_detail_links(links: list[str], detail_page_keywords: list[str]) -> list[str]:
+    """Filter links that match configured detail-page keywords (smoke-test helper).
+
+    Args:
+        links: Absolute URLs to test.
+        detail_page_keywords: Path fragments indicating detail pages.
+
+    Returns:
+        Subset of ``links`` matching at least one keyword.
+    """
     return [link for link in links if matches_detail_url(link, detail_page_keywords)]

@@ -1,3 +1,9 @@
+"""Crawler subpackage for page discovery, scoring, and source configuration.
+
+Re-exports classification, link extraction, relevance scoring, orchestrated
+crawling, and automated source-config discovery for recall listing sites.
+"""
+
 from agents.fetchers.crawler.discovery import classify_page, extract_internal_links
 from agents.fetchers.crawler.orchestrator import crawl_source_pages
 from agents.fetchers.crawler.scoring import score_page_relevance, score_url_relevance
