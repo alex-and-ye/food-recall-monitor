@@ -1,3 +1,9 @@
+"""ChromaDB and in-memory stores for early-warning incidents.
+
+Implements EarlyWarningIncidentsDBInterface against a remote Chroma
+collection, plus a deterministic in-memory test double and legacy aliases.
+"""
+
 from collections.abc import Iterable
 from typing import cast
 
@@ -13,9 +19,18 @@ from models.early_warning_incident import (
 )
 
 class EarlyWarningIncidentsChromaClient(EarlyWarningIncidentsDBInterface):
+    """Chroma-backed store for early-warning incidents."""
+
+    # Chroma collection name for early-warning incidents
     COLLECTION_NAME = "early_warning_incidents_collection"
 
     def __init__(self, host: str, port: int) -> None:
+        """Connect to Chroma and ensure the incidents collection exists.
+
+        Args:
+            host: Chroma HTTP host.
+            port: Chroma HTTP port.
+        """
         self.client = chromadb.HttpClient(host=host, port=port)
         self.collection = self.client.get_or_create_collection(name=self.COLLECTION_NAME)
 
@@ -28,6 +43,18 @@ class EarlyWarningIncidentsChromaClient(EarlyWarningIncidentsDBInterface):
         country: str | None = None,
         source_kind: SourceKind | None = None,
     ) -> list[EarlyWarningIncident]:
+        """Load all incidents from Chroma, then filter and sort in memory.
+
+        Args:
+            verification_status: Filter by verification status.
+            incident_type: Filter by incident type.
+            minimum_confidence: Minimum confidence score inclusive.
+            country: Case-insensitive country filter.
+            source_kind: Filter by source kind.
+
+        Returns:
+            Matching incidents, newest effective publication date first.
+        """
         results = self.collection.get(include=["documents", "metadatas"])
         ids = results.get("ids") or []
         documents = results.get("documents") or []
@@ -49,6 +76,14 @@ class EarlyWarningIncidentsChromaClient(EarlyWarningIncidentsDBInterface):
         )
 
     def get_incident(self, incident_id: str) -> EarlyWarningIncident | None:
+        """Fetch a single incident by ID from Chroma.
+
+        Args:
+            incident_id: Unique incident ID.
+
+        Returns:
+            Parsed incident, or None if missing/blank/unparsable.
+        """
         key = incident_id.strip()
         if not key:
             return None
@@ -65,6 +100,14 @@ class EarlyWarningIncidentsChromaClient(EarlyWarningIncidentsDBInterface):
         )
 
     def upsert_incident(self, incident: EarlyWarningIncident) -> EarlyWarningIncident:
+        """Insert or replace an incident document and metadata in Chroma.
+
+        Args:
+            incident: Incident to persist.
+
+        Returns:
+            The same incident after upsert.
+        """
         self.collection.upsert(
             ids=[incident.incident_id],
             documents=[incident.to_document()],
@@ -73,6 +116,14 @@ class EarlyWarningIncidentsChromaClient(EarlyWarningIncidentsDBInterface):
         return incident
 
     def delete_incident(self, incident_id: str) -> bool:
+        """Delete an incident if it exists.
+
+        Args:
+            incident_id: Unique incident ID.
+
+        Returns:
+            True if deleted; False if not found.
+        """
         existing = self.get_incident(incident_id)
         if existing is None:
             return False
@@ -80,6 +131,11 @@ class EarlyWarningIncidentsChromaClient(EarlyWarningIncidentsDBInterface):
         return True
 
     def count_incidents(self) -> int:
+        """Return the number of incident documents in the collection.
+
+        Returns:
+            Total incident count.
+        """
         results = self.collection.get(include=[])
         return len(results.get("ids") or [])
 
@@ -89,6 +145,16 @@ class EarlyWarningIncidentsChromaClient(EarlyWarningIncidentsDBInterface):
         document: str | None,
         metadata: Metadata | None,
     ) -> EarlyWarningIncident | None:
+        """Parse an incident from document JSON, falling back to metadata.
+
+        Args:
+            incident_id: Chroma document ID used if metadata omits it.
+            document: Raw document JSON string, if present.
+            metadata: Chroma metadata dict, if present.
+
+        Returns:
+            Parsed incident, or None if both sources fail.
+        """
         if document:
             try:
                 return EarlyWarningIncident.from_document(document)
@@ -111,6 +177,7 @@ class InMemoryEarlyWarningIncidentStore(EarlyWarningIncidentsDBInterface):
     """Deterministic test double with the same update semantics as Chroma upsert."""
 
     def __init__(self) -> None:
+        """Initialize an empty in-memory incident map."""
         self._incidents: dict[str, EarlyWarningIncident] = {}
 
     def list_incidents(
@@ -122,6 +189,18 @@ class InMemoryEarlyWarningIncidentStore(EarlyWarningIncidentsDBInterface):
         country: str | None = None,
         source_kind: SourceKind | None = None,
     ) -> list[EarlyWarningIncident]:
+        """List deep-copied incidents after applying filters.
+
+        Args:
+            verification_status: Filter by verification status.
+            incident_type: Filter by incident type.
+            minimum_confidence: Minimum confidence score inclusive.
+            country: Case-insensitive country filter.
+            source_kind: Filter by source kind.
+
+        Returns:
+            Deep copies of matching incidents.
+        """
         return [
             incident.model_copy(deep=True)
             for incident in _filter_and_sort(
@@ -135,15 +214,39 @@ class InMemoryEarlyWarningIncidentStore(EarlyWarningIncidentsDBInterface):
         ]
 
     def get_incident(self, incident_id: str) -> EarlyWarningIncident | None:
+        """Fetch a deep copy of an incident by ID.
+
+        Args:
+            incident_id: Unique incident ID.
+
+        Returns:
+            Deep-copied incident, or None if not found.
+        """
         incident = self._incidents.get(incident_id.strip())
         return incident.model_copy(deep=True) if incident is not None else None
 
     def upsert_incident(self, incident: EarlyWarningIncident) -> EarlyWarningIncident:
+        """Store a deep copy of the incident and return another copy.
+
+        Args:
+            incident: Incident to persist.
+
+        Returns:
+            Deep copy of the stored incident.
+        """
         stored = incident.model_copy(deep=True)
         self._incidents[stored.incident_id] = stored
         return stored.model_copy(deep=True)
 
     def delete_incident(self, incident_id: str) -> bool:
+        """Delete an incident from the in-memory map.
+
+        Args:
+            incident_id: Unique incident ID.
+
+        Returns:
+            True if deleted; False if not found.
+        """
         key = incident_id.strip()
         if key not in self._incidents:
             return False
@@ -151,11 +254,17 @@ class InMemoryEarlyWarningIncidentStore(EarlyWarningIncidentsDBInterface):
         return True
 
     def count_incidents(self) -> int:
+        """Return the number of incidents in memory.
+
+        Returns:
+            Total incident count.
+        """
         return len(self._incidents)
 
     get_incidents = list_incidents
     save_incident = upsert_incident
 
+# Legacy aliases for older import paths
 InMemoryEarlyWarningStore = InMemoryEarlyWarningIncidentStore
 EarlyWarningChromaClient = EarlyWarningIncidentsChromaClient
 
@@ -168,6 +277,19 @@ def _filter_and_sort(
     country: str | None,
     source_kind: SourceKind | None,
 ) -> list[EarlyWarningIncident]:
+    """Apply optional filters and sort by publication date descending.
+
+    Args:
+        incidents: Incidents to filter.
+        verification_status: Optional verification status filter.
+        incident_type: Optional incident type filter.
+        minimum_confidence: Optional minimum confidence inclusive.
+        country: Optional case-insensitive country filter.
+        source_kind: Optional source kind filter.
+
+    Returns:
+        Filtered list sorted by effective publication date, then ID.
+    """
     selected = list(incidents)
     if verification_status is not None:
         selected = [

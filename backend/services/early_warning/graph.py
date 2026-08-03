@@ -1,3 +1,10 @@
+"""LLM processing graph for early-warning scraped pages.
+
+Classifies borderline search metadata, translates and taxonomizes pages,
+summarizes cautiously, extracts structured incident fields, and filters
+non-food or overly vague products before persistence.
+"""
+
 import asyncio
 import json
 import re
@@ -24,8 +31,8 @@ from models.early_warning_incident import (
 )
 from models.scraped_record import ScrapedRecallRecord
 
-_SOURCE_KIND_VALUES = {item.value for item in SourceKind}
-_CONTENT_TAXONOMY_VALUES = {
+_SOURCE_KIND_VALUES = {item.value for item in SourceKind}  # Allowed source_kind string values.
+_CONTENT_TAXONOMY_VALUES = {  # Allowed content_type taxonomy labels.
     "official_recall",
     "potential_recall",
     "foodborne_outbreak",
@@ -35,6 +42,7 @@ _CONTENT_TAXONOMY_VALUES = {
     "food_safety_advisory",
     "irrelevant",
 }
+# Default trust tier inferred from source kind when no domain profile override exists.
 _DEFAULT_TRUST_BY_SOURCE_KIND: dict[SourceKind, TrustTier] = {
     SourceKind.OFFICIAL_RECALL: TrustTier.OFFICIAL,
     SourceKind.GOVERNMENT_INVESTIGATION: TrustTier.OFFICIAL,
@@ -45,6 +53,7 @@ _DEFAULT_TRUST_BY_SOURCE_KIND: dict[SourceKind, TrustTier] = {
     SourceKind.BLOG: TrustTier.LOW,
     SourceKind.UNKNOWN: TrustTier.UNKNOWN,
 }
+# Terms used to hard-block clearly non-food product recalls after extraction.
 _NON_FOOD_PRODUCT_TERMS = (
     "appliance",
     "automobile",
@@ -99,7 +108,7 @@ Use irrelevant for every non-food recall, including electronics, batteries,
 vehicles, toys, furniture, cosmetics, household appliances, and software.
 Do not infer a recall merely from cautious or speculative wording.
 Never return MIME types, nested product objects, or any keys other than
-content_type and reason."""
+content_type and reason."""  # System prompt for page content taxonomy.
 
 BORDERLINE_PROMPT = """Decide whether this search-result metadata is sufficiently
 likely to describe a current, concrete food-safety incident to justify fetching.
@@ -112,12 +121,12 @@ encyclopedia pages, and every non-food product recall (including electronics,
 batteries, vehicles, toys, furniture, cosmetics, appliances, and software). When
 the metadata does not explicitly support a food-related safety incident, reject it.
 Return JSON:
-{"relevant": true|false, "reason": "..."}."""
+{"relevant": true|false, "reason": "..."}."""  # System prompt for pre-fetch relevance.
 
 SUMMARY_PROMPT = """Write a concise factual summary of the supplied food-safety page.
 Preserve uncertainty and attribution. Never upgrade an investigation, allegation,
 or potential issue into a confirmed recall. Include consumer guidance only when the
-source explicitly provides it. Return plain text only."""
+source explicitly provides it. Return plain text only."""  # System prompt for cautious summaries.
 
 STRUCTURING_PROMPT = """Extract one current food-safety incident from the supplied
 translated page and summary. Return one JSON object with these keys:
@@ -147,15 +156,34 @@ type). Choose exactly one of:
 - blog: personal blogs, forums, opinion, or unverified commentary
 - unknown: only when the outlet type truly cannot be determined
 Prefer major_news for ordinary news reporting. Do not use domain allowlists; judge
-from page content, byline, publisher name, and how the outlet presents itself."""
+from page content, byline, publisher name, and how the outlet presents itself."""  # System prompt for incident structuring.
+
 
 class TaxonomyResult(BaseModel):
+    """LLM taxonomy classification for a scraped page.
+
+    Attributes:
+        content_type: One of the allowed ContentTaxonomy values.
+        reason: Short justification for the classification.
+    """
+
     content_type: ContentTaxonomy
     reason: str = ""
 
     @field_validator("content_type", mode="before")
     @classmethod
     def _coerce_content_type(cls, value: object) -> object:
+        """Normalize and validate content_type against allowed values.
+
+        Args:
+            value: Raw LLM content_type field.
+
+        Returns:
+            Lowercased allowed taxonomy string.
+
+        Raises:
+            ValueError: If the value is not an allowed content_type.
+        """
         text = str(value or "").strip().lower()
         if text in _CONTENT_TAXONOMY_VALUES:
             return text
@@ -166,18 +194,61 @@ class TaxonomyResult(BaseModel):
     @field_validator("reason", mode="before")
     @classmethod
     def _coerce_reason(cls, value: object) -> str:
+        """Coerce reason to a stripped string.
+
+        Args:
+            value: Raw reason field.
+
+        Returns:
+            Coerced string reason.
+        """
         return _coerce_string(value)
 
+
 class BorderlineRelevance(BaseModel):
+    """LLM decision on whether search metadata justifies a page fetch.
+
+    Attributes:
+        relevant: True when the candidate appears food-safety related.
+        reason: Short justification for the decision.
+    """
+
     relevant: bool
     reason: str = ""
 
     @field_validator("reason", mode="before")
     @classmethod
     def _coerce_reason(cls, value: object) -> str:
+        """Coerce reason to a stripped string.
+
+        Args:
+            value: Raw reason field.
+
+        Returns:
+            Coerced string reason.
+        """
         return _coerce_string(value)
 
+
 class IncidentExtraction(BaseModel):
+    """Structured incident fields extracted from a translated page.
+
+    Attributes:
+        product_name: Affected product or product range name.
+        company_name: Manufacturer, retailer, or brand name.
+        product_category: Product category label.
+        hazard_type: Hazard description (joined with ``; `` when multiple).
+        incident_reason: Why the incident occurred or was reported.
+        consumer_guidance: Consumer advice when explicitly present.
+        country: Country associated with the incident.
+        affected_regions: Regional scope when known.
+        publication_date: Publication date or None.
+        publisher: Outlet/publisher name.
+        source_kind: Classified source/outlet kind.
+        original_language: Detected or stated original language.
+        extraction_completeness: Completeness score in ``[0, 1]``.
+    """
+
     product_name: str = ""
     company_name: str = ""
     product_category: str = ""
@@ -206,11 +277,27 @@ class IncidentExtraction(BaseModel):
     )
     @classmethod
     def _coerce_text_fields(cls, value: object) -> str:
+        """Coerce scalar text fields to stripped strings.
+
+        Args:
+            value: Raw LLM field value.
+
+        Returns:
+            Coerced string.
+        """
         return _coerce_string(value)
 
     @field_validator("affected_regions", mode="before")
     @classmethod
     def _coerce_regions(cls, value: object) -> list[str]:
+        """Normalize affected_regions into a list of non-empty strings.
+
+        Args:
+            value: Raw regions field (string, list, or other).
+
+        Returns:
+            List of region labels.
+        """
         if value is None or value == "":
             return []
         if isinstance(value, str):
@@ -223,6 +310,14 @@ class IncidentExtraction(BaseModel):
     @field_validator("source_kind", mode="before")
     @classmethod
     def _coerce_source_kind(cls, value: object) -> object:
+        """Normalize source_kind, defaulting unknown values to UNKNOWN.
+
+        Args:
+            value: Raw source_kind field.
+
+        Returns:
+            Valid SourceKind value or UNKNOWN.
+        """
         if value is None:
             return SourceKind.UNKNOWN
         text = str(value).strip().lower()
@@ -230,7 +325,16 @@ class IncidentExtraction(BaseModel):
             return SourceKind.UNKNOWN
         return text
 
+
 def _coerce_string(value: object) -> str:
+    """Best-effort coerce of LLM values into a stripped string.
+
+    Args:
+        value: Arbitrary JSON-like value.
+
+    Returns:
+        Stripped string representation (joined for lists, JSON for dicts).
+    """
     if value is None:
         return ""
     if isinstance(value, str):
@@ -243,17 +347,34 @@ def _coerce_string(value: object) -> str:
         return json.dumps(value, ensure_ascii=False)
     return str(value).strip()
 
+
 class EarlyWarningProcessingService:
+    """Translate, classify, summarize, and structure scraped discovery pages."""
+
     def __init__(
         self,
         *,
         json_chat: Callable[..., dict[str, Any]] = chat_json,
         text_chat: Callable[..., str] = chat_text,
     ) -> None:
+        """Initialize with injectable LLM chat callables.
+
+        Args:
+            json_chat: Callable returning parsed JSON from the LLM.
+            text_chat: Callable returning plain text from the LLM.
+        """
         self._json_chat = json_chat
         self._text_chat = text_chat
 
     def classify_borderline(self, candidate: DiscoveryCandidate) -> BorderlineRelevance:
+        """Decide whether search-result metadata justifies fetching the page.
+
+        Args:
+            candidate: Discovery candidate with title, description, and URL.
+
+        Returns:
+            BorderlineRelevance with relevant flag and reason.
+        """
         payload = {
             "title": candidate.title,
             "description": candidate.description,
@@ -275,6 +396,23 @@ class EarlyWarningProcessingService:
         source_kind: SourceKind = SourceKind.UNKNOWN,
         trust_tier: TrustTier = TrustTier.UNKNOWN,
     ) -> EarlyWarningIncidentCreate | None:
+        """Process a scraped record into an incident create payload.
+
+        Runs the synchronous LLM sequence off the event loop.
+
+        Args:
+            record: Scraped page record to process.
+            source_kind: Optional configured source-kind override.
+            trust_tier: Optional configured trust-tier override.
+
+        Returns:
+            EarlyWarningIncidentCreate, or None when the page is irrelevant/
+            non-food/vague.
+
+        Raises:
+            AgentOutputError: When summary or extraction LLM steps fail.
+            ValueError: When the processed page lacks a source URL.
+        """
         # Ollama's Python client is synchronous. Run the complete inference
         # sequence off the FastAPI event loop so API requests stay responsive
         # while a discovery pipeline is processing records.
@@ -292,6 +430,20 @@ class EarlyWarningProcessingService:
         source_kind: SourceKind,
         trust_tier: TrustTier,
     ) -> EarlyWarningIncidentCreate | None:
+        """Synchronous translate → classify → summarize → extract pipeline.
+
+        Args:
+            record: Scraped page record.
+            source_kind: Configured source-kind override.
+            trust_tier: Configured trust-tier override.
+
+        Returns:
+            Incident create payload, or None when filtered out.
+
+        Raises:
+            AgentOutputError: On empty summary or failed taxonomy/extraction.
+            ValueError: When the page is missing a source URL.
+        """
         translated = self._translate(record)
         taxonomy = self._classify(translated)
         if taxonomy.content_type == "irrelevant":
@@ -331,6 +483,18 @@ class EarlyWarningProcessingService:
         )
 
     async def ainvoke(self, state: dict[str, Any]) -> dict[str, Any]:
+        """Graph-style entrypoint that processes ``state['record']``.
+
+        Args:
+            state: Mapping that must include a ScrapedRecallRecord under
+                ``record``, with optional ``source_kind`` and ``trust_tier``.
+
+        Returns:
+            Mapping with key ``incident`` (create payload or None).
+
+        Raises:
+            ValueError: If ``record`` is missing or the wrong type.
+        """
         record = state.get("record")
         if not isinstance(record, ScrapedRecallRecord):
             raise ValueError("early-warning graph requires a ScrapedRecallRecord")
@@ -342,6 +506,14 @@ class EarlyWarningProcessingService:
         return {"incident": incident}
 
     def _translate(self, record: ScrapedRecallRecord) -> dict[str, Any]:
+        """Translate a scraped payload, falling back to the raw envelope.
+
+        Args:
+            record: Scraped record whose payload is translated.
+
+        Returns:
+            Translated structure, or the original envelope on validation failure.
+        """
         envelope = to_translator_envelope(record.payload)
         try:
             translated = self._json_chat(
@@ -355,6 +527,17 @@ class EarlyWarningProcessingService:
             return envelope
 
     def _classify(self, translated: dict[str, Any]) -> TaxonomyResult:
+        """Classify translated page content with one retry on failure.
+
+        Args:
+            translated: Translated page structure.
+
+        Returns:
+            Validated TaxonomyResult.
+
+        Raises:
+            AgentOutputError: When both classification attempts fail.
+        """
         last_error: Exception | None = None
         for _attempt in range(2):
             user_prompt = json.dumps(translated, ensure_ascii=False)
@@ -375,6 +558,18 @@ class EarlyWarningProcessingService:
         raise AgentOutputError(f"early-warning taxonomy failed: {last_error}")
 
     def _extract(self, translated: dict[str, Any], summary: str) -> IncidentExtraction:
+        """Extract structured incident fields with one retry on failure.
+
+        Args:
+            translated: Translated page structure.
+            summary: Cautious plain-text summary of the page.
+
+        Returns:
+            Validated IncidentExtraction.
+
+        Raises:
+            AgentOutputError: When both extraction attempts fail.
+        """
         prompt_payload = {"translated_page": translated, "cautious_summary": summary}
         last_error: Exception | None = None
         for _attempt in range(2):
@@ -395,10 +590,28 @@ class EarlyWarningProcessingService:
                 last_error = exc
         raise AgentOutputError(f"early-warning incident extraction failed: {last_error}")
 
+
 def create_early_warning_graph() -> EarlyWarningProcessingService:
+    """Factory that returns a default EarlyWarningProcessingService.
+
+    Returns:
+        Processing service with default LLM chat callables.
+    """
     return EarlyWarningProcessingService()
 
+
 def _normalize_taxonomy_payload(payload: object) -> dict[str, Any]:
+    """Normalize alternate taxonomy key names into content_type.
+
+    Args:
+        payload: Raw LLM JSON object.
+
+    Returns:
+        Dict with content_type remapped from common aliases when needed.
+
+    Raises:
+        ValueError: If payload is not a dict.
+    """
     if not isinstance(payload, dict):
         raise ValueError("taxonomy response must be a JSON object")
     data = dict(payload)
@@ -409,21 +622,48 @@ def _normalize_taxonomy_payload(payload: object) -> dict[str, Any]:
                 break
     return data
 
+
 def _clean_header_value(value: str, *, maximum: int = 160) -> str:
-    """Keep card headers concise and free of copied markup/JSON."""
+    """Keep card headers concise and free of copied markup/JSON.
+
+    Args:
+        value: Raw product or company header string.
+        maximum: Maximum allowed length before blanking.
+
+    Returns:
+        Cleaned header, or empty string when too long or JSON-like.
+    """
     text = " ".join(str(value or "").split()).strip(" \t\r\n-–—|:;\"'")
     if len(text) > maximum or text.startswith(("{", "[")):
         return ""
     return text
 
+
 def _requires_specific_product(content_type: ContentTaxonomy) -> bool:
+    """Return whether this taxonomy requires a specific product name.
+
+    Args:
+        content_type: Classified content type.
+
+    Returns:
+        True for recall/withdrawal types that need a concrete product.
+    """
     return content_type in {
         "official_recall",
         "potential_recall",
         "company_withdrawal",
     }
 
+
 def _is_specific_product(product_name: str) -> bool:
+    """Return whether a product name is concrete enough to keep.
+
+    Args:
+        product_name: Extracted product name.
+
+    Returns:
+        False for empty, vague, or delimiter-heavy listing-style names.
+    """
     text = _clean_header_value(product_name)
     normalized = " ".join(text.casefold().split())
     if not normalized:
@@ -445,8 +685,16 @@ def _is_specific_product(product_name: str) -> bool:
     separators = text.count(",") + text.count(";") + text.count("|")
     return separators < 4 and normalized.count(" and ") < 4
 
+
 def _is_explicitly_non_food(extraction: IncidentExtraction) -> bool:
-    """Block clearly non-food recalls even if an LLM assigns food taxonomy."""
+    """Block clearly non-food recalls even if an LLM assigns food taxonomy.
+
+    Args:
+        extraction: Structured extraction to inspect.
+
+    Returns:
+        True when product/category/reason mentions a non-food term.
+    """
     text = " ".join(
         (
             extraction.product_name,
@@ -465,6 +713,7 @@ def _is_explicitly_non_food(extraction: IncidentExtraction) -> bool:
         for term in _NON_FOOD_PRODUCT_TERMS
     )
 
+
 def _to_incident(
     record: ScrapedRecallRecord,
     *,
@@ -474,6 +723,22 @@ def _to_incident(
     source_kind: SourceKind,
     trust_tier: TrustTier,
 ) -> EarlyWarningIncidentCreate:
+    """Build an EarlyWarningIncidentCreate from processing outputs.
+
+    Args:
+        record: Original scraped record.
+        taxonomy: Content taxonomy result.
+        extraction: Structured field extraction.
+        summary: Cautious summary text.
+        source_kind: Resolved source kind.
+        trust_tier: Resolved trust tier.
+
+    Returns:
+        Incident create payload ready for persistence.
+
+    Raises:
+        ValueError: If the page payload lacks a source URL.
+    """
     payload = record.payload
     source_url = str(payload.get("canonical_url") or payload.get("source_url") or "").strip()
     if not source_url:
@@ -522,13 +787,23 @@ def _to_incident(
         extraction_completeness=extraction.extraction_completeness,
     )
 
+
 def _resolve_source_profile(
     *,
     configured_kind: SourceKind,
     configured_trust: TrustTier,
     extracted_kind: SourceKind,
 ) -> tuple[SourceKind, TrustTier]:
-    """Prefer optional domain-profile overrides; otherwise use LLM classification."""
+    """Prefer optional domain-profile overrides; otherwise use LLM classification.
+
+    Args:
+        configured_kind: Kind from domain profile (UNKNOWN if unset).
+        configured_trust: Trust from domain profile (UNKNOWN if unset).
+        extracted_kind: Kind classified by the LLM.
+
+    Returns:
+        Resolved ``(source_kind, trust_tier)`` pair.
+    """
     source_kind = (
         configured_kind
         if configured_kind != SourceKind.UNKNOWN
@@ -540,7 +815,16 @@ def _resolve_source_profile(
         source_kind, TrustTier.UNKNOWN
     )
 
+
 def _safe_date(value: object) -> date | None:
+    """Parse an ISO date prefix from an arbitrary value.
+
+    Args:
+        value: Raw date-like value.
+
+    Returns:
+        Parsed date, or None when empty/invalid.
+    """
     text = str(value or "").strip()
     if not text:
         return None
@@ -549,11 +833,21 @@ def _safe_date(value: object) -> date | None:
     except ValueError:
         return None
 
+
 def _sanitize_publication_date(
     value: date | None,
     *,
     today: date | None = None,
 ) -> date | None:
+    """Drop future publication dates.
+
+    Args:
+        value: Candidate publication date.
+        today: Optional override for the current UTC date.
+
+    Returns:
+        ``value`` when not in the future, otherwise None.
+    """
     if value is None:
         return None
     current = today or datetime.now(timezone.utc).date()

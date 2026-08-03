@@ -1,3 +1,9 @@
+"""Early-warning incident models and Chroma serialization helpers.
+
+Defines incident taxonomy, evidence records, create/persist shapes, and
+metadata document conversion for the early-warning store.
+"""
+
 import json
 from datetime import date, datetime, timezone
 from enum import StrEnum
@@ -6,6 +12,8 @@ from typing import Any
 from pydantic import BaseModel, Field, field_validator
 
 class IncidentType(StrEnum):
+    """Classification of an early-warning food-safety incident."""
+
     OFFICIAL_RECALL = "official_recall"
     POTENTIAL_RECALL = "potential_recall"
     FOODBORNE_OUTBREAK = "foodborne_outbreak"
@@ -15,6 +23,8 @@ class IncidentType(StrEnum):
     FOOD_SAFETY_ADVISORY = "food_safety_advisory"
 
 class VerificationStatus(StrEnum):
+    """How thoroughly an incident has been verified."""
+
     PENDING = "pending"
     CORROBORATED = "corroborated"
     OFFICIALLY_CONFIRMED = "officially_confirmed"
@@ -22,6 +32,8 @@ class VerificationStatus(StrEnum):
     SUPERSEDED = "superseded"
 
 class SourceKind(StrEnum):
+    """Kind of publisher or channel that produced incident evidence."""
+
     OFFICIAL_RECALL = "official_recall"
     GOVERNMENT_INVESTIGATION = "government_investigation"
     WHO_FAO = "who_fao"
@@ -32,6 +44,8 @@ class SourceKind(StrEnum):
     BLOG = "blog"
 
 class TrustTier(StrEnum):
+    """Relative trustworthiness tier assigned to a source."""
+
     OFFICIAL = "official"
     HIGH = "high"
     MEDIUM = "medium"
@@ -60,16 +74,19 @@ class IncidentEvidence(BaseModel):
     )
     @classmethod
     def _strip_text(cls, value: object) -> str:
+        """Strip whitespace from string evidence fields."""
         return str(value or "").strip()
 
     @field_validator("redirected_url_aliases", mode="before")
     @classmethod
     def _normalize_aliases(cls, value: object) -> list[str]:
+        """Deduplicate and strip redirected URL aliases."""
         if not isinstance(value, list):
             return []
         return list(dict.fromkeys(str(item).strip() for item in value if str(item).strip()))
 
     def to_chroma_json(self) -> str:
+        """Serialize this evidence record to a compact JSON string for Chroma."""
         return json.dumps(
             self.model_dump(mode="json"),
             ensure_ascii=False,
@@ -79,15 +96,28 @@ class IncidentEvidence(BaseModel):
 
     @classmethod
     def from_chroma_json(cls, value: str) -> IncidentEvidence:
+        """Deserialize an evidence record from a Chroma JSON string.
+
+        Args:
+            value: JSON object string previously produced by ``to_chroma_json``.
+
+        Returns:
+            Validated ``IncidentEvidence`` instance.
+
+        Raises:
+            ValueError: If the payload is not a JSON object.
+        """
         payload = json.loads(value)
         if not isinstance(payload, dict):
             raise ValueError("incident evidence JSON must contain an object")
         return cls.model_validate(payload)
 
-# A more concise alias for callers that work with several evidence types.
+# Concise alias for callers that work with several evidence types.
 EvidenceRecord = IncidentEvidence
 
 class EarlyWarningIncidentCreate(BaseModel):
+    """Incident payload used when creating a record before an ID is assigned."""
+
     incident_type: IncidentType
     verification_status: VerificationStatus = VerificationStatus.PENDING
     confidence_score: int = Field(default=0, ge=0, le=100)
@@ -137,6 +167,7 @@ class EarlyWarningIncidentCreate(BaseModel):
     )
     @classmethod
     def _strip_text(cls, value: object) -> str:
+        """Strip whitespace from free-text incident fields."""
         return str(value or "").strip()
 
     @field_validator(
@@ -148,6 +179,7 @@ class EarlyWarningIncidentCreate(BaseModel):
     )
     @classmethod
     def _normalize_strings(cls, value: object) -> list[str]:
+        """Deduplicate and strip string-list fields."""
         if not isinstance(value, list):
             return []
         return list(dict.fromkeys(str(item).strip() for item in value if str(item).strip()))
@@ -155,11 +187,13 @@ class EarlyWarningIncidentCreate(BaseModel):
     @field_validator("first_discovered_at", "last_discovered_at", mode="after")
     @classmethod
     def _ensure_timezone(cls, value: datetime) -> datetime:
+        """Attach UTC when discovery timestamps lack timezone info."""
         if value.tzinfo is None:
             return value.replace(tzinfo=timezone.utc)
         return value
 
     def to_document(self) -> str:
+        """Serialize the create payload to a compact JSON document string."""
         return json.dumps(
             self.model_dump(mode="json"),
             ensure_ascii=False,
@@ -168,9 +202,12 @@ class EarlyWarningIncidentCreate(BaseModel):
         )
 
 class EarlyWarningIncident(EarlyWarningIncidentCreate):
+    """Persisted early-warning incident with a stable ``incident_id``."""
+
     incident_id: str = Field(min_length=1)
 
     def get_id(self) -> str:
+        """Return the stable incident identifier."""
         return self.incident_id
 
     def effective_publication_date(self) -> date:
@@ -183,6 +220,7 @@ class EarlyWarningIncident(EarlyWarningIncidentCreate):
         return discovered.date()
 
     def to_metadata(self) -> dict[str, str | int | float | bool]:
+        """Flatten the incident into Chroma-compatible scalar metadata."""
         metadata: dict[str, str | int | float | bool] = {
             "incident_id": self.incident_id,
             "incident_type": self.incident_type,
@@ -222,6 +260,17 @@ class EarlyWarningIncident(EarlyWarningIncidentCreate):
 
     @classmethod
     def from_document(cls, document: str) -> EarlyWarningIncident:
+        """Deserialize a full incident from a JSON document string.
+
+        Args:
+            document: JSON object string for the incident.
+
+        Returns:
+            Validated ``EarlyWarningIncident``.
+
+        Raises:
+            ValueError: If the payload is not a JSON object.
+        """
         payload = json.loads(document)
         if not isinstance(payload, dict):
             raise ValueError("incident document must contain an object")
@@ -229,6 +278,14 @@ class EarlyWarningIncident(EarlyWarningIncidentCreate):
 
     @classmethod
     def from_metadata(cls, metadata: dict[str, Any]) -> EarlyWarningIncident:
+        """Rehydrate an incident from flat Chroma metadata fields.
+
+        Args:
+            metadata: Scalar/JSON metadata map previously written by ``to_metadata``.
+
+        Returns:
+            Validated ``EarlyWarningIncident``.
+        """
         evidence = deserialize_evidence(metadata.get("evidence_json", "[]"))
         return cls(
             incident_id=str(metadata["incident_id"]),
@@ -266,6 +323,8 @@ class EarlyWarningIncident(EarlyWarningIncidentCreate):
         )
 
 class IncidentStatusCounts(BaseModel):
+    """Aggregate counts of incidents by verification status."""
+
     pending: int = 0
     corroborated: int = 0
     officially_confirmed: int = 0
@@ -273,10 +332,20 @@ class IncidentStatusCounts(BaseModel):
     superseded: int = 0
 
 class IncidentsVersion(BaseModel):
+    """Version token for the incidents collection (count + content fingerprint)."""
+
     count: int
     fingerprint: str
 
 def serialize_evidence(evidence: list[IncidentEvidence]) -> str:
+    """Serialize a list of evidence records to a compact JSON array string.
+
+    Args:
+        evidence: Evidence records to serialize.
+
+    Returns:
+        Sorted-key JSON array string suitable for Chroma metadata.
+    """
     return json.dumps(
         [item.model_dump(mode="json") for item in evidence],
         ensure_ascii=False,
@@ -285,6 +354,17 @@ def serialize_evidence(evidence: list[IncidentEvidence]) -> str:
     )
 
 def deserialize_evidence(value: object) -> list[IncidentEvidence]:
+    """Parse evidence from a JSON string or already-decoded list.
+
+    Args:
+        value: JSON string, list of objects, or empty/invalid input.
+
+    Returns:
+        List of validated ``IncidentEvidence`` instances.
+
+    Raises:
+        ValueError: If a non-list JSON payload is provided.
+    """
     if isinstance(value, list):
         payload = value
     elif isinstance(value, str) and value.strip():
@@ -296,9 +376,11 @@ def deserialize_evidence(value: object) -> list[IncidentEvidence]:
     return [IncidentEvidence.model_validate(item) for item in payload if isinstance(item, dict)]
 
 def _json_list(values: list[str]) -> str:
+    """Serialize a string list to a compact JSON array."""
     return json.dumps(values, ensure_ascii=False, separators=(",", ":"))
 
 def _parse_json_list(value: object) -> list[str]:
+    """Parse a string list from a JSON string or pass through a list."""
     if isinstance(value, list):
         return [str(item) for item in value]
     if not isinstance(value, str) or not value.strip():
@@ -309,13 +391,16 @@ def _parse_json_list(value: object) -> list[str]:
     return [str(item) for item in parsed]
 
 def _parse_date(value: object) -> date | None:
+    """Parse an ISO date string, or return None when empty."""
     text = str(value or "").strip()
     return date.fromisoformat(text) if text else None
 
 def _parse_datetime(value: object) -> datetime:
+    """Parse an ISO datetime string, or default to now (UTC) when empty."""
     text = str(value or "").strip()
     return datetime.fromisoformat(text) if text else datetime.now(timezone.utc)
 
 def _parse_optional_datetime(value: object) -> datetime | None:
+    """Parse an optional ISO datetime string, or return None when empty."""
     text = str(value or "").strip()
     return datetime.fromisoformat(text) if text else None

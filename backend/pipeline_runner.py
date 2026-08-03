@@ -1,12 +1,35 @@
+"""Thin wrappers that run pipelines and log outcomes.
+
+Used by bootstrap and schedulers so startup/scheduled runs share consistent
+logging and error handling without raising into the caller.
+"""
+
 import logging
 
 from models.pipeline_options import PipelineRunOptions
 from services.pipeline import PipelineService
 from services.early_warning.pipeline import EarlyWarningPipelineService
 
+# Module logger
 LOGGER = logging.getLogger(__name__)
 
-async def run_pipeline_wrapper(pipeline_service: PipelineService, *, context: str, options: PipelineRunOptions | None = None) -> None:
+
+async def run_pipeline_wrapper(
+    pipeline_service: PipelineService,
+    *,
+    context: str,
+    options: PipelineRunOptions | None = None,
+) -> None:
+    """Run the official recall pipeline and log success or failure.
+
+    Exceptions are caught and logged so scheduled/bootstrap callers are not
+    interrupted; the next cycle can retry.
+
+    Args:
+        pipeline_service: Service that executes the official pipeline.
+        context: Short label included in log messages (e.g. ``"bootstrap"``).
+        options: Optional run options passed through to the pipeline.
+    """
     try:
         LOGGER.info("Starting %s pipeline run", context)
         result = await pipeline_service.run_pipeline(options)
@@ -28,11 +51,21 @@ async def run_pipeline_wrapper(pipeline_service: PipelineService, *, context: st
             context
         )
 
+
 async def run_early_warning_wrapper(
     pipeline_service: EarlyWarningPipelineService,
     *,
     context: str = "scheduled early-warning",
 ) -> None:
+    """Run early-warning discovery and log success, skip, or failure.
+
+    Exceptions are caught and logged so scheduled/bootstrap callers are not
+    interrupted; the next cycle can retry.
+
+    Args:
+        pipeline_service: Service that executes early-warning discovery.
+        context: Short label included in log messages.
+    """
     try:
         LOGGER.info("Starting %s pipeline run", context)
         result = await pipeline_service.run()

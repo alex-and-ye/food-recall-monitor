@@ -1,3 +1,9 @@
+"""Bootstrap scraper source registry entries from configured homepage URLs.
+
+Seeds a pending homepage-only registry when the source database is empty so
+LLM discovery can run later against known official recall sites.
+"""
+
 from datetime import datetime, timezone
 
 from agents.fetchers.crawler.source_discovery import derive_base_url_and_domains
@@ -7,8 +13,16 @@ from models.food_recall_alert import WEB_SOURCE_TO_COUNTRY_SOURCE
 from models.scraper_config import ScraperHints, ScraperSourceConfig
 from models.source_registry import DiscoveryStatus, SourceRegistryDocument
 
+
 def ensure_bootstrap_sources(source_db: ScraperSourceConfigDBInterface) -> int:
-    """Seed pending homepage-only sources when the registry is empty. Returns inserted count."""
+    """Seed pending homepage-only sources when the registry is empty.
+
+    Args:
+        source_db: Source registry database interface.
+
+    Returns:
+        Number of bootstrap documents inserted (0 if the registry was non-empty).
+    """
     if source_db.count_sources() > 0:
         return 0
 

@@ -1,3 +1,10 @@
+"""Orchestrate early-warning discovery: search, review, scrape, and persist.
+
+Runs Brave Search queries, LLM borderline review, page ingestion, listing
+expansion, AI structuring, incident save/merge, and optional official
+verification under a shared pipeline lock.
+"""
+
 import asyncio
 import logging
 import re
@@ -36,10 +43,10 @@ from services.early_warning.verification import IncidentVerificationService
 from services.pipeline_progress import PipelineProgressTracker
 from services.warnings import WarningsService
 
-LOGGER = logging.getLogger(__name__)
-IngestCallable = Callable[..., Awaitable[ScrapedRecallRecord]]
-MAX_LISTING_DETAIL_LINKS = 25
-_LISTING_TITLE_SIGNALS = (
+LOGGER = logging.getLogger(__name__)  # Module logger for run warnings and progress.
+IngestCallable = Callable[..., Awaitable[ScrapedRecallRecord]]  # Injectable URL ingest function.
+MAX_LISTING_DETAIL_LINKS = 25  # Cap on detail links fetched from a listing page.
+_LISTING_TITLE_SIGNALS = (  # Title/path tokens that indicate a listing/index page.
     "recalls",
     "recall alerts",
     "food alerts",
@@ -52,8 +59,28 @@ _LISTING_TITLE_SIGNALS = (
     "produktwarnungen",
 )
 
+
 @dataclass
 class EarlyWarningRunResult:
+    """Aggregate metrics for one early-warning pipeline run.
+
+    Attributes:
+        dry_run: Whether the run stopped after search/queue without scraping.
+        queries_searched: Number of Brave Search requests issued.
+        search_results: Total raw search result count.
+        candidates_accepted: Candidates accepted by LLM review.
+        candidates_borderline: Candidates queued as borderline for review.
+        candidates_rejected: Candidates rejected by LLM review.
+        pages_scraped: Successfully ingested pages.
+        records_processed: Pages sent through AI structuring.
+        irrelevant_pages: Pages classified irrelevant or out of country scope.
+        incidents_saved: Incident upserts performed.
+        new_incidents: Upserts that increased the store count.
+        officially_confirmed: Incidents confirmed against official recalls.
+        skipped_due_to_overlap: Reserved flag for overlap-skip scenarios.
+        failures: Map of failing key (URL/query) to error message.
+    """
+
     dry_run: bool = False
     queries_searched: int = 0
     search_results: int = 0
@@ -69,7 +96,10 @@ class EarlyWarningRunResult:
     skipped_due_to_overlap: bool = False
     failures: dict[str, str] = field(default_factory=dict)
 
+
 class EarlyWarningPipelineService:
+    """End-to-end early-warning discovery and persistence pipeline."""
+
     def __init__(
         self,
         *,
@@ -86,6 +116,22 @@ class EarlyWarningPipelineService:
         progress_tracker: PipelineProgressTracker | None = None,
         run_lock: asyncio.Lock | None = None,
     ) -> None:
+        """Wire discovery, processing, and side-effect dependencies.
+
+        Args:
+            config: Early-warning feature and budget configuration.
+            search_client: Brave Search client, or None when unavailable.
+            candidate_store: Persistence for discovery candidates and query state.
+            incident_service: Incident save/merge service.
+            processing_service: LLM translate/classify/extract service.
+            verification_service: Optional official-recall linker.
+            broadcaster: Optional change notifier for new incidents.
+            warnings_service: Optional operational warnings sink.
+            ingest: Callable used to fetch and normalize page URLs.
+            reporter: Optional progress reporter (may be replaced per run).
+            progress_tracker: Optional run lifecycle tracker.
+            run_lock: Optional lock shared with the official pipeline.
+        """
         self.config = config
         self.search_client = search_client
         self.candidate_store = candidate_store
@@ -101,6 +147,17 @@ class EarlyWarningPipelineService:
         self._active_run_id: str | None = None
 
     async def run(self, *, dry_run: bool = False) -> EarlyWarningRunResult:
+        """Run the pipeline, acquiring ``run_lock`` when configured.
+
+        Args:
+            dry_run: When True, stop after search/queue without scraping.
+
+        Returns:
+            EarlyWarningRunResult with run metrics.
+
+        Raises:
+            Exception: Propagates hard pipeline failures after fail_run/warnings.
+        """
         if self.run_lock is None:
             return await self._run(dry_run=dry_run)
         # Share the process-wide pipeline lock with the official pipeline so only
@@ -110,6 +167,18 @@ class EarlyWarningPipelineService:
             return await self._run(dry_run=dry_run)
 
     async def _run(self, *, dry_run: bool = False) -> EarlyWarningRunResult:
+        """Execute one early-warning discovery run.
+
+        Args:
+            dry_run: When True, return after search without scraping/processing.
+
+        Returns:
+            Populated EarlyWarningRunResult.
+
+        Raises:
+            RuntimeError: When early warning is enabled but Brave Search is missing.
+            Exception: On hard failure after progress/warning updates.
+        """
         if not self.config.enabled:
             return EarlyWarningRunResult(dry_run=dry_run)
 
@@ -284,12 +353,20 @@ class EarlyWarningPipelineService:
             self.reporter = previous_reporter
             self._active_run_id = None
 
-    run_pipeline = run
+    run_pipeline = run  # Alias matching the official PipelineService naming.
 
     async def _search_and_queue(
         self,
         result: EarlyWarningRunResult,
     ) -> list[DiscoveryCandidate]:
+        """Search Brave and upsert borderline candidates up to the budget.
+
+        Args:
+            result: Mutable run metrics accumulator.
+
+        Returns:
+            Discovery candidates discovered during this search pass.
+        """
         states = self.candidate_store.list_query_states()
         rotation = sum(state.search_count for state in states) // max(
             1,
@@ -369,6 +446,15 @@ class EarlyWarningPipelineService:
         candidates: list[DiscoveryCandidate],
         result: EarlyWarningRunResult,
     ) -> list[DiscoveryCandidate]:
+        """LLM-review new and previously eligible stored candidates.
+
+        Args:
+            candidates: Candidates discovered in the current search pass.
+            result: Mutable run metrics accumulator.
+
+        Returns:
+            Accepted candidates ready for scraping.
+        """
         accepted: list[DiscoveryCandidate] = []
         seen_ids: set[str] = set()
         for candidate in candidates:
@@ -394,6 +480,15 @@ class EarlyWarningPipelineService:
         candidate: DiscoveryCandidate,
         result: EarlyWarningRunResult,
     ) -> DiscoveryCandidate | None:
+        """Classify one candidate's metadata and persist the decision.
+
+        Args:
+            candidate: Candidate to review.
+            result: Mutable run metrics accumulator.
+
+        Returns:
+            Accepted candidate, or None when rejected/ineligible.
+        """
         if not self._eligible_for_processing(candidate):
             return None
         try:
@@ -452,6 +547,15 @@ class EarlyWarningPipelineService:
         candidates: list[DiscoveryCandidate],
         result: EarlyWarningRunResult,
     ) -> list[tuple[DiscoveryCandidate, ScrapedRecallRecord]]:
+        """Fetch accepted candidate URLs concurrently under a semaphore.
+
+        Args:
+            candidates: Accepted candidates to ingest.
+            result: Mutable run metrics accumulator.
+
+        Returns:
+            Successfully scraped ``(candidate, record)`` pairs.
+        """
         semaphore = asyncio.Semaphore(self.config.crawl.concurrency)
         timeout = httpx.Timeout(self.config.crawl.timeout_seconds)
         async with httpx.AsyncClient(
@@ -461,6 +565,14 @@ class EarlyWarningPipelineService:
             async def scrape_one(
                 candidate: DiscoveryCandidate,
             ) -> tuple[DiscoveryCandidate, ScrapedRecallRecord] | None:
+                """Ingest one candidate URL and update its status.
+
+                Args:
+                    candidate: Candidate whose URL should be fetched.
+
+                Returns:
+                    ``(candidate, record)`` on success, otherwise None.
+                """
                 async with semaphore:
                     try:
                         record = await self.ingest(
@@ -528,7 +640,15 @@ class EarlyWarningPipelineService:
         records: list[tuple[DiscoveryCandidate, ScrapedRecallRecord]],
         result: EarlyWarningRunResult,
     ) -> list[tuple[DiscoveryCandidate, ScrapedRecallRecord]]:
-        """Replace listing/index pages with a bounded set of their detail pages."""
+        """Replace listing/index pages with a bounded set of their detail pages.
+
+        Args:
+            records: Scraped candidate/record pairs from the first pass.
+            result: Mutable run metrics accumulator.
+
+        Returns:
+            Detail-page records (listing pages themselves are rejected).
+        """
         detail_records: list[tuple[DiscoveryCandidate, ScrapedRecallRecord]] = []
         children: list[DiscoveryCandidate] = []
         seen_urls: set[str] = set()
@@ -584,6 +704,14 @@ class EarlyWarningPipelineService:
         self,
         incident: Any,
     ) -> str | None:
+        """Map an incident onto a configured target country name.
+
+        Args:
+            incident: Incident create payload with country/regions/URL.
+
+        Returns:
+            Canonical configured country name, or None when out of scope.
+        """
         enabled = [country for country in self.config.countries if country.enabled]
         reported_places = [incident.country, *incident.affected_regions]
         for country in enabled:
@@ -604,6 +732,14 @@ class EarlyWarningPipelineService:
         return None
 
     def _source_profile(self, url: str) -> tuple[SourceKind, TrustTier]:
+        """Resolve configured domain source kind and trust for a URL.
+
+        Args:
+            url: Page URL whose hostname is matched against domain profiles.
+
+        Returns:
+            ``(source_kind, trust_tier)``, defaulting to UNKNOWN/UNKNOWN.
+        """
         hostname = (urlsplit(url).hostname or "").lower()
         matches = [
             (domain, profile)
@@ -616,6 +752,14 @@ class EarlyWarningPipelineService:
         return SourceKind.UNKNOWN, TrustTier.UNKNOWN
 
     def _already_processed(self, record: ScrapedRecallRecord) -> EarlyWarningIncident | None:
+        """Find an existing incident with the same content hash.
+
+        Args:
+            record: Scraped record whose content_hash is checked.
+
+        Returns:
+            Matching incident, or None when unseen.
+        """
         content_hash = str(record.payload.get("content_hash") or "").strip().lower()
         if not content_hash:
             return None
@@ -631,6 +775,14 @@ class EarlyWarningPipelineService:
         )
 
     def _eligible_for_processing(self, candidate: DiscoveryCandidate) -> bool:
+        """Return whether a candidate may still be reviewed or scraped.
+
+        Args:
+            candidate: Candidate whose status and retry schedule are checked.
+
+        Returns:
+            True when the candidate is eligible for further processing.
+        """
         if candidate.processing_status in {
             CandidateStatus.CONVERTED,
             CandidateStatus.CLASSIFIED,
@@ -647,6 +799,11 @@ class EarlyWarningPipelineService:
         return candidate.next_retry_at is None or candidate.next_retry_at <= now
 
     def _next_retry_at(self) -> datetime:
+        """Compute the next retry timestamp from crawl config.
+
+        Returns:
+            UTC datetime when a failed candidate may be retried.
+        """
         return datetime.now(timezone.utc) + timedelta(
             minutes=self.config.crawl.retry_delay_minutes
         )
@@ -659,6 +816,14 @@ class EarlyWarningPipelineService:
         source: str | None = None,
         error: BaseException | str | None = None,
     ) -> None:
+        """Log and optionally persist an operational warning.
+
+        Args:
+            category: Warning category.
+            message: Base warning message.
+            source: Optional source hostname or label.
+            error: Optional exception or detail appended to the message.
+        """
         detail = str(error).strip() if error is not None else ""
         full_message = f"{message}: {detail}" if detail else message
         LOGGER.warning("%s%s", full_message, f" ({source})" if source else "")
@@ -678,6 +843,14 @@ class EarlyWarningPipelineService:
         source: str | None = None,
         details: dict[str, Any] | None = None,
     ) -> None:
+        """Emit an info log and optional progress-reporter event.
+
+        Args:
+            stage: Pipeline stage for the event.
+            message: Human-readable progress message.
+            source: Optional source label.
+            details: Optional structured metrics/details.
+        """
         LOGGER.info(
             "%s%s%s",
             message,
@@ -687,7 +860,16 @@ class EarlyWarningPipelineService:
         if self.reporter is not None:
             self.reporter.log(stage=stage, message=message, source=source, details=details)
 
+
 def _safe_metrics(result: EarlyWarningRunResult) -> dict[str, int]:
+    """Extract JSON-safe integer metrics from a run result.
+
+    Args:
+        result: Completed or in-progress run result.
+
+    Returns:
+        Dict of integer metrics suitable for log event details.
+    """
     return {
         "queries_searched": result.queries_searched,
         "search_results": result.search_results,
@@ -703,7 +885,16 @@ def _safe_metrics(result: EarlyWarningRunResult) -> dict[str, int]:
         "failure_count": len(result.failures),
     }
 
+
 def _listing_detail_links(record: ScrapedRecallRecord) -> list[dict[str, str]]:
+    """Detect listing pages and return their detail-link payloads.
+
+    Args:
+        record: Scraped page that may be a listing/index.
+
+    Returns:
+        Detail link dicts when the page looks like a listing; otherwise [].
+    """
     raw_links = record.payload.get("detail_links")
     if not isinstance(raw_links, list):
         return []
@@ -715,12 +906,31 @@ def _listing_detail_links(record: ScrapedRecallRecord) -> list[dict[str, str]]:
     generic_listing = any(signal in f"{title} {path}" for signal in _LISTING_TITLE_SIGNALS)
     return links if generic_listing or len(links) >= 5 else []
 
+
 def _normalize_place(value: object) -> str:
+    """Normalize a place label for alias comparison.
+
+    Args:
+        value: Raw country or region string.
+
+    Returns:
+        ASCII, lowercased, punctuation-stripped place token string.
+    """
     text = unicodedata.normalize("NFKD", str(value or ""))
     ascii_text = "".join(character for character in text if not unicodedata.combining(character))
     return " ".join(re.sub(r"[^a-z0-9]+", " ", ascii_text.casefold()).split())
 
+
 def _place_matches_alias(place: object, alias: object) -> bool:
+    """Return whether a reported place matches a configured country alias.
+
+    Args:
+        place: Reported country or region value.
+        alias: Configured country code, name, or alias.
+
+    Returns:
+        True on exact match, or word-boundary match for aliases length >= 4.
+    """
     normalized_place = _normalize_place(place)
     normalized_alias = _normalize_place(alias)
     if not normalized_place or not normalized_alias:

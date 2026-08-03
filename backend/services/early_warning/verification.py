@@ -1,3 +1,9 @@
+"""Link early-warning incidents to matching official food-recall alerts.
+
+Updates incident verification status and confidence when an official recall
+match is found; does not mutate the official alert store.
+"""
+
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -8,18 +14,42 @@ from models.early_warning_incident import EarlyWarningIncident, VerificationStat
 from models.food_recall_alert import FoodRecallAlert
 from services.early_warning.matching import MatchResult, find_official_match
 
+
 class OfficialRecallReader(Protocol):
-    def get_alerts(self) -> list[FoodRecallAlert]: ...
+    """Minimal protocol for reading official recall alerts."""
+
+    def get_alerts(self) -> list[FoodRecallAlert]:
+        """Return all official food-recall alerts.
+
+        Returns:
+            List of FoodRecallAlert records.
+        """
+        ...
+
 
 @dataclass(frozen=True)
 class VerificationResult:
+    """Outcome of verifying one incident against official recalls.
+
+    Attributes:
+        incident: Incident after any official-link updates.
+        official_alert: Matched official alert, if any.
+        match: Match metadata describing how the link was made.
+    """
+
     incident: EarlyWarningIncident
     official_alert: FoodRecallAlert | None
     match: MatchResult | None
 
     @property
     def confirmed(self) -> bool:
+        """Return whether an official alert was linked.
+
+        Returns:
+            True when ``official_alert`` is not None.
+        """
         return self.official_alert is not None
+
 
 class IncidentVerificationService:
     """Links official recalls by updating incidents only."""
@@ -31,6 +61,13 @@ class IncidentVerificationService:
         *,
         date_window_days: int = 7,
     ) -> None:
+        """Initialize verification against incident and optional alert stores.
+
+        Args:
+            incident_store: Early-warning incident persistence backend.
+            official_store: Optional reader for official recalls.
+            date_window_days: Match window for entity-date linking.
+        """
         self.incident_store = incident_store
         self.official_store = official_store
         self.date_window_days = date_window_days
@@ -40,6 +77,15 @@ class IncidentVerificationService:
         incident_id: str,
         official_alerts: Iterable[FoodRecallAlert] | None = None,
     ) -> VerificationResult | None:
+        """Verify one incident and persist an official link when matched.
+
+        Args:
+            incident_id: Incident to verify.
+            official_alerts: Optional alert set; defaults to the official store.
+
+        Returns:
+            VerificationResult, or None if the incident does not exist.
+        """
         incident = self.incident_store.get_incident(incident_id)
         if incident is None:
             return None
@@ -62,6 +108,14 @@ class IncidentVerificationService:
         self,
         official_alerts: Iterable[FoodRecallAlert] | None = None,
     ) -> list[VerificationResult]:
+        """Verify all non-terminal incidents against official alerts.
+
+        Args:
+            official_alerts: Optional alert set; defaults to the official store.
+
+        Returns:
+            VerificationResult for each unresolved incident checked.
+        """
         alerts = list(official_alerts) if official_alerts is not None else self._official_alerts()
         results: list[VerificationResult] = []
         for incident in self.incident_store.list_incidents():
@@ -77,11 +131,18 @@ class IncidentVerificationService:
         return results
 
     def _official_alerts(self) -> list[FoodRecallAlert]:
+        """Load official alerts from the configured store.
+
+        Returns:
+            Alert list, or empty when no official store is configured.
+        """
         if self.official_store is None:
             return []
         return self.official_store.get_alerts()
 
-VerificationService = IncidentVerificationService
+
+VerificationService = IncidentVerificationService  # Alias for shorter imports.
+
 
 def link_official_recall(
     incident: EarlyWarningIncident,
@@ -90,6 +151,20 @@ def link_official_recall(
     match: MatchResult | None = None,
     at: datetime | None = None,
 ) -> EarlyWarningIncident:
+    """Mark an incident as officially confirmed and link an alert id.
+
+    Args:
+        incident: Incident to update.
+        official_alert_id: Official alert identifier to link.
+        match: Optional match metadata for the confidence reason.
+        at: Optional status update timestamp; defaults to UTC now.
+
+    Returns:
+        Updated incident copy (or the original when already fully linked).
+
+    Raises:
+        ValueError: If ``official_alert_id`` is empty.
+    """
     alert_id = official_alert_id.strip()
     if not alert_id:
         raise ValueError("official_alert_id must be non-empty")

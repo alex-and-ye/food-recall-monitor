@@ -1,3 +1,9 @@
+"""ChromaDB client for food recall alert persistence.
+
+Implements FoodRecallAlertsDBInterface against a remote Chroma collection,
+including deduplicated saves, search/filter, and collection versioning.
+"""
+
 import hashlib
 from datetime import date
 from typing import List, Optional, cast
@@ -11,15 +17,36 @@ from models.food_recall_alert import FoodRecallAlert, FoodRecallAlertCreate, Foo
 from models.sort_options import SortBy
 
 class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
+    """Chroma-backed store for food recall alerts."""
+
+    # Chroma collection name for food recall alerts
     COLLECTION_NAME = "food_recall_alerts_collection"
 
     def __init__(self, host: str, port: int) -> None:
+        """Connect to Chroma and ensure the alerts collection exists.
+
+        Args:
+            host: Chroma HTTP host.
+            port: Chroma HTTP port.
+        """
         self.client = chromadb.HttpClient(host=host, port=port)
         self.collection = self.client.get_or_create_collection(
             name=FoodRecallAlertsChromaClient.COLLECTION_NAME
         )
 
     def save_alerts(self, alerts: List[FoodRecallAlertCreate]) -> List[FoodRecallAlert]:
+        """Persist alerts, updating by source URL or inserting when new.
+
+        Deduplicates within the batch and against existing records using a
+        content hash and source URL. Existing alerts with the same URL but
+        a different dedupe key are updated in place.
+
+        Args:
+            alerts: Alert payloads to insert or update.
+
+        Returns:
+            Newly inserted and content-updated alerts (for UI notification).
+        """
         if not alerts:
             return []
 
@@ -85,6 +112,16 @@ class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
         return [*new_alerts, *updated_alerts]
 
     def update_alert_coordinates(self, alert_id: str, latitude: float, longitude: float) -> bool:
+        """Update latitude/longitude metadata for an existing alert.
+
+        Args:
+            alert_id: Unique alert ID.
+            latitude: Latitude in decimal degrees.
+            longitude: Longitude in decimal degrees.
+
+        Returns:
+            True if the alert was found and updated; False otherwise.
+        """
         existing = self.get_alert_by_id(alert_id)
         if existing is None:
             return False
@@ -103,6 +140,14 @@ class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
         return True
 
     def _get_existing_dedupe_keys(self, dedupe_keys: List[str]) -> set[str]:
+        """Look up which of the given dedupe keys already exist in Chroma.
+
+        Args:
+            dedupe_keys: Candidate content-hash keys to check.
+
+        Returns:
+            Subset of keys that are already stored.
+        """
         if not dedupe_keys:
             return set()
 
@@ -122,6 +167,14 @@ class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
         self,
         source_urls: List[str],
     ) -> dict[str, tuple[str, str]]:
+        """Map source URLs to existing alert IDs and dedupe keys.
+
+        Args:
+            source_urls: Source URLs to look up (duplicates are collapsed).
+
+        Returns:
+            Mapping of source_url -> (alert_id, dedupe_key).
+        """
         if not source_urls:
             return {}
 
@@ -142,12 +195,28 @@ class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
         return existing
 
     def _build_metadata(self, alert: FoodRecallAlert) -> dict[str, str | int | float | bool]:
+        """Build Chroma metadata including the computed dedupe key.
+
+        Args:
+            alert: Alert to serialize as metadata.
+
+        Returns:
+            Metadata dict suitable for Chroma storage.
+        """
         metadata = alert.to_metadata()
         metadata["dedupe_key"] = self._build_dedupe_key(alert)
         return metadata
 
     @staticmethod
     def _build_dedupe_key(alert: FoodRecallAlertCreate) -> str:
+        """Compute a stable SHA-256 hash for alert content identity.
+
+        Args:
+            alert: Alert fields used for deduplication.
+
+        Returns:
+            Hex digest of product name, recall date, and source URL.
+        """
         raw_key = "\0".join(
             [
                 alert.product_name,
@@ -158,6 +227,11 @@ class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
         return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
 
     def get_alerts_version(self) -> FoodRecallAlertsVersion:
+        """Compute a fingerprint of all alert IDs for change detection.
+
+        Returns:
+            Version object with alert count and SHA-256 of sorted IDs.
+        """
         results = self.collection.get(include=[])
         ids = results.get("ids") or []
         sorted_ids = sorted(ids)
@@ -169,6 +243,11 @@ class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
         )
 
     def get_alerts(self) -> List[FoodRecallAlert]:
+        """Return all alerts from the collection, newest recall date first.
+
+        Returns:
+            Parsed FoodRecallAlert instances, or an empty list if none.
+        """
         results = self.collection.get(include=["metadatas"])
         metadatas = results.get("metadatas")
         if not metadatas:
@@ -192,6 +271,18 @@ class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
         recall_date: date | None = None,
         sort_by: str | None = None,
     ) -> List[FoodRecallAlert]:
+        """Filter and sort alerts in memory after loading from Chroma.
+
+        Args:
+            search: Free-text query matched via alert.matches_search.
+            risk_level: Exact risk level filter.
+            country_source: Exact country/source filter.
+            recall_date: Exact recall date filter.
+            sort_by: SortBy.OLDEST or SortBy.LATEST; default leaves newest-first.
+
+        Returns:
+            Filtered and optionally re-sorted alerts.
+        """
         alerts = self.get_alerts()
 
         if recall_date:
@@ -214,6 +305,14 @@ class FoodRecallAlertsChromaClient(FoodRecallAlertsDBInterface):
         return alerts
 
     def get_alert_by_id(self, alert_id: str) -> Optional[FoodRecallAlert]:
+        """Fetch a single alert by Chroma document ID.
+
+        Args:
+            alert_id: Unique alert ID.
+
+        Returns:
+            The matching alert, or None if missing or unparsable.
+        """
         results = self.collection.get(ids=[alert_id], include=["metadatas"])
         metadatas = results.get("metadatas") or []
         if not metadatas or metadatas[0] is None:

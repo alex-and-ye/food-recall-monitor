@@ -1,3 +1,9 @@
+"""Fetch and normalize arbitrary discovery URLs for early-warning processing.
+
+Attempts static HTML first, falls back to a browser for JS shells, extracts
+detail payloads, and records provenance for Brave Search candidates.
+"""
+
 import hashlib
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -18,27 +24,27 @@ from models.discovery_candidate import DiscoveryCandidate
 from models.scraped_record import ScrapedRecallRecord
 from models.search_candidate import canonicalize_url
 
-StaticFetcher = Callable[..., Awaitable[StaticPage]]
-BrowserFetcher = Callable[..., Awaitable[tuple[str, str]]]
+StaticFetcher = Callable[..., Awaitable[StaticPage]]  # Injectable static page fetcher.
+BrowserFetcher = Callable[..., Awaitable[tuple[str, str]]]  # Injectable browser HTML fetcher.
 
 # Align with Brave freshness (past week) plus a small buffer for delayed indexing.
 EARLY_WARNING_PUBLICATION_LOOKBACK_DAYS = 14
 
-_HTML_CONTENT_TYPES = {
+_HTML_CONTENT_TYPES = {  # MIME types treated as HTML for extraction.
     "",
     "text/html",
     "application/xhtml+xml",
     "application/xml",
     "text/xml",
 }
-_DYNAMIC_SHELL_MARKERS = (
+_DYNAMIC_SHELL_MARKERS = (  # Substrings suggesting a JS-rendered shell page.
     "__next_data__",
     "enable javascript",
     "javascript is required",
     "id=\"app\"></div>",
     "id=\"root\"></div>",
 )
-_DETAIL_LINK_SIGNALS = (
+_DETAIL_LINK_SIGNALS = (  # Path/label tokens that hint at recall detail pages.
     "recall",
     "alert",
     "warning",
@@ -50,17 +56,31 @@ _DETAIL_LINK_SIGNALS = (
     "rückruf",
     "warnung",
 )
-_MAX_DISCOVERED_DETAIL_LINKS = 50
+_MAX_DISCOVERED_DETAIL_LINKS = 50  # Cap on listing-page detail link expansion.
+
 
 class EarlyWarningIngestionError(ValueError):
+    """Raised when a discovery URL cannot be ingested into a usable record."""
+
     pass
 
+
 class UnsupportedContentError(EarlyWarningIngestionError):
-    """Raised for MIME types that should be retained for a later adapter."""
+    """Raised for MIME types that should be retained for a later adapter.
+
+    Attributes:
+        content_type: Unsupported MIME type from the response.
+    """
 
     def __init__(self, content_type: str) -> None:
+        """Initialize with the unsupported content type.
+
+        Args:
+            content_type: MIME type that could not be processed.
+        """
         self.content_type = content_type
         super().__init__(f"unsupported content type: {content_type or 'unknown'}")
+
 
 async def ingest_early_warning_url(
     url: str,
@@ -76,8 +96,23 @@ async def ingest_early_warning_url(
 
     Static HTML is always attempted first. A browser is used only when the
     static response looks like a JavaScript shell or extracts too little text.
-    """
 
+    Args:
+        url: URL to fetch.
+        client: Shared httpx client for static fetches.
+        candidate: Optional search candidate for provenance metadata.
+        minimum_text_characters: Minimum extracted visible text length.
+        timeout_seconds: Browser fetch timeout in seconds.
+        static_fetcher: Injectable static HTML fetcher.
+        browser_fetcher: Injectable browser HTML fetcher.
+
+    Returns:
+        ScrapedRecallRecord with normalized payload and provenance.
+
+    Raises:
+        UnsupportedContentError: When the response MIME type is not HTML.
+        EarlyWarningIngestionError: When extracted text is below the minimum.
+    """
     canonical_requested = canonicalize_url(url)
     static_page = await static_fetcher(
         client,
@@ -155,6 +190,7 @@ async def ingest_early_warning_url(
     )
     return ScrapedRecallRecord(source_name=hostname or "early-warning", payload=payload)
 
+
 async def ingest_url(
     url: str,
     *,
@@ -163,6 +199,18 @@ async def ingest_url(
     minimum_text_characters: int = 240,
     timeout_seconds: float = 20.0,
 ) -> ScrapedRecallRecord:
+    """Alias for ``ingest_early_warning_url`` with default fetchers.
+
+    Args:
+        url: URL to fetch.
+        client: Shared httpx client.
+        candidate: Optional search candidate for provenance.
+        minimum_text_characters: Minimum extracted visible text length.
+        timeout_seconds: Browser fetch timeout in seconds.
+
+    Returns:
+        ScrapedRecallRecord for the fetched page.
+    """
     return await ingest_early_warning_url(
         url,
         client=client,
@@ -171,11 +219,32 @@ async def ingest_url(
         timeout_seconds=timeout_seconds,
     )
 
+
 def _needs_browser_fallback(html: str, visible_text: str, minimum: int) -> bool:
+    """Return whether static extraction warrants a browser retry.
+
+    Args:
+        html: Raw HTML body.
+        visible_text: Extracted visible text.
+        minimum: Minimum acceptable text length.
+
+    Returns:
+        True when text is short or the page looks like a JS shell.
+    """
     lowered = html.casefold()
     return len(visible_text) < minimum or any(marker in lowered for marker in _DYNAMIC_SHELL_MARKERS)
 
+
 def _page_title(html: str, payload: dict[str, Any]) -> str:
+    """Extract a page title from HTML or fall back to the source URL.
+
+    Args:
+        html: Page HTML.
+        payload: Extracted detail payload (for source_url fallback).
+
+    Returns:
+        Best-effort page title string.
+    """
     soup = BeautifulSoup(html, "html.parser")
     if soup.title and soup.title.string:
         title = " ".join(soup.title.string.split())
@@ -186,8 +255,17 @@ def _page_title(html: str, payload: dict[str, Any]) -> str:
         return heading.get_text(" ", strip=True)
     return str(payload.get("source_url") or "")
 
+
 def _discover_detail_links(html: str, page_url: str) -> list[dict[str, str]]:
-    """Collect likely recall-detail links for bounded listing-page expansion."""
+    """Collect likely recall-detail links for bounded listing-page expansion.
+
+    Args:
+        html: Listing/index page HTML.
+        page_url: Canonical URL of the page (same-host filter).
+
+    Returns:
+        List of ``{"url", "title"}`` dicts up to the discovery cap.
+    """
     soup = BeautifulSoup(html, "html.parser")
     page_host = (urlsplit(page_url).hostname or "").lower()
     discovered: dict[str, str] = {}
@@ -212,7 +290,18 @@ def _discover_detail_links(html: str, page_url: str) -> list[dict[str, str]]:
             break
     return [{"url": url, "title": title} for url, title in discovered.items()]
 
+
 def _preferred_publication_date(payload: dict[str, Any]) -> str | None:
+    """Select the best publication date from extracted date candidates.
+
+    Prefers recent dates within the lookback window, then any non-future date.
+
+    Args:
+        payload: Detail payload containing published_date_candidates.
+
+    Returns:
+        ISO date string, or None when no usable candidate exists.
+    """
     candidates = payload.get("published_date_candidates")
     sources = payload.get("published_date_candidate_sources")
     if not isinstance(candidates, list):

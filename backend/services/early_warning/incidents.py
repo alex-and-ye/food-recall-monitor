@@ -1,3 +1,10 @@
+"""Persist, merge, and query early-warning food-safety incidents.
+
+Assigns stable cluster fingerprints and incident IDs, deduplicates via
+exact/entity/semantic matching, derives confidence scores, and supports
+filtered listing with sorting.
+"""
+
 import hashlib
 import uuid
 from collections import Counter
@@ -27,19 +34,41 @@ from services.early_warning.matching import (
     normalize_text,
 )
 
-INCIDENT_ID_NAMESPACE = uuid.UUID("257e537e-d840-531f-aec4-5ca8f741fd37")
+INCIDENT_ID_NAMESPACE = uuid.UUID("257e537e-d840-531f-aec4-5ca8f741fd37")  # UUID5 namespace for incident IDs.
+
 
 class IncidentSemanticIndex(Protocol):
+    """Protocol for optional semantic near-duplicate indexing."""
+
     def query_incidents(
         self,
         incident: EarlyWarningIncident,
         *,
         limit: int = 10,
-    ) -> list[object]: ...
+    ) -> list[object]:
+        """Return semantic neighbors for an incident.
 
-    def upsert_incident(self, incident: EarlyWarningIncident) -> None: ...
+        Args:
+            incident: Query incident.
+            limit: Maximum neighbors to return.
+
+        Returns:
+            Neighbor objects exposing ``record_id`` and ``score``.
+        """
+        ...
+
+    def upsert_incident(self, incident: EarlyWarningIncident) -> None:
+        """Index or refresh an incident embedding.
+
+        Args:
+            incident: Incident to upsert into the index.
+        """
+        ...
+
 
 class EarlyWarningIncidentService:
+    """Create, merge, and query early-warning incidents."""
+
     def __init__(
         self,
         store: EarlyWarningIncidentsDBInterface,
@@ -51,6 +80,17 @@ class EarlyWarningIncidentService:
         semantic_auto_merge_threshold: float = 0.92,
         semantic_result_limit: int = 10,
     ) -> None:
+        """Initialize incident persistence with matching and confidence options.
+
+        Args:
+            store: Incident database backend.
+            matcher: Optional exact/entity matcher; defaults to IncidentMatcher().
+            confidence_policy: Optional confidence scoring policy.
+            semantic_index: Optional embedding index for near-duplicate merges.
+            semantic_review_threshold: Minimum similarity to flag possible duplicates.
+            semantic_auto_merge_threshold: Similarity required for auto-merge.
+            semantic_result_limit: Max neighbors fetched from the semantic index.
+        """
         self.store = store
         self.matcher = matcher or IncidentMatcher()
         self.confidence_policy = confidence_policy
@@ -63,6 +103,14 @@ class EarlyWarningIncidentService:
         self,
         incident: EarlyWarningIncidentCreate | EarlyWarningIncident,
     ) -> EarlyWarningIncident:
+        """Insert or merge an incident with existing cluster matches.
+
+        Args:
+            incident: Create payload or existing incident to save.
+
+        Returns:
+            Persisted EarlyWarningIncident after any merges.
+        """
         prepared = self._prepare(incident)
         existing_same_id = self.store.get_incident(prepared.incident_id)
         if existing_same_id is not None:
@@ -80,9 +128,17 @@ class EarlyWarningIncidentService:
                 return self._persist(self._merge(existing, prepared))
         return self._persist(prepared)
 
-    create_or_update = save_incident
+    create_or_update = save_incident  # Alias used by callers expecting create_or_update.
 
     def get_incident(self, incident_id: str) -> EarlyWarningIncident | None:
+        """Fetch one incident by id.
+
+        Args:
+            incident_id: Incident identifier.
+
+        Returns:
+            Matching incident, or None if not found.
+        """
         return self.store.get_incident(incident_id)
 
     def list_incidents(
@@ -97,6 +153,22 @@ class EarlyWarningIncidentService:
         publication_date: date | None = None,
         sort_by: str | None = None,
     ) -> list[EarlyWarningIncident]:
+        """List incidents with optional filters, search, and sorting.
+
+        Args:
+            search: Free-text query over key incident fields.
+            verification_status: Optional verification-status filter.
+            incident_type: Optional incident-type filter.
+            minimum_confidence: Optional minimum confidence score.
+            country: Optional country filter.
+            source_kind: Optional source-kind filter.
+            publication_date: Optional exact effective publication date.
+            sort_by: Sort key (``latest``, ``oldest``, ``confidence_high``,
+                ``confidence_low``); defaults to newest-first.
+
+        Returns:
+            Filtered and sorted incident list.
+        """
         incidents = self.store.list_incidents(
             verification_status=verification_status,
             incident_type=incident_type,
@@ -132,10 +204,20 @@ class EarlyWarningIncidentService:
         return _sort_incidents(incidents, sort_by=sort_by)
 
     def get_status_counts(self) -> IncidentStatusCounts:
+        """Count incidents by verification status.
+
+        Returns:
+            IncidentStatusCounts populated from the store.
+        """
         counts = Counter(incident.verification_status.value for incident in self.store.list_incidents())
         return IncidentStatusCounts(**counts)
 
     def get_version(self) -> IncidentsVersion:
+        """Build a count + fingerprint version token for the incident set.
+
+        Returns:
+            IncidentsVersion with count and SHA-256 fingerprint.
+        """
         incidents = self.store.list_incidents()
         version_material = "\0".join(
             f"{incident.incident_id}:{incident.last_discovered_at.isoformat()}:"
@@ -151,6 +233,14 @@ class EarlyWarningIncidentService:
         self,
         value: EarlyWarningIncidentCreate | EarlyWarningIncident,
     ) -> EarlyWarningIncident:
+        """Normalize evidence, fingerprint, id, and derived confidence.
+
+        Args:
+            value: Incoming create payload or incident.
+
+        Returns:
+            Fully prepared EarlyWarningIncident ready to match/persist.
+        """
         payload = value.model_dump(exclude={"incident_id"})
         evidence = _ensure_primary_evidence(
             list(value.evidence),
@@ -181,6 +271,15 @@ class EarlyWarningIncidentService:
         existing: EarlyWarningIncident,
         incoming: EarlyWarningIncident,
     ) -> EarlyWarningIncident:
+        """Merge an incoming incident into an existing cluster record.
+
+        Args:
+            existing: Already-persisted incident.
+            incoming: Newly prepared incident to fold in.
+
+        Returns:
+            Merged incident with combined evidence and derived confidence.
+        """
         evidence = _merge_evidence(existing.evidence, incoming.evidence)
         source_kind = _highest_weight_source_kind(
             [existing.source_kind, incoming.source_kind]
@@ -269,6 +368,14 @@ class EarlyWarningIncidentService:
         return _with_derived_confidence(merged, policy=self.confidence_policy)
 
     def _persist(self, incident: EarlyWarningIncident) -> EarlyWarningIncident:
+        """Upsert an incident and best-effort update the semantic index.
+
+        Args:
+            incident: Incident to persist.
+
+        Returns:
+            Stored incident returned by the database.
+        """
         stored = self.store.upsert_incident(incident)
         if self.semantic_index is not None:
             try:
@@ -283,6 +390,14 @@ class EarlyWarningIncidentService:
         self,
         incident: EarlyWarningIncident,
     ) -> tuple[EarlyWarningIncident, str | None]:
+        """Optionally merge or flag near-duplicates via the semantic index.
+
+        Args:
+            incident: Prepared incident before persistence.
+
+        Returns:
+            Tuple of (possibly annotated incident, merge target id or None).
+        """
         if self.semantic_index is None:
             return incident, None
         try:
@@ -319,11 +434,23 @@ class EarlyWarningIncidentService:
         return incident, None
 
 
-IncidentsService = EarlyWarningIncidentService
+IncidentsService = EarlyWarningIncidentService  # Alias for shorter imports.
+
 
 def build_cluster_fingerprint(
     incident: EarlyWarningIncidentCreate | EarlyWarningIncident,
 ) -> str:
+    """Build a stable cluster fingerprint from core entity fields.
+
+    Omits country because extractors freely emit aliases that must not mint
+    separate identities. Falls back to the primary URL when entities are sparse.
+
+    Args:
+        incident: Incident whose fingerprint is computed.
+
+    Returns:
+        SHA-256 hex digest of normalized entity parts.
+    """
     # Omit country: extractors freely emit aliases ("UK" vs "United Kingdom") that
     # must not mint separate incident identities for the same recall.
     entity_parts = [
@@ -338,11 +465,28 @@ def build_cluster_fingerprint(
     raw = "\0".join(entity_parts)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
+
 def build_incident_id(cluster_fingerprint: str) -> str:
+    """Derive a deterministic incident UUID from a cluster fingerprint.
+
+    Args:
+        cluster_fingerprint: Cluster fingerprint hex digest.
+
+    Returns:
+        UUID5 string under INCIDENT_ID_NAMESPACE.
+    """
     return str(uuid.uuid5(INCIDENT_ID_NAMESPACE, cluster_fingerprint))
 
+
 def _preferred_country(*candidates: str) -> str:
-    """Prefer the more descriptive non-empty country label without alias maps."""
+    """Prefer the more descriptive non-empty country label without alias maps.
+
+    Args:
+        *candidates: Candidate country strings.
+
+    Returns:
+        Longest non-empty candidate, or empty string.
+    """
     best = ""
     for candidate in candidates:
         text = str(candidate or "").strip()
@@ -350,8 +494,16 @@ def _preferred_country(*candidates: str) -> str:
             best = text
     return best
 
+
 def _preferred_entity_label(*candidates: str) -> str:
-    """Prefer the more specific non-empty entity label (more tokens / longer text)."""
+    """Prefer the more specific non-empty entity label (more tokens / longer text).
+
+    Args:
+        *candidates: Candidate entity strings.
+
+    Returns:
+        Most specific non-empty candidate.
+    """
     best = ""
     best_tokens = 0
     for candidate in candidates:
@@ -364,11 +516,21 @@ def _preferred_entity_label(*candidates: str) -> str:
             best_tokens = token_count
     return best
 
+
 def _with_derived_confidence(
     incident: EarlyWarningIncident,
     *,
     policy: ConfidencePolicy | None,
 ) -> EarlyWarningIncident:
+    """Attach derived confidence score and reasons to an incident.
+
+    Args:
+        incident: Incident to score.
+        policy: Optional confidence policy override.
+
+    Returns:
+        Copy of the incident with confidence fields updated.
+    """
     result = calculate_incident_confidence(
         incident,
         independent_source_count=_independent_source_count(incident.evidence),
@@ -381,6 +543,7 @@ def _with_derived_confidence(
         }
     )
 
+
 def _ensure_primary_evidence(
     evidence: list[IncidentEvidence],
     *,
@@ -390,6 +553,19 @@ def _ensure_primary_evidence(
     publisher: str,
     domain: str,
 ) -> list[IncidentEvidence]:
+    """Ensure primary source URL is present in the evidence list.
+
+    Args:
+        evidence: Existing evidence items.
+        primary_url: Primary source URL that must be represented.
+        source_kind: Source kind for a newly appended evidence item.
+        publication_date: Publication date for new evidence.
+        publisher: Publisher for new evidence.
+        domain: Domain for new evidence.
+
+    Returns:
+        Merged evidence list including the primary URL.
+    """
     canonical_primary = canonicalize_url(primary_url)
     if not any(canonicalize_url(item.url) == canonical_primary for item in evidence):
         evidence.append(
@@ -403,10 +579,20 @@ def _ensure_primary_evidence(
         )
     return _merge_evidence([], evidence)
 
+
 def _merge_evidence(
     existing: list[IncidentEvidence],
     incoming: list[IncidentEvidence],
 ) -> list[IncidentEvidence]:
+    """Deduplicate evidence by canonical URL, preferring filled fields.
+
+    Args:
+        existing: Previously stored evidence.
+        incoming: Newly arriving evidence.
+
+    Returns:
+        Sorted list of merged IncidentEvidence items.
+    """
     by_url: dict[str, IncidentEvidence] = {}
     for item in [*existing, *incoming]:
         key = canonicalize_url(item.url) or item.url
@@ -426,7 +612,16 @@ def _merge_evidence(
         by_url[key] = IncidentEvidence.model_validate(payload)
     return [by_url[key] for key in sorted(by_url)]
 
+
 def _independent_source_count(evidence: list[IncidentEvidence]) -> int:
+    """Count distinct domains (or URLs) among evidence items.
+
+    Args:
+        evidence: Evidence list to inspect.
+
+    Returns:
+        At least 1 independent source identity count.
+    """
     identities = {
         (item.domain.strip().casefold() or canonicalize_url(item.url))
         for item in evidence
@@ -434,21 +629,49 @@ def _independent_source_count(evidence: list[IncidentEvidence]) -> int:
     }
     return max(1, len(identities))
 
+
 def _highest_weight_source_kind(source_kinds: list[SourceKind]) -> SourceKind:
+    """Pick the highest-confidence source kind from a list.
+
+    Args:
+        source_kinds: Candidate source kinds (may be empty).
+
+    Returns:
+        Source kind with the highest base weight (UNKNOWN if empty).
+    """
     return max(
         source_kinds or [SourceKind.UNKNOWN],
         key=lambda source_kind: (SOURCE_KIND_BASE_WEIGHTS[source_kind], source_kind.value),
     )
 
+
 def _ordered_union(left: list[str], right: list[str]) -> list[str]:
+    """Concatenate lists while preserving order and removing duplicates.
+
+    Args:
+        left: First sequence.
+        right: Second sequence.
+
+    Returns:
+        Deduplicated combined list.
+    """
     return list(dict.fromkeys([*left, *right]))
+
 
 def _sort_incidents(
     incidents: list[EarlyWarningIncident],
     *,
     sort_by: str | None,
 ) -> list[EarlyWarningIncident]:
-    """Sort like official recalls: publication date newest-first by default."""
+    """Sort like official recalls: publication date newest-first by default.
+
+    Args:
+        incidents: Incidents to sort.
+        sort_by: Sort mode string.
+
+    Returns:
+        Newly sorted incident list.
+    """
     publication_key = lambda item: (
         item.effective_publication_date().isoformat(),
         item.incident_id,
