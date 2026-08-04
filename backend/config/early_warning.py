@@ -5,6 +5,8 @@ budgets, incident confidence weights, and optional semantic matching.
 Runtime ``enabled`` is injected from ``pipelines.yaml``, not this file.
 """
 
+from __future__ import annotations
+
 import re
 from pathlib import Path
 from urllib.parse import urlsplit

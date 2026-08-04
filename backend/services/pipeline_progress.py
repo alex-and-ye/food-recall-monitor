@@ -4,6 +4,8 @@ Assigns run IDs, records stage timing metadata, and writes events through a
 pipeline-logs database interface for both official and early-warning runs.
 """
 
+from __future__ import annotations
+
 from datetime import UTC, datetime
 import logging
 from threading import Lock

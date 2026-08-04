@@ -1,3 +1,10 @@
+"""End-to-end scraper ingestion: config resolution, crawl, filter, and batch fetch.
+
+Resolves or rediscovers source registry entries, crawls listing seeds for detail
+pages, filters records by recall date, and exposes sequential multi-source fetch
+with per-source failure isolation.
+"""
+
 import logging
 from typing import Any
 
@@ -18,8 +25,10 @@ from models.scraped_record import ScrapedRecallRecord
 from models.scraper_config import DEFAULT_LOOKBACK_DAYS, ScraperSourceConfig
 from models.source_registry import DISCOVERY_STATUSES_NEEDING_REFRESH, DiscoveryStatus, SourceRegistryDocument
 
+# Module logger for source fetch and filter diagnostics.
 LOGGER = logging.getLogger(__name__)
 
+# Browser-like headers used for all sequential source HTTP requests.
 SOURCE_REQUEST_HEADERS: dict[str, str] = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
@@ -31,6 +40,14 @@ SOURCE_REQUEST_HEADERS: dict[str, str] = {
 }
 
 def to_translator_envelope(payload: dict[str, Any]) -> dict[str, Any]:
+    """Wrap a scraped record dict in the translator pipeline envelope shape.
+
+    Args:
+        payload: Cleaned detail payload dict from a scraped recall record.
+
+    Returns:
+        Dict with a single ``record`` key containing ``payload``.
+    """
     return {
         "record": payload,
     }
@@ -43,6 +60,22 @@ async def resolve_source_config(
     reporter: ProgressReporter | None = None,
     allow_rediscovery: bool = True,
 ) -> SourceRegistryDocument:
+    """Load a source registry document, rediscovering stale or missing configs.
+
+    Args:
+        source: Registry source name.
+        client: Async HTTP client for discovery fetches.
+        source_db: Persistence layer for source registry documents.
+        reporter: Optional pipeline progress logger.
+        allow_rediscovery: When True, run discovery for missing, stale, or
+            seedless documents.
+
+    Returns:
+        Ready ``SourceRegistryDocument`` with crawl configuration.
+
+    Raises:
+        KeyError: If the source is unknown and cannot be rediscovered.
+    """
     document = source_db.get_source(source)
     needs_discovery = (
         document is None
@@ -81,6 +114,22 @@ async def fetch_source_records(
     source_db: ScraperSourceConfigDBInterface,
     reporter: ProgressReporter | None = None,
 ) -> list[ScrapedRecallRecord]:
+    """Fetch, filter, and return recent recall records for a single source.
+
+    Resolves configuration, optionally broadens filtered listing seeds, crawls
+    detail pages, and retries discovery once when a ready source yields zero
+    detail payloads.
+
+    Args:
+        source: Registry source name.
+        limit: Maximum number of records to return.
+        client: Shared async HTTP client.
+        source_db: Source registry persistence interface.
+        reporter: Optional pipeline progress logger.
+
+    Returns:
+        Scraped recall records passing date and cleaning filters.
+    """
     document = await resolve_source_config(
         source,
         client=client,
@@ -152,6 +201,18 @@ async def _crawl_and_filter(
     client: httpx.AsyncClient,
     reporter: ProgressReporter | None,
 ) -> tuple[list[dict[str, object]], list[ScrapedRecallRecord]]:
+    """Crawl a source and build date-filtered ``ScrapedRecallRecord`` instances.
+
+    Args:
+        source: Registry source name for logging.
+        source_config: Crawl configuration and hints.
+        limit: Maximum records to collect this run.
+        client: Async HTTP client passed to the crawler.
+        reporter: Optional pipeline progress logger.
+
+    Returns:
+        Tuple of raw detail payloads and accepted scraped records.
+    """
     effective_limit = min(limit, source_config.max_pages_per_run)
     if reporter is not None:
         reporter.log(
@@ -252,6 +313,18 @@ async def fetch_sources_sequentially(
     source_db: ScraperSourceConfigDBInterface,
     reporter: ProgressReporter | None = None,
 ) -> FetchSourcesResult:
+    """Fetch records from multiple sources sequentially with isolated failures.
+
+    Args:
+        sources: Ordered list of registry source names.
+        limit: Per-source record cap passed to ``fetch_source_records``.
+        source_db: Source registry persistence interface.
+        reporter: Optional pipeline progress logger.
+
+    Returns:
+        Aggregated records and a map of source names to error messages for
+        sources that failed with recoverable exceptions.
+    """
     records: list[ScrapedRecallRecord] = []
     failures: dict[str, str] = {}
     async with httpx.AsyncClient(
@@ -283,6 +356,7 @@ async def fetch_sources_sequentially(
     return FetchSourcesResult(records=records, failures=failures)
 
 def _date_candidate_source(payload: dict[str, Any], selected_date: str) -> str:
+    """Return the provenance label for a selected published-date candidate."""
     sources = payload.get("published_date_candidate_sources")
     if not isinstance(sources, dict):
         return "generic"

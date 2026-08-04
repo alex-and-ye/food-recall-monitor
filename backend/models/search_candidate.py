@@ -4,6 +4,8 @@ Supports the early-warning web search path: stable query IDs, sanitized
 public URLs, and ranked search result candidates.
 """
 
+from __future__ import annotations
+
 import hashlib
 import ipaddress
 import posixpath

@@ -4,6 +4,8 @@ Persists SourceRegistryDocument records used to configure recall scrapers,
 with an in-memory test double / offline fallback sharing the same API.
 """
 
+from __future__ import annotations
+
 import json
 from datetime import datetime
 from typing import cast

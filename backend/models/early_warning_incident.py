@@ -4,6 +4,8 @@ Defines incident taxonomy, evidence records, create/persist shapes, and
 metadata document conversion for the early-warning store.
 """
 
+from __future__ import annotations
+
 import json
 from datetime import date, datetime, timezone
 from enum import StrEnum

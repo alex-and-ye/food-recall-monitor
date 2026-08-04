@@ -4,6 +4,8 @@ Persists operational pipeline warnings with acknowledgment and retention
 pruning, plus an in-memory test double / offline fallback.
 """
 
+from __future__ import annotations
+
 import json
 import uuid
 from datetime import datetime, timezone

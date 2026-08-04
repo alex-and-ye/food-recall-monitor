@@ -4,6 +4,8 @@ Defines official-pipeline alert create/persist shapes, dashboard stats,
 and Chroma metadata conversion with legacy key compatibility.
 """
 
+from __future__ import annotations
+
 import json
 from datetime import date
 from enum import StrEnum

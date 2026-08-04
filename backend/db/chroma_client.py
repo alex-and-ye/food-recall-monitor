@@ -4,6 +4,8 @@ Implements FoodRecallAlertsDBInterface against a remote Chroma collection,
 including deduplicated saves, search/filter, and collection versioning.
 """
 
+from __future__ import annotations
+
 import hashlib
 from datetime import date
 from typing import List, Optional, cast

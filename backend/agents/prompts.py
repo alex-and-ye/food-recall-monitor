@@ -1,13 +1,23 @@
+"""System prompts for LLM agents in the food recall pipeline.
+
+Defines instruction strings for translation, summarization, structuring, and
+source-discovery agents. Prompt fragments for risk levels and country sources
+are built from model enums at import time.
+"""
+
 from models.food_recall_alert import CountrySource
 from models.risk_level import RISK_LEVEL_CHOICES
 
+# Human-readable risk level choices embedded in the structuring prompt.
 _RISK_LEVEL_PROMPT = (
     ", ".join(RISK_LEVEL_CHOICES[:-1]) + f", or {RISK_LEVEL_CHOICES[-1]}"
 )
+# Example country names for the structuring prompt country_source rule.
 _COUNTRY_SOURCE_PROMPT = ", ".join(
     (CountrySource.UK, CountrySource.FRANCE, CountrySource.GERMANY)
 )
 
+# Instructs the translation agent to translate string values only, preserving JSON shape.
 TRANSLATION_SYSTEM_PROMPT: str = """
 You are a strict JSON value translation engine for food recall data.
 
@@ -32,6 +42,7 @@ Rules:
 6. Return only valid JSON. No markdown, comments, labels, or explanation.
 """
 
+# Instructs the summarization agent to produce a three-sentence public-facing recall summary.
 SUMMARIZATION_SYSTEM_PROMPT: str = """
 You are a food safety crisis communications specialist.
 
@@ -50,6 +61,7 @@ Output rules:
 5. Do not invent facts. If a detail is unavailable, use cautious wording rather than guessing.
 """
 
+# Instructs the listing-discovery agent to identify recall listing index URLs on a site.
 LISTING_DISCOVERY_SYSTEM_PROMPT: str = """
 You are a strict JSON classifier that finds food-product safety recall / withdrawal / alert
 listing indexes on government or consumer-protection websites, in any language.
@@ -78,6 +90,7 @@ Rules:
 7. Return JSON only. No markdown, comments, or explanation outside the JSON object.
 """
 
+# Instructs the detail-pattern agent to infer URL patterns for recall detail pages.
 DETAIL_PATTERN_DISCOVERY_SYSTEM_PROMPT: str = """
 You are a strict JSON engine that infers crawler URL patterns for food recall detail pages,
 for sites in any language.
@@ -111,6 +124,7 @@ Rules:
 7. Return JSON only. No markdown, comments, or explanation outside the JSON object.
 """
 
+# Instructs the structuring agent to map summary and source JSON into alert field schema.
 STRUCTURING_SYSTEM_PROMPT: str = f"""
 You are a strict JSON structuring engine for food recall alerts.
 

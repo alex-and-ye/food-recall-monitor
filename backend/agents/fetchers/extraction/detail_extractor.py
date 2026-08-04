@@ -1,3 +1,9 @@
+"""Structured extraction of recall detail content from HTML pages.
+
+Parses headings, visible text, and publication date candidates from recall
+detail pages using CSS selectors, metadata tags, JSON-LD, and free-text parsing.
+"""
+
 import json
 import re
 from typing import Any, Iterable
@@ -11,6 +17,7 @@ from agents.fetchers.extraction.date_parser import (
     infer_document_languages,
 )
 
+# Meta tag property/name keys that commonly hold publication timestamps.
 _PUBLISHED_META_KEYS = frozenset(
     {
         "article:published_time",
@@ -24,6 +31,7 @@ _PUBLISHED_META_KEYS = frozenset(
         "sailthru.date",
     }
 )
+# JSON-LD object keys searched recursively for publication dates.
 _JSON_LD_DATE_KEYS = frozenset(
     {
         "datepublished",
@@ -32,6 +40,7 @@ _JSON_LD_DATE_KEYS = frozenset(
     }
 )
 
+
 def extract_detail_payload(
     *,
     source_url: str,
@@ -39,6 +48,18 @@ def extract_detail_payload(
     date_selectors: list[str] | None = None,
     date_languages: Iterable[str] | None = None,
 ) -> dict[str, Any]:
+    """Extract headings, body text, and publication date candidates from HTML.
+
+    Args:
+        source_url: Canonical URL of the fetched detail page.
+        html: Raw page HTML.
+        date_selectors: Optional CSS selectors targeting date elements.
+        date_languages: Optional language hints for date parsing.
+
+    Returns:
+        A payload dict with ``source_url``, ``headings``, ``visible_text``,
+        ``published_date_candidates``, and ``published_date_candidate_sources``.
+    """
     soup = BeautifulSoup(html, "html.parser")
     content_root = _content_root(soup)
     document_languages = infer_document_languages(
@@ -93,14 +114,18 @@ def extract_detail_payload(
         ),
     }
 
+
 def _html_language(soup: BeautifulSoup) -> str | None:
+    """Return the document ``lang`` attribute from the root ``<html>`` tag."""
     html_tag = soup.find("html")
     if html_tag is None:
         return None
     lang = html_tag.get("lang")
     return str(lang).strip() if lang else None
 
+
 def _content_root(soup: BeautifulSoup) -> Tag:
+    """Prefer ``<main>`` or ``<body>`` as the content extraction root."""
     main_tag = soup.select_one("body main") or soup.find("main")
     if main_tag is not None:
         return main_tag
@@ -108,7 +133,9 @@ def _content_root(soup: BeautifulSoup) -> Tag:
         return soup.body
     return soup
 
+
 def _datetime_attribute_values(node: Tag) -> list[str]:
+    """Collect machine-readable date values from common element attributes."""
     values: list[str] = []
     for attribute in ("datetime", "content", "data-date", "data-published", "data-datetime"):
         raw_value = node.get(attribute)
@@ -116,7 +143,9 @@ def _datetime_attribute_values(node: Tag) -> list[str]:
             values.append(str(raw_value))
     return values
 
+
 def _structured_dates_in_document(soup: BeautifulSoup, content_root: Tag) -> list[str]:
+    """Gather structured date values from attributes, meta tags, and JSON-LD."""
     values: list[str] = []
     for node in content_root.select("[datetime]"):
         values.extend(_datetime_attribute_values(node))
@@ -132,8 +161,9 @@ def _structured_dates_in_document(soup: BeautifulSoup, content_root: Tag) -> lis
         values.extend(_json_ld_date_values(raw))
     return values
 
+
 def _time_element_texts(content_root: Tag) -> list[str]:
-    """Collect <time> body text when pages omit a machine-readable datetime attr."""
+    """Collect ``<time>`` body text when pages omit a machine-readable datetime attr."""
     values: list[str] = []
     for node in content_root.find_all("time"):
         text = node.get_text(" ", strip=True)
@@ -141,7 +171,9 @@ def _time_element_texts(content_root: Tag) -> list[str]:
             values.append(text)
     return values
 
+
 def _json_ld_date_values(raw: str) -> list[str]:
+    """Extract date strings from a JSON-LD script block."""
     text = raw.strip()
     if not text:
         return []
@@ -153,7 +185,9 @@ def _json_ld_date_values(raw: str) -> list[str]:
     _collect_json_ld_dates(payload, values)
     return values
 
+
 def _collect_json_ld_dates(node: object, values: list[str]) -> None:
+    """Recursively collect publication date fields from a JSON-LD structure."""
     if isinstance(node, dict):
         for key, value in node.items():
             if str(key).strip().lower() in _JSON_LD_DATE_KEYS and isinstance(value, str):
@@ -165,7 +199,9 @@ def _collect_json_ld_dates(node: object, values: list[str]) -> None:
         for item in node:
             _collect_json_ld_dates(item, values)
 
+
 def _merge_date_candidates(*candidate_groups: list[str]) -> list[str]:
+    """Merge date lists while preserving first-seen order and dropping duplicates."""
     seen: set[str] = set()
     merged: list[str] = []
     for candidates in candidate_groups:
@@ -176,11 +212,13 @@ def _merge_date_candidates(*candidate_groups: list[str]) -> list[str]:
             merged.append(candidate)
     return merged
 
+
 def _date_candidate_sources(
     structured_candidates: list[str],
     selector_candidates: list[str],
     generic_candidates: list[str],
 ) -> dict[str, str]:
+    """Map each candidate date to its highest-trust extraction source label."""
     sources: dict[str, str] = {}
     for candidate in structured_candidates:
         sources.setdefault(candidate, "structured")

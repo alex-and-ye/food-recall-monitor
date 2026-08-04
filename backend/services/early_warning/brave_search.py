@@ -4,6 +4,8 @@ Handles pacing, retries with backoff/jitter, rate-limit header parsing, and
 normalization of raw Brave responses into SearchCandidate models.
 """
 
+from __future__ import annotations
+
 import asyncio
 import random
 import time

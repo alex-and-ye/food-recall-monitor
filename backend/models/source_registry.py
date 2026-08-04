@@ -4,6 +4,8 @@ Tracks each source's scraper config, discovery status, and API create
 request shape for adding new sources.
 """
 
+from __future__ import annotations
+
 from datetime import datetime, timezone
 from enum import StrEnum
 

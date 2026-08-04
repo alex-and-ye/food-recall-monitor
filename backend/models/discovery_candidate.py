@@ -4,6 +4,8 @@ Tracks web-search hits through acceptance, fetch, classification, and
 conversion into early-warning incidents.
 """
 
+from __future__ import annotations
+
 from datetime import datetime, timezone
 from enum import StrEnum
 

@@ -1,3 +1,9 @@
+"""HTML extraction utilities for recall detail pages.
+
+Re-exports cleaning, date parsing, and structured payload extraction helpers
+used by fetchers to turn raw page HTML into normalized detail payloads.
+"""
+
 from agents.fetchers.extraction.cleaning import clean_detail_payload
 from agents.fetchers.extraction.date_candidates import (
     extract_date_candidates,

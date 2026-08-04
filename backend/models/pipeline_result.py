@@ -3,6 +3,8 @@
 Covers fetch outcomes, agent-produced alerts, and end-of-run summaries.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 

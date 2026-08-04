@@ -4,6 +4,8 @@ Stores per-event status lines for official and early-warning runs,
 including Chroma document/metadata conversion.
 """
 
+from __future__ import annotations
+
 import json
 from datetime import datetime, timezone
 from enum import StrEnum
