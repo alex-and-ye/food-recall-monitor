@@ -1,3 +1,9 @@
+"""Service layer for querying and aggregating food-recall alerts.
+
+Provides a thin facade over the alerts database interface with derived
+statistics such as top hazards, product categories, and recent counts.
+"""
+
 from collections import Counter
 from datetime import date, timedelta
 from typing import List, Optional
@@ -5,17 +11,43 @@ from typing import List, Optional
 from db.interface import FoodRecallAlertsDBInterface
 from models.food_recall_alert import FoodRecallAlert, FoodRecallAlertStats, FoodRecallAlertsVersion
 
+
 class AlertsService:
+    """Read and aggregate persisted food-recall alerts."""
+
     def __init__(self, db: FoodRecallAlertsDBInterface) -> None:
+        """Initialize the service with an alerts database backend.
+
+        Args:
+            db: Database interface used for alert reads.
+        """
         self.db = db
 
     def get_alerts(self) -> List[FoodRecallAlert]:
+        """Return all stored food-recall alerts.
+
+        Returns:
+            List of all alerts from the database.
+        """
         return self.db.get_alerts()
 
     def get_alerts_version(self) -> FoodRecallAlertsVersion:
+        """Return a version fingerprint for the current alert set.
+
+        Returns:
+            Version metadata describing the current alerts collection.
+        """
         return self.db.get_alerts_version()
 
     def get_alert_by_id(self, alert_id: str) -> Optional[FoodRecallAlert]:
+        """Fetch a single alert by its identifier.
+
+        Args:
+            alert_id: Unique alert identifier.
+
+        Returns:
+            The matching alert, or None if not found.
+        """
         return self.db.get_alert_by_id(alert_id)
 
     def search_alerts(
@@ -26,6 +58,18 @@ class AlertsService:
         recall_date: date | None = None,
         sort_by: str | None = None,
     ) -> List[FoodRecallAlert]:
+        """Search and filter alerts by the given optional criteria.
+
+        Args:
+            search: Free-text search query.
+            risk_level: Optional risk-level filter.
+            country_source: Optional country/source filter.
+            recall_date: Optional exact recall-date filter.
+            sort_by: Optional sort key.
+
+        Returns:
+            Filtered list of matching alerts.
+        """
         return self.db.search_alerts(
             search=search,
             risk_level=risk_level,
@@ -35,6 +79,11 @@ class AlertsService:
         )
 
     def get_alert_stats(self) -> FoodRecallAlertStats:
+        """Compute aggregate statistics over all stored alerts.
+
+        Returns:
+            Summary stats including totals, top-5 breakdowns, and recent counts.
+        """
         alerts = self.db.get_alerts()
 
         if not alerts:

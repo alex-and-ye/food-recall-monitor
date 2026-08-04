@@ -1,3 +1,9 @@
+"""FastAPI application entrypoint for the Food Recall Monitor API.
+
+Configures logging, CORS, route mounts, and lifespan hooks that bootstrap
+empty stores and start/stop daily pipeline schedulers.
+"""
+
 import logging
 from contextlib import asynccontextmanager
 
@@ -36,8 +42,21 @@ from services.source_bootstrap import ensure_bootstrap_sources
 get_settings()
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    """Application lifespan: bootstrap stores, start schedulers, then shut down.
+
+    On startup, ensures data directories and bootstrap sources, optionally runs
+    empty-DB bootstrap for official and early-warning pipelines, and starts
+    daily schedulers. On shutdown, stops schedulers and closes the Brave client.
+
+    Args:
+        _: The FastAPI application instance (unused).
+
+    Yields:
+        Control to the running application until shutdown.
+    """
     ensure_backend_data_dirs()
     ensure_bootstrap_sources(get_source_config_db())
     switches = get_pipeline_switches()
@@ -89,6 +108,8 @@ async def lifespan(_: FastAPI):
     if early_warning_service.search_client is not None:
         await early_warning_service.search_client.aclose()
 
+
+# FastAPI application instance
 app = FastAPI(
     title="Food Recall Monitor API",
     description="API for monitoring food recalls and providing alerts.",
@@ -109,14 +130,26 @@ app.include_router(warnings_router)
 app.include_router(incidents_router)
 app.include_router(early_warning_router)
 
+
 @app.get("/")
 async def root():
+    """Return a welcome message for the API root.
+
+    Returns:
+        Dict with a welcome ``message`` string.
+    """
     return {
         "message": "Welcome to the Food Recall Monitor API!"
     }
 
+
 @app.get("/health")
 async def check_health():
+    """Liveness health check for load balancers and monitors.
+
+    Returns:
+        Dict with ``status`` set to ``"healthy"``.
+    """
     return {
         "status": "healthy"
     }

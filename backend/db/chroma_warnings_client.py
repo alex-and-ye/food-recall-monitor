@@ -1,3 +1,9 @@
+"""ChromaDB and in-memory stores for pipeline warning records.
+
+Persists operational pipeline warnings with acknowledgment and retention
+pruning, plus an in-memory test double / offline fallback.
+"""
+
 from __future__ import annotations
 
 import json
@@ -18,15 +24,32 @@ from models.pipeline_warning import (
 )
 
 class PipelineWarningsChromaClient(PipelineWarningsDBInterface):
+    """Chroma-backed store for pipeline warnings."""
+
+    # Chroma collection name for pipeline warning records
     COLLECTION_NAME = "pipeline_warnings_collection"
 
     def __init__(self, host: str, port: int) -> None:
+        """Connect to Chroma and ensure the warnings collection exists.
+
+        Args:
+            host: Chroma HTTP host.
+            port: Chroma HTTP port.
+        """
         self.client = chromadb.HttpClient(host=host, port=port)
         self.collection = self.client.get_or_create_collection(
             name=PipelineWarningsChromaClient.COLLECTION_NAME
         )
 
     def create(self, warning: PipelineWarningCreate) -> PipelineWarning:
+        """Create a warning with a new ID/timestamp, upsert, then prune.
+
+        Args:
+            warning: Creation payload (category, message, source, run_id).
+
+        Returns:
+            The stored warning including generated fields.
+        """
         created = PipelineWarning(
             warning_id=str(uuid.uuid4()),
             created_at=datetime.now(timezone.utc),
@@ -41,6 +64,14 @@ class PipelineWarningsChromaClient(PipelineWarningsDBInterface):
         return created
 
     def list_warnings(self, *, acknowledged: bool | None = None) -> list[PipelineWarning]:
+        """List warnings, optionally filtered by acknowledgment, newest first.
+
+        Args:
+            acknowledged: If set, only warnings with this acknowledgment flag.
+
+        Returns:
+            Matching warnings sorted by created_at descending.
+        """
         warnings = self._all_warnings()
         if acknowledged is not None:
             warnings = [item for item in warnings if item.acknowledged is acknowledged]
@@ -48,6 +79,14 @@ class PipelineWarningsChromaClient(PipelineWarningsDBInterface):
         return warnings
 
     def get_warning(self, warning_id: str) -> PipelineWarning | None:
+        """Fetch a warning by ID from Chroma.
+
+        Args:
+            warning_id: Unique warning ID.
+
+        Returns:
+            Parsed warning, or None if missing/blank/unparsable.
+        """
         key = warning_id.strip()
         if not key:
             return None
@@ -60,6 +99,14 @@ class PipelineWarningsChromaClient(PipelineWarningsDBInterface):
         return self._parse_record(ids[0], documents[0] if documents else None, metadatas[0] if metadatas else None)
 
     def acknowledge(self, warning_id: str) -> PipelineWarning | None:
+        """Mark a single warning as acknowledged and persist it.
+
+        Args:
+            warning_id: Unique warning ID.
+
+        Returns:
+            The updated warning, or None if not found.
+        """
         existing = self.get_warning(warning_id)
         if existing is None:
             return None
@@ -68,6 +115,11 @@ class PipelineWarningsChromaClient(PipelineWarningsDBInterface):
         return updated
 
     def acknowledge_all(self) -> int:
+        """Acknowledge every currently unacknowledged warning.
+
+        Returns:
+            Number of warnings updated.
+        """
         updated_count = 0
         for warning in self._all_warnings():
             if warning.acknowledged:
@@ -77,9 +129,22 @@ class PipelineWarningsChromaClient(PipelineWarningsDBInterface):
         return updated_count
 
     def count_unacknowledged(self) -> int:
+        """Count warnings that are not yet acknowledged.
+
+        Returns:
+            Number of unacknowledged warnings.
+        """
         return sum(1 for warning in self._all_warnings() if not warning.acknowledged)
 
     def delete(self, warning_id: str) -> bool:
+        """Delete a warning if it exists.
+
+        Args:
+            warning_id: Unique warning ID.
+
+        Returns:
+            True if deleted; False if not found.
+        """
         existing = self.get_warning(warning_id)
         if existing is None:
             return False
@@ -87,6 +152,11 @@ class PipelineWarningsChromaClient(PipelineWarningsDBInterface):
         return True
 
     def _all_warnings(self) -> list[PipelineWarning]:
+        """Load and parse all warnings from Chroma.
+
+        Returns:
+            Successfully parsed warnings.
+        """
         results = self.collection.get(include=["documents", "metadatas"])
         ids = results.get("ids") or []
         documents = results.get("documents") or []
@@ -99,6 +169,11 @@ class PipelineWarningsChromaClient(PipelineWarningsDBInterface):
         return warnings
 
     def _upsert(self, warning: PipelineWarning) -> None:
+        """Write a warning document and metadata to Chroma.
+
+        Args:
+            warning: Warning to upsert by warning_id.
+        """
         payload = warning.model_dump(mode="json")
         metadata = cast(
             Metadata,
@@ -119,6 +194,7 @@ class PipelineWarningsChromaClient(PipelineWarningsDBInterface):
         )
 
     def _prune_oldest(self) -> None:
+        """Delete oldest warnings beyond MAX_WARNINGS_RETAINED."""
         warnings = self._all_warnings()
         if len(warnings) <= MAX_WARNINGS_RETAINED:
             return
@@ -132,6 +208,16 @@ class PipelineWarningsChromaClient(PipelineWarningsDBInterface):
         document: str | None,
         metadata: Metadata | None,
     ) -> PipelineWarning | None:
+        """Parse a warning from document JSON, falling back to metadata.
+
+        Args:
+            warning_id: Chroma document ID used if metadata omits it.
+            document: Raw document JSON string, if present.
+            metadata: Chroma metadata dict, if present.
+
+        Returns:
+            Parsed PipelineWarning, or None if both sources fail.
+        """
         if document:
             try:
                 payload = json.loads(document)
@@ -169,9 +255,18 @@ class InMemoryPipelineWarningsStore(PipelineWarningsDBInterface):
     """Test double and offline fallback for pipeline warnings persistence."""
 
     def __init__(self) -> None:
+        """Initialize an empty in-memory warning map."""
         self._warnings: dict[str, PipelineWarning] = {}
 
     def create(self, warning: PipelineWarningCreate) -> PipelineWarning:
+        """Create a warning with a new ID/timestamp, then prune if needed.
+
+        Args:
+            warning: Creation payload (category, message, source, run_id).
+
+        Returns:
+            The stored warning including generated fields.
+        """
         created = PipelineWarning(
             warning_id=str(uuid.uuid4()),
             created_at=datetime.now(timezone.utc),
@@ -186,6 +281,14 @@ class InMemoryPipelineWarningsStore(PipelineWarningsDBInterface):
         return created
 
     def list_warnings(self, *, acknowledged: bool | None = None) -> list[PipelineWarning]:
+        """List in-memory warnings, optionally filtered, newest first.
+
+        Args:
+            acknowledged: If set, only warnings with this acknowledgment flag.
+
+        Returns:
+            Matching warnings sorted by created_at descending.
+        """
         warnings = list(self._warnings.values())
         if acknowledged is not None:
             warnings = [item for item in warnings if item.acknowledged is acknowledged]
@@ -193,9 +296,25 @@ class InMemoryPipelineWarningsStore(PipelineWarningsDBInterface):
         return warnings
 
     def get_warning(self, warning_id: str) -> PipelineWarning | None:
+        """Fetch a warning by ID from memory.
+
+        Args:
+            warning_id: Unique warning ID.
+
+        Returns:
+            Matching warning, or None if not found.
+        """
         return self._warnings.get(warning_id.strip())
 
     def acknowledge(self, warning_id: str) -> PipelineWarning | None:
+        """Mark a single warning as acknowledged in memory.
+
+        Args:
+            warning_id: Unique warning ID.
+
+        Returns:
+            The updated warning, or None if not found.
+        """
         existing = self.get_warning(warning_id)
         if existing is None:
             return None
@@ -204,6 +323,11 @@ class InMemoryPipelineWarningsStore(PipelineWarningsDBInterface):
         return updated
 
     def acknowledge_all(self) -> int:
+        """Acknowledge every currently unacknowledged warning in memory.
+
+        Returns:
+            Number of warnings updated.
+        """
         updated_count = 0
         for warning_id, warning in list(self._warnings.items()):
             if warning.acknowledged:
@@ -213,9 +337,22 @@ class InMemoryPipelineWarningsStore(PipelineWarningsDBInterface):
         return updated_count
 
     def count_unacknowledged(self) -> int:
+        """Count unacknowledged warnings in memory.
+
+        Returns:
+            Number of unacknowledged warnings.
+        """
         return sum(1 for warning in self._warnings.values() if not warning.acknowledged)
 
     def delete(self, warning_id: str) -> bool:
+        """Delete a warning from memory.
+
+        Args:
+            warning_id: Unique warning ID.
+
+        Returns:
+            True if deleted; False if not found.
+        """
         key = warning_id.strip()
         if key not in self._warnings:
             return False
@@ -223,6 +360,7 @@ class InMemoryPipelineWarningsStore(PipelineWarningsDBInterface):
         return True
 
     def _prune_oldest(self) -> None:
+        """Keep only the newest MAX_WARNINGS_RETAINED warnings."""
         if len(self._warnings) <= MAX_WARNINGS_RETAINED:
             return
         ordered = sorted(self._warnings.values(), key=lambda item: item.created_at, reverse=True)
@@ -234,6 +372,14 @@ class InMemoryPipelineWarningsStore(PipelineWarningsDBInterface):
         }
 
 def _parse_datetime(value: object) -> datetime | None:
+    """Parse an ISO datetime from a metadata value.
+
+    Args:
+        value: Raw metadata value (typically a string).
+
+    Returns:
+        Parsed datetime, or None if missing/invalid.
+    """
     if value is None:
         return None
     text = str(value).strip()

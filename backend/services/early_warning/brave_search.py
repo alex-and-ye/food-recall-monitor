@@ -1,3 +1,9 @@
+"""Async HTTP client for the Brave Web Search API.
+
+Handles pacing, retries with backoff/jitter, rate-limit header parsing, and
+normalization of raw Brave responses into SearchCandidate models.
+"""
+
 from __future__ import annotations
 
 import asyncio
@@ -12,16 +18,32 @@ import httpx
 from config.early_warning import BraveSearchConfig
 from models.search_candidate import SearchCandidate, SearchQuery, SearchResponse
 
-BRAVE_WEB_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search"
-_RETRYABLE_STATUS_CODES = {408, 425, 429, 500, 502, 503, 504}
-SleepCallable = Callable[[float], Awaitable[None]]
+BRAVE_WEB_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search"  # Default Brave web search endpoint.
+_RETRYABLE_STATUS_CODES = {408, 425, 429, 500, 502, 503, 504}  # HTTP statuses eligible for retry.
+SleepCallable = Callable[[float], Awaitable[None]]  # Injectable sleep for tests.
+
 
 class BraveSearchError(RuntimeError):
+    """Raised when a Brave Search request fails permanently.
+
+    Attributes:
+        status_code: Optional HTTP status associated with the failure.
+    """
+
     def __init__(self, message: str, *, status_code: int | None = None) -> None:
+        """Initialize the error with an optional HTTP status.
+
+        Args:
+            message: Human-readable failure description.
+            status_code: Optional HTTP status code from the response.
+        """
         super().__init__(message)
         self.status_code = status_code
 
+
 class BraveSearchClient:
+    """Rate-limited Brave Web Search client with retry support."""
+
     def __init__(
         self,
         api_key: str,
@@ -32,6 +54,19 @@ class BraveSearchClient:
         random_source: random.Random | None = None,
         base_url: str = BRAVE_WEB_SEARCH_URL,
     ) -> None:
+        """Create a client with API credentials and optional dependencies.
+
+        Args:
+            api_key: Brave subscription token (must be non-empty).
+            config: Optional search/retry configuration.
+            client: Optional shared httpx client; owned when omitted.
+            sleep: Awaitable sleep callable (injectable for tests).
+            random_source: RNG used for retry jitter.
+            base_url: Brave search endpoint URL.
+
+        Raises:
+            ValueError: If ``api_key`` or ``base_url`` is empty.
+        """
         normalized_key = api_key.strip()
         if not normalized_key:
             raise ValueError("BRAVE_API_KEY must be non-empty")
@@ -47,13 +82,20 @@ class BraveSearchClient:
         self._pace_lock = asyncio.Lock()
         self._last_request_at: float | None = None
 
-    async def __aenter__(self) -> BraveSearchClient:
+    async def __aenter__(self) -> "BraveSearchClient":
+        """Enter the async context manager.
+
+        Returns:
+            This client instance.
+        """
         return self
 
     async def __aexit__(self, *_args: object) -> None:
+        """Close owned HTTP resources on context exit."""
         await self.aclose()
 
     async def aclose(self) -> None:
+        """Close the underlying HTTP client when this instance owns it."""
         if self._owns_client:
             await self._client.aclose()
 
@@ -65,6 +107,21 @@ class BraveSearchClient:
         offset: int = 0,
         freshness: str | None = None,
     ) -> SearchResponse:
+        """Execute a web search and return a normalized response.
+
+        Args:
+            query: Structured search query (text, country, language).
+            count: Number of results to request (1–20).
+            offset: Result page offset (0–9).
+            freshness: Optional Brave freshness override.
+
+        Returns:
+            Normalized SearchResponse with candidates.
+
+        Raises:
+            ValueError: If ``count`` or ``offset`` is out of range.
+            BraveSearchError: On credential rejection, HTTP errors, or retries exhausted.
+        """
         if not 1 <= count <= 20:
             raise ValueError("count must be between 1 and 20")
         if not 0 <= offset <= 9:
@@ -124,6 +181,7 @@ class BraveSearchClient:
         raise BraveSearchError("Brave Search request failed")
 
     async def _pace_request(self) -> None:
+        """Enforce the configured minimum interval between requests."""
         minimum_interval = self._config.minimum_interval_seconds
         if minimum_interval <= 0:
             return
@@ -136,6 +194,15 @@ class BraveSearchClient:
             self._last_request_at = time.monotonic()
 
     def _retry_delay(self, attempt: int, response: httpx.Response | None) -> float:
+        """Compute the sleep duration before the next retry attempt.
+
+        Args:
+            attempt: Zero-based attempt index.
+            response: Failed response, if any (used for 429 Retry-After).
+
+        Returns:
+            Seconds to wait before retrying.
+        """
         if response is not None and response.status_code == 429:
             header_delay = _rate_limit_delay(response.headers)
             if header_delay is not None:
@@ -151,6 +218,19 @@ class BraveSearchClient:
         query: SearchQuery,
         offset: int,
     ) -> SearchResponse:
+        """Parse a Brave JSON payload into a SearchResponse.
+
+        Args:
+            response: Successful HTTP response from Brave.
+            query: Original search query for provenance fields.
+            offset: Requested result offset.
+
+        Returns:
+            Normalized SearchResponse.
+
+        Raises:
+            BraveSearchError: If the body is not valid JSON or not an object.
+        """
         try:
             payload = response.json()
         except ValueError as exc:
@@ -200,20 +280,47 @@ class BraveSearchClient:
             more_results_available=more_results_available,
         )
 
+
 def _optional_text(value: object) -> str | None:
+    """Coerce a value to stripped text, or None when empty.
+
+    Args:
+        value: Arbitrary JSON field value.
+
+    Returns:
+        Non-empty stripped string, or None.
+    """
     if value is None:
         return None
     text = str(value).strip()
     return text or None
 
+
 def _optional_non_negative_int(value: object) -> int | None:
+    """Parse a non-negative integer from a JSON field.
+
+    Args:
+        value: Arbitrary JSON field value.
+
+    Returns:
+        Non-negative int, or None when parsing fails.
+    """
     try:
         parsed = int(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return None
     return parsed if parsed >= 0 else None
 
+
 def _parse_page_age(value: object) -> datetime | None:
+    """Parse an ISO page-age timestamp into an aware datetime.
+
+    Args:
+        value: Raw page_age field from Brave.
+
+    Returns:
+        Timezone-aware datetime, or None when invalid.
+    """
     text = _optional_text(value)
     if text is None:
         return None
@@ -225,7 +332,16 @@ def _parse_page_age(value: object) -> datetime | None:
         return parsed.replace(tzinfo=timezone.utc)
     return parsed
 
+
 def _rate_limit_delay(headers: httpx.Headers) -> float | None:
+    """Extract a retry delay from rate-limit response headers.
+
+    Args:
+        headers: HTTP response headers from a 429 response.
+
+    Returns:
+        Seconds to wait, or None when headers are absent/unparseable.
+    """
     retry_after = headers.get("retry-after")
     if retry_after:
         try:

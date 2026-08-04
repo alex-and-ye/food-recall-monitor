@@ -1,3 +1,9 @@
+"""Food recall alert models and web/country source helpers.
+
+Defines official-pipeline alert create/persist shapes, dashboard stats,
+and Chroma metadata conversion with legacy key compatibility.
+"""
+
 from __future__ import annotations
 
 import json
@@ -8,35 +14,61 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 class WebSource(StrEnum):
+    """Lowercase web-source keys used in scraping and metadata."""
+
     UK = "uk"
     GERMANY = "germany"
     FRANCE = "france"
 
 class CountrySource(StrEnum):
+    """Display-oriented country source labels for alerts."""
+
     UK = "UK"
     GERMANY = "Germany"
     FRANCE = "France"
 
+# Maps scraper web-source keys to human-readable country source labels.
 WEB_SOURCE_TO_COUNTRY_SOURCE: dict[str, str] = {
     WebSource.UK: CountrySource.UK,
     WebSource.GERMANY: CountrySource.GERMANY,
     WebSource.FRANCE: CountrySource.FRANCE,
 }
 
+# Known country-source display values.
 COUNTRY_SOURCES: frozenset[str] = frozenset(WEB_SOURCE_TO_COUNTRY_SOURCE.values())
+# Known web-source keys accepted by the pipeline.
 WEB_SOURCE_KEYS: frozenset[str] = frozenset(WEB_SOURCE_TO_COUNTRY_SOURCE.keys())
 
 # Legacy Chroma metadata key accepted when reading older alert records.
 LEGACY_WEB_SOURCE_METADATA_KEY = "api_source"
+# Current Chroma metadata key for the web source.
 WEB_SOURCE_METADATA_KEY = "web_source"
 
+# Optional injectable lookup; set via ``set_country_source_lookup``.
 _country_source_lookup: Any | None = None
 
 def set_country_source_lookup(lookup: Any) -> None:
+    """Register an optional callable that resolves web_source → country_source.
+
+    Args:
+        lookup: Callable accepting a lowercase web-source key, or any object
+            used as a lookup; ``None`` clears the override.
+    """
     global _country_source_lookup
     _country_source_lookup = lookup
 
 def web_source_to_country_source(web_source: str) -> str:
+    """Resolve a web-source key to a country-source display label.
+
+    Prefers the injectable lookup when set; otherwise uses the static map,
+    falling back to the raw ``web_source`` string.
+
+    Args:
+        web_source: Web-source key (case-insensitive).
+
+    Returns:
+        Country-source label string.
+    """
     key = web_source.strip().lower()
     if _country_source_lookup is not None:
         try:
@@ -48,6 +80,8 @@ def web_source_to_country_source(web_source: str) -> str:
     return WEB_SOURCE_TO_COUNTRY_SOURCE.get(key, web_source)
 
 class FoodRecallAlertStats(BaseModel):
+    """Aggregate dashboard statistics over stored recall alerts."""
+
     total_alerts: int
     top_5_hazard_types: list[tuple[str, int]]
     top_5_product_categories: list[tuple[str, int]]
@@ -56,6 +90,8 @@ class FoodRecallAlertStats(BaseModel):
     alerts_last_30_days: int
 
 class FoodRecallAlertsVersion(BaseModel):
+    """Version token for the alerts collection (count + content fingerprint)."""
+
     count: int
     fingerprint: str
 
@@ -79,6 +115,7 @@ class FoodRecallAlertCreate(BaseModel):
     longitude: float = Field(default=0.0, ge=-180.0, le=180.0)
 
     def to_document(self) -> str:
+        """Render a human-readable text document for embedding / storage."""
         regions = ", ".join(self.affected_regions) if self.affected_regions else "unspecified"
         batch_id = self.batch_id.strip() or "unspecified"
         return "\n".join(
@@ -105,9 +142,11 @@ class FoodRecallAlert(FoodRecallAlertCreate):
     alert_id: str
 
     def get_id(self) -> str:
+        """Return the stable alert identifier."""
         return self.alert_id
 
     def search_values(self) -> list[str]:
+        """Return field values included in free-text keyword search."""
         return [
             self.web_source,
             self.country_source,
@@ -125,6 +164,14 @@ class FoodRecallAlert(FoodRecallAlertCreate):
         ]
 
     def matches_search(self, keyword: str) -> bool:
+        """Return whether this alert matches a case-insensitive keyword.
+
+        Args:
+            keyword: Search term; empty matches everything.
+
+        Returns:
+            True if the keyword appears in any searchable field.
+        """
         search_term = keyword.strip().lower()
         if not search_term:
             return True
@@ -135,6 +182,7 @@ class FoodRecallAlert(FoodRecallAlertCreate):
         return search_term in searchable_text
 
     def to_metadata(self) -> dict[str, str | int | float | bool]:
+        """Flatten the alert into Chroma-compatible scalar metadata."""
         metadata: dict[str, str | int | float | bool] = {
             "alert_id": self.alert_id,
             "web_source": self.web_source,
@@ -160,6 +208,14 @@ class FoodRecallAlert(FoodRecallAlertCreate):
 
     @classmethod
     def from_metadata(cls, metadata: dict[str, Any]) -> FoodRecallAlert:
+        """Rehydrate an alert from flat Chroma metadata fields.
+
+        Args:
+            metadata: Scalar/JSON metadata map previously written by ``to_metadata``.
+
+        Returns:
+            Validated ``FoodRecallAlert``.
+        """
         regions_raw = metadata.get("affected_regions", "[]")
         if isinstance(regions_raw, list):
             affected_regions = regions_raw
@@ -207,6 +263,7 @@ class FoodRecallAlert(FoodRecallAlertCreate):
         )
 
 def _parse_coordinate(value: Any, *, default: float) -> float:
+    """Parse a latitude/longitude value, returning ``default`` on failure."""
     if value is None:
         return default
     try:

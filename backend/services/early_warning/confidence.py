@@ -1,3 +1,9 @@
+"""Confidence scoring rules for early-warning food-safety incidents.
+
+Combines source-kind base weights with corroboration, evidence quality, and
+staleness modifiers into a bounded score with an audit trail of applied rules.
+"""
+
 from dataclasses import dataclass, field
 from typing import Mapping
 
@@ -7,6 +13,7 @@ from models.early_warning_incident import (
     VerificationStatus,
 )
 
+# Base confidence points by publisher/source classification.
 SOURCE_KIND_BASE_WEIGHTS: dict[SourceKind, int] = {
     SourceKind.OFFICIAL_RECALL: 100,
     SourceKind.GOVERNMENT_INVESTIGATION: 95,
@@ -18,8 +25,24 @@ SOURCE_KIND_BASE_WEIGHTS: dict[SourceKind, int] = {
     SourceKind.BLOG: 20,
 }
 
+
 @dataclass(frozen=True)
 class ConfidencePolicy:
+    """Tunable modifiers and caps for confidence calculation.
+
+    Attributes:
+        base_weights: Mapping from source kind to base score points.
+        corroboration_per_source: Points added per extra independent source.
+        corroboration_cap: Maximum total corroboration bonus.
+        explicit_product_modifier: Bonus when product evidence is present.
+        explicit_hazard_modifier: Bonus when hazard evidence is present.
+        explicit_date_modifier: Bonus when a publication date is present.
+        trusted_domain_modifier: Bonus for trusted-domain overrides.
+        stale_reporting_modifier: Penalty for stale reporting signals.
+        vague_reporting_modifier: Penalty for vague reporting signals.
+        unofficial_cap: Maximum score for non-official matches.
+    """
+
     base_weights: Mapping[SourceKind | str, int] = field(
         default_factory=lambda: dict(SOURCE_KIND_BASE_WEIGHTS)
     )
@@ -33,10 +56,19 @@ class ConfidencePolicy:
     vague_reporting_modifier: int = -10
     unofficial_cap: int = 99
 
+
 @dataclass(frozen=True)
 class ConfidenceScore:
+    """Result of a confidence calculation with rule explanations.
+
+    Attributes:
+        score: Final bounded confidence score.
+        reasons: Human-readable descriptions of each applied rule.
+    """
+
     score: int
     reasons: tuple[str, ...]
+
 
 def calculate_confidence(
     source_kind: SourceKind | str,
@@ -51,8 +83,23 @@ def calculate_confidence(
     official_match: bool = False,
     policy: ConfidencePolicy | None = None,
 ) -> ConfidenceScore:
-    """Calculate a bounded score and preserve every applied rule."""
+    """Calculate a bounded score and preserve every applied rule.
 
+    Args:
+        source_kind: Publisher/source classification.
+        independent_source_count: Count of distinct corroborating sources.
+        has_product_evidence: Whether an explicit product name is present.
+        has_hazard_evidence: Whether an explicit hazard type is present.
+        has_date_evidence: Whether a publication date is present.
+        trusted_domain_override: Whether a trusted-domain bonus applies.
+        stale_reporting: Whether stale-reporting penalty applies.
+        vague_reporting: Whether vague-reporting penalty applies.
+        official_match: When True, force score 100 for official confirmation.
+        policy: Optional override for scoring weights and modifiers.
+
+    Returns:
+        ConfidenceScore with the final score and applied-rule reasons.
+    """
     rules = policy or ConfidencePolicy()
     source_kind = SourceKind(source_kind)
     if official_match:
@@ -111,10 +158,20 @@ def calculate_confidence(
         reasons.append(f"unofficial confidence bounded to {bounded}")
     return ConfidenceScore(score=bounded, reasons=tuple(reasons))
 
+
 def _base_weight(
     source_kind: SourceKind,
     weights: Mapping[SourceKind | str, int],
 ) -> int:
+    """Resolve the base score for a source kind from a weight mapping.
+
+    Args:
+        source_kind: Source classification enum value.
+        weights: Mapping of SourceKind or string keys to base points.
+
+    Returns:
+        Integer base weight, falling back to UNKNOWN when missing.
+    """
     value = weights.get(source_kind)
     if value is None:
         value = weights.get(source_kind.value)
@@ -123,6 +180,7 @@ def _base_weight(
     if value is None:
         value = weights.get(SourceKind.UNKNOWN.value, SOURCE_KIND_BASE_WEIGHTS[SourceKind.UNKNOWN])
     return int(value)
+
 
 def calculate_incident_confidence(
     incident: EarlyWarningIncidentCreate,
@@ -133,6 +191,19 @@ def calculate_incident_confidence(
     vague_reporting: bool = False,
     policy: ConfidencePolicy | None = None,
 ) -> ConfidenceScore:
+    """Derive confidence for an incident from its fields and evidence.
+
+    Args:
+        incident: Incident create/update payload to score.
+        independent_source_count: Optional override for corroboration count.
+        trusted_domain_override: Whether a trusted-domain bonus applies.
+        stale_reporting: Whether stale-reporting penalty applies.
+        vague_reporting: Whether vague-reporting penalty applies.
+        policy: Optional override for scoring weights and modifiers.
+
+    Returns:
+        ConfidenceScore derived from the incident contents.
+    """
     domains = {
         evidence.domain.strip().lower()
         for evidence in incident.evidence

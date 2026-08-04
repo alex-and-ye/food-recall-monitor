@@ -1,3 +1,9 @@
+"""Discovery candidates and early-warning query state models.
+
+Tracks web-search hits through acceptance, fetch, classification, and
+conversion into early-warning incidents.
+"""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -8,11 +14,15 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from models.search_candidate import SearchCandidate, SearchQuery, canonicalize_url, stable_search_id
 
 class CandidateDecision(StrEnum):
+    """LLM triage outcome for a discovered search result."""
+
     ACCEPT = "accept"
     REJECT = "reject"
     BORDERLINE = "borderline"
 
 class CandidateStatus(StrEnum):
+    """Processing lifecycle status of a discovery candidate."""
+
     DISCOVERED = "discovered"
     ACCEPTED = "accepted"
     REJECTED = "rejected"
@@ -23,6 +33,8 @@ class CandidateStatus(StrEnum):
     UNSUPPORTED_CONTENT = "unsupported_content"
 
 class DiscoveryCandidate(BaseModel):
+    """A URL discovered via search and tracked through early-warning processing."""
+
     candidate_id: str = ""
     canonical_url: str
     title: str
@@ -46,11 +58,13 @@ class DiscoveryCandidate(BaseModel):
     @field_validator("canonical_url", mode="before")
     @classmethod
     def _canonicalize_url(cls, value: object) -> str:
+        """Normalize the candidate URL to a canonical form."""
         return canonicalize_url(str(value))
 
     @field_validator("first_seen_at", "last_seen_at")
     @classmethod
     def _require_timezone(cls, value: datetime) -> datetime:
+        """Attach UTC when a datetime lacks timezone info."""
         if value.tzinfo is None:
             return value.replace(tzinfo=timezone.utc)
         return value
@@ -58,6 +72,7 @@ class DiscoveryCandidate(BaseModel):
     @field_validator("next_retry_at")
     @classmethod
     def _normalize_optional_timezone(cls, value: datetime | None) -> datetime | None:
+        """Attach UTC to an optional retry timestamp when missing."""
         if value is not None and value.tzinfo is None:
             return value.replace(tzinfo=timezone.utc)
         return value
@@ -65,11 +80,13 @@ class DiscoveryCandidate(BaseModel):
     @field_validator("final_url", mode="before")
     @classmethod
     def _canonicalize_final_url(cls, value: object) -> str:
+        """Canonicalize a non-empty final (post-redirect) URL."""
         text = str(value or "").strip()
         return canonicalize_url(text) if text else ""
 
     @model_validator(mode="after")
     def _ensure_candidate_id(self) -> DiscoveryCandidate:
+        """Derive a stable ID from the URL and validate seen-at ordering."""
         if not self.candidate_id.strip():
             self.candidate_id = stable_search_id(self.canonical_url)
         if self.last_seen_at < self.first_seen_at:
@@ -86,6 +103,18 @@ class DiscoveryCandidate(BaseModel):
         reasons: list[str],
         seen_at: datetime | None = None,
     ) -> DiscoveryCandidate:
+        """Build a discovery candidate from a search hit and triage decision.
+
+        Args:
+            candidate: Raw search result to promote.
+            decision: Accept / reject / borderline triage outcome.
+            confidence: Model confidence in the decision (0–1).
+            reasons: Human-readable justification strings.
+            seen_at: Observation time; defaults to now (UTC).
+
+        Returns:
+            A new ``DiscoveryCandidate`` with status derived from ``decision``.
+        """
         timestamp = seen_at or datetime.now(timezone.utc)
         canonical_url = canonicalize_url(candidate.url)
         return cls(
@@ -111,6 +140,20 @@ class DiscoveryCandidate(BaseModel):
         )
 
     def merge_observation(self, other: DiscoveryCandidate) -> DiscoveryCandidate:
+        """Merge a re-observation of the same candidate into one record.
+
+        Combines query IDs, prefers the stronger triage decision, and preserves
+        terminal or retryable processing state when appropriate.
+
+        Args:
+            other: Another observation of the same ``candidate_id``.
+
+        Returns:
+            A merged ``DiscoveryCandidate``.
+
+        Raises:
+            ValueError: If the candidate IDs differ.
+        """
         if self.candidate_id != other.candidate_id:
             raise ValueError("cannot merge candidates with different IDs")
         query_ids = list(dict.fromkeys([*self.query_ids, *other.query_ids]))
@@ -173,6 +216,20 @@ class DiscoveryCandidate(BaseModel):
         linked_incident_id: str | None = None,
         increment_attempt: bool = False,
     ) -> DiscoveryCandidate:
+        """Return a copy with an updated processing status and related fields.
+
+        Args:
+            status: New processing status.
+            error: Optional last-error message.
+            next_retry_at: Optional scheduled retry time.
+            content_hash: Optional content fingerprint to store.
+            final_url: Optional post-redirect URL to store.
+            linked_incident_id: Optional linked incident identifier.
+            increment_attempt: Whether to increment ``attempt_count``.
+
+        Returns:
+            Updated ``DiscoveryCandidate`` copy.
+        """
         updates: dict[str, object] = {
             "processing_status": status,
             "last_error": error.strip(),
@@ -188,6 +245,8 @@ class DiscoveryCandidate(BaseModel):
         return self.model_copy(update=updates)
 
 class EarlyWarningQueryState(BaseModel):
+    """Persistent pagination and scheduling state for one search query."""
+
     query: SearchQuery
     last_searched_at: datetime | None = None
     next_offset: int = Field(default=0, ge=0, le=9)
@@ -196,12 +255,14 @@ class EarlyWarningQueryState(BaseModel):
     @field_validator("last_searched_at")
     @classmethod
     def _normalize_timezone(cls, value: datetime | None) -> datetime | None:
+        """Attach UTC when an optional last-searched timestamp lacks tzinfo."""
         if value is not None and value.tzinfo is None:
             return value.replace(tzinfo=timezone.utc)
         return value
 
     @property
     def query_id(self) -> str:
+        """Stable identifier of the underlying search query."""
         return self.query.query_id
 
     def record_search(
@@ -210,6 +271,15 @@ class EarlyWarningQueryState(BaseModel):
         searched_at: datetime | None = None,
         next_offset: int | None = None,
     ) -> EarlyWarningQueryState:
+        """Record that a search was executed and advance pagination state.
+
+        Args:
+            searched_at: Search time; defaults to now (UTC).
+            next_offset: New offset to store; keeps current when omitted.
+
+        Returns:
+            Updated query state with incremented ``search_count``.
+        """
         return self.model_copy(
             update={
                 "last_searched_at": searched_at or datetime.now(timezone.utc),
@@ -218,6 +288,7 @@ class EarlyWarningQueryState(BaseModel):
             }
         )
 
+# Rank for picking the stronger triage decision when merging observations.
 _DECISION_RANK = {
     CandidateDecision.REJECT: 0,
     CandidateDecision.BORDERLINE: 1,
@@ -228,4 +299,5 @@ def _stronger_decision(
     left: CandidateDecision,
     right: CandidateDecision,
 ) -> CandidateDecision:
+    """Return the stronger of two triage decisions (accept > borderline > reject)."""
     return left if _DECISION_RANK[left] >= _DECISION_RANK[right] else right

@@ -1,3 +1,9 @@
+"""Source registry models for configured official scrape targets.
+
+Tracks each source's scraper config, discovery status, and API create
+request shape for adding new sources.
+"""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -8,13 +14,17 @@ from pydantic import BaseModel, Field, field_validator
 from models.scraper_config import ScraperSourceConfig
 
 class DiscoveryStatus(StrEnum):
+    """Lifecycle status of automated source-config discovery."""
+
     READY = "ready"
     FAILED = "failed"
     STALE = "stale"
     PENDING = "pending"
 
+# All valid discovery-status string values.
 DISCOVERY_STATUSES: frozenset[str] = frozenset(DiscoveryStatus)
 
+# Statuses that indicate discovery should be re-run.
 DISCOVERY_STATUSES_NEEDING_REFRESH: frozenset[str] = frozenset(
     {
         DiscoveryStatus.FAILED,
@@ -24,6 +34,8 @@ DISCOVERY_STATUSES_NEEDING_REFRESH: frozenset[str] = frozenset(
 )
 
 class SourceRegistryDocument(BaseModel):
+    """Persisted registry entry for one official recall source."""
+
     source_name: str
     homepage_url: str
     country_source: str
@@ -36,6 +48,7 @@ class SourceRegistryDocument(BaseModel):
     @field_validator("source_name", mode="before")
     @classmethod
     def _normalize_source_name(cls, value: object) -> str:
+        """Lowercase and strip the source name; reject empty values."""
         text = str(value).strip().lower()
         if not text:
             raise ValueError("source_name must be non-empty")
@@ -44,6 +57,7 @@ class SourceRegistryDocument(BaseModel):
     @field_validator("homepage_url", mode="before")
     @classmethod
     def _normalize_homepage_url(cls, value: object) -> str:
+        """Strip the homepage URL; reject empty values."""
         text = str(value).strip()
         if not text:
             raise ValueError("homepage_url must be non-empty")
@@ -52,12 +66,22 @@ class SourceRegistryDocument(BaseModel):
     @field_validator("country_source", mode="before")
     @classmethod
     def _normalize_country_source(cls, value: object) -> str:
+        """Strip the country source label; reject empty values."""
         text = str(value).strip()
         if not text:
             raise ValueError("country_source must be non-empty")
         return text
 
     def touch(self, *, status: DiscoveryStatus | None = None, reason: str | None = None) -> SourceRegistryDocument:
+        """Return a copy with updated timestamps and optional discovery fields.
+
+        Args:
+            status: New discovery status; keeps current when omitted.
+            reason: New discovery reason; keeps current when omitted.
+
+        Returns:
+            Updated ``SourceRegistryDocument`` with ``updated_at`` set to now.
+        """
         now = datetime.now(timezone.utc)
         return self.model_copy(
             update={
@@ -69,6 +93,8 @@ class SourceRegistryDocument(BaseModel):
         )
 
 class SourceCreateRequest(BaseModel):
+    """API payload for registering a new official source by homepage URL."""
+
     name: str = Field(min_length=1)
     homepage_url: str = Field(min_length=1)
     country_source: str | None = None
@@ -76,16 +102,19 @@ class SourceCreateRequest(BaseModel):
     @field_validator("name", mode="before")
     @classmethod
     def _normalize_name(cls, value: object) -> str:
+        """Lowercase and strip the requested source name."""
         return str(value).strip().lower()
 
     @field_validator("homepage_url", mode="before")
     @classmethod
     def _normalize_homepage(cls, value: object) -> str:
+        """Strip the requested homepage URL."""
         return str(value).strip()
 
     @field_validator("country_source", mode="before")
     @classmethod
     def _normalize_country(cls, value: object) -> str | None:
+        """Strip optional country source; treat empty as unset."""
         if value is None:
             return None
         text = str(value).strip()

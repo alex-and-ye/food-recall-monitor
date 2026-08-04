@@ -1,3 +1,9 @@
+"""Track pipeline run lifecycle and persist structured progress log events.
+
+Assigns run IDs, records stage timing metadata, and writes events through a
+pipeline-logs database interface for both official and early-warning runs.
+"""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -11,10 +17,18 @@ from models.pipeline_options import PipelineRunOptions
 from models.pipeline_progress import PipelineStage
 from models.pipeline_run_log import PipelineKind, PipelineRunLogEvent
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)  # Module logger for persistence failures.
+
 
 class PipelineProgressTracker:
+    """Thread-safe tracker for in-flight pipeline run status and timing."""
+
     def __init__(self, log_store: PipelineRunLogsDBInterface) -> None:
+        """Initialize timing state and the log store.
+
+        Args:
+            log_store: Database interface used to append run log events.
+        """
         self._log_store = log_store
         self._lock = Lock()
         self._run_status: dict[str, str] = {}
@@ -30,6 +44,16 @@ class PipelineProgressTracker:
         pipeline_kind: PipelineKind | str = PipelineKind.OFFICIAL,
         details: dict[str, object] | None = None,
     ) -> str:
+        """Begin a new pipeline run and emit a start event.
+
+        Args:
+            options: Optional official-pipeline run options to include in details.
+            pipeline_kind: Whether this is an official or early-warning run.
+            details: Optional extra metadata merged into the start event.
+
+        Returns:
+            Newly allocated run identifier.
+        """
         run_id = str(uuid4())
         kind = PipelineKind(pipeline_kind)
         now_monotonic = time.perf_counter()
@@ -59,7 +83,15 @@ class PipelineProgressTracker:
         )
         return run_id
 
-    def reporter(self, run_id: str) -> _TrackerReporter:
+    def reporter(self, run_id: str) -> "_TrackerReporter":
+        """Return a ProgressReporter bound to ``run_id``.
+
+        Args:
+            run_id: Active pipeline run identifier.
+
+        Returns:
+            Reporter that appends events for the given run.
+        """
         return _TrackerReporter(tracker=self, run_id=run_id)
 
     def append_event(
@@ -71,6 +103,15 @@ class PipelineProgressTracker:
         source: str | None = None,
         details: dict[str, object] | None = None,
     ) -> None:
+        """Append a timed log event for an active run.
+
+        Args:
+            run_id: Pipeline run identifier.
+            stage: Pipeline stage name.
+            message: Human-readable event message.
+            source: Optional source name for the event.
+            details: Optional structured metadata merged with timing fields.
+        """
         with self._lock:
             if run_id not in self._run_status:
                 return
@@ -116,6 +157,15 @@ class PipelineProgressTracker:
         source_failures: dict[str, str] | None = None,
         summary: dict[str, object] | None = None,
     ) -> None:
+        """Mark a run completed and emit a completion event.
+
+        Args:
+            run_id: Pipeline run identifier.
+            new_alerts_count: Optional count of newly saved official alerts.
+            records_fetched: Optional count of fetched source records.
+            source_failures: Optional map of source name to failure message.
+            summary: Optional arbitrary summary metrics (early-warning runs).
+        """
         with self._lock:
             if run_id not in self._run_status:
                 return
@@ -150,6 +200,12 @@ class PipelineProgressTracker:
             self._run_kinds.pop(run_id, None)
 
     def fail_run(self, *, run_id: str, error: str) -> None:
+        """Mark a run failed and emit a failure event.
+
+        Args:
+            run_id: Pipeline run identifier.
+            error: Error message describing the failure.
+        """
         with self._lock:
             if run_id not in self._run_status:
                 return
@@ -184,6 +240,18 @@ class PipelineProgressTracker:
         message: str,
         now_monotonic: float,
     ) -> dict[str, float]:
+        """Compute elapsed-time fields for an event from monotonic clocks.
+
+        Args:
+            run_id: Pipeline run identifier.
+            stage: Current stage name.
+            source: Optional source scoping the stage key.
+            message: Event message used to detect stage start/end.
+            now_monotonic: Current ``perf_counter`` reading.
+
+        Returns:
+            Timing fields such as run elapsed and stage duration seconds.
+        """
         timing_details: dict[str, float] = {}
 
         run_started = self._run_started_monotonic.get(run_id)
@@ -211,12 +279,26 @@ class PipelineProgressTracker:
         return timing_details
 
     def _clear_timing_state(self, run_id: str) -> None:
+        """Drop in-memory timing state for a finished run.
+
+        Args:
+            run_id: Pipeline run identifier to clear.
+        """
         self._run_started_monotonic.pop(run_id, None)
         self._last_event_monotonic.pop(run_id, None)
         self._stage_started_monotonic.pop(run_id, None)
 
+
 class _TrackerReporter:
+    """Thin ProgressReporter adapter bound to one tracker run."""
+
     def __init__(self, *, tracker: PipelineProgressTracker, run_id: str) -> None:
+        """Bind this reporter to a tracker and run.
+
+        Args:
+            tracker: Parent progress tracker.
+            run_id: Run identifier for appended events.
+        """
         self._tracker = tracker
         self.run_id = run_id
 
@@ -228,6 +310,14 @@ class _TrackerReporter:
         source: str | None = None,
         details: dict[str, object] | None = None,
     ) -> None:
+        """Forward a progress log line to the parent tracker.
+
+        Args:
+            stage: Pipeline stage name.
+            message: Human-readable event message.
+            source: Optional source name.
+            details: Optional structured metadata.
+        """
         self._tracker.append_event(
             run_id=self.run_id,
             stage=stage,
@@ -236,11 +326,29 @@ class _TrackerReporter:
             details=details,
         )
 
+
 def _is_stage_start_message(message: str) -> bool:
+    """Return whether a message indicates a stage start.
+
+    Args:
+        message: Event message text.
+
+    Returns:
+        True when the message looks like a stage-start signal.
+    """
     normalized = message.strip().lower()
     return normalized.startswith("starting ") or normalized.endswith(" started")
 
+
 def _is_stage_end_message(message: str) -> bool:
+    """Return whether a message indicates a stage end or terminal outcome.
+
+    Args:
+        message: Event message text.
+
+    Returns:
+        True when the message contains a known terminal marker.
+    """
     normalized = message.strip().lower()
     terminal_markers = (
         "completed",
@@ -251,5 +359,15 @@ def _is_stage_end_message(message: str) -> bool:
     )
     return any(marker in normalized for marker in terminal_markers)
 
+
 def _stage_key(*, stage: str, source: str | None) -> str:
+    """Build a composite key for stage timing buckets.
+
+    Args:
+        stage: Pipeline stage name.
+        source: Optional source name; ``*`` when absent.
+
+    Returns:
+        String key of the form ``stage::source``.
+    """
     return f"{stage}::{source or '*'}"

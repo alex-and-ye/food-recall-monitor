@@ -1,3 +1,9 @@
+"""ChromaDB and in-memory stores for early-warning discovery candidates.
+
+Persists discovery candidates and per-query search state used by the
+early-warning pipeline, with an in-memory test double sharing the same API.
+"""
+
 import json
 from typing import cast
 
@@ -13,10 +19,20 @@ from models.discovery_candidate import (
 from models.search_candidate import canonicalize_url
 
 class EarlyWarningCandidatesChromaClient(EarlyWarningCandidateDBInterface):
+    """Chroma-backed store for discovery candidates and query state."""
+
+    # Chroma collection for early-warning discovery candidates
     CANDIDATE_COLLECTION_NAME = "early_warning_candidates_collection"
+    # Chroma collection for early-warning search query pagination state
     QUERY_COLLECTION_NAME = "early_warning_queries_collection"
 
     def __init__(self, host: str, port: int) -> None:
+        """Connect to Chroma and ensure candidate/query collections exist.
+
+        Args:
+            host: Chroma HTTP host.
+            port: Chroma HTTP port.
+        """
         self.client = chromadb.HttpClient(host=host, port=port)
         self.candidate_collection = self.client.get_or_create_collection(
             name=self.CANDIDATE_COLLECTION_NAME
@@ -26,6 +42,14 @@ class EarlyWarningCandidatesChromaClient(EarlyWarningCandidateDBInterface):
         )
 
     def upsert_candidate(self, candidate: DiscoveryCandidate) -> DiscoveryCandidate:
+        """Insert or merge a candidate, reusing ID when URL already exists.
+
+        Args:
+            candidate: Candidate observation to store or merge.
+
+        Returns:
+            The stored candidate after merge/upsert.
+        """
         existing = self.get_candidate(candidate.candidate_id) or self.get_candidate_by_url(
             candidate.canonical_url
         )
@@ -61,6 +85,14 @@ class EarlyWarningCandidatesChromaClient(EarlyWarningCandidateDBInterface):
         return stored
 
     def get_candidate(self, candidate_id: str) -> DiscoveryCandidate | None:
+        """Fetch a candidate by ID from Chroma.
+
+        Args:
+            candidate_id: Unique candidate ID.
+
+        Returns:
+            Parsed candidate, or None if missing/blank/unparsable.
+        """
         key = candidate_id.strip()
         if not key:
             return None
@@ -69,6 +101,14 @@ class EarlyWarningCandidatesChromaClient(EarlyWarningCandidateDBInterface):
         return _parse_candidate(documents[0] if documents else None)
 
     def get_candidate_by_url(self, url: str) -> DiscoveryCandidate | None:
+        """Fetch a candidate by canonicalized URL metadata.
+
+        Args:
+            url: Source URL to look up.
+
+        Returns:
+            Parsed candidate, or None if not found.
+        """
         canonical_url = canonicalize_url(url)
         results = self.candidate_collection.get(
             where={"canonical_url": canonical_url},
@@ -83,6 +123,18 @@ class EarlyWarningCandidatesChromaClient(EarlyWarningCandidateDBInterface):
         decision: CandidateDecision | None = None,
         limit: int | None = None,
     ) -> list[DiscoveryCandidate]:
+        """List candidates filtered by decision, newest last_seen_at first.
+
+        Args:
+            decision: Optional decision filter.
+            limit: Max results; None for unlimited.
+
+        Returns:
+            Matching candidates.
+
+        Raises:
+            ValueError: If limit is negative.
+        """
         if limit is not None and limit < 0:
             raise ValueError("limit must be non-negative")
         where = {"decision": decision.value} if decision is not None else None
@@ -99,6 +151,14 @@ class EarlyWarningCandidatesChromaClient(EarlyWarningCandidateDBInterface):
         return candidates if limit is None else candidates[:limit]
 
     def upsert_query_state(self, state: EarlyWarningQueryState) -> EarlyWarningQueryState:
+        """Insert or replace search-query pagination state in Chroma.
+
+        Args:
+            state: Query state to persist.
+
+        Returns:
+            The same state object after upsert.
+        """
         metadata_values: dict[str, str | int | float | bool] = {
             "query_id": state.query_id,
             "country": state.query.country,
@@ -117,6 +177,14 @@ class EarlyWarningCandidatesChromaClient(EarlyWarningCandidateDBInterface):
         return state
 
     def get_query_state(self, query_id: str) -> EarlyWarningQueryState | None:
+        """Fetch query state by ID from Chroma.
+
+        Args:
+            query_id: Unique query state ID.
+
+        Returns:
+            Parsed state, or None if missing/blank/unparsable.
+        """
         key = query_id.strip()
         if not key:
             return None
@@ -125,6 +193,11 @@ class EarlyWarningCandidatesChromaClient(EarlyWarningCandidateDBInterface):
         return _parse_query_state(documents[0] if documents else None)
 
     def list_query_states(self) -> list[EarlyWarningQueryState]:
+        """Return all query states sorted by query_id.
+
+        Returns:
+            All successfully parsed query states.
+        """
         results = self.query_collection.get(include=["documents"])
         states = [
             state
@@ -138,10 +211,19 @@ class InMemoryEarlyWarningCandidateStore(EarlyWarningCandidateDBInterface):
     """Test double for candidate and query-state persistence."""
 
     def __init__(self) -> None:
+        """Initialize empty in-memory candidate and query-state maps."""
         self._candidates: dict[str, DiscoveryCandidate] = {}
         self._query_states: dict[str, EarlyWarningQueryState] = {}
 
     def upsert_candidate(self, candidate: DiscoveryCandidate) -> DiscoveryCandidate:
+        """Insert or merge a candidate in memory.
+
+        Args:
+            candidate: Candidate observation to store or merge.
+
+        Returns:
+            The stored candidate after merge/upsert.
+        """
         existing = self._candidates.get(candidate.candidate_id) or self.get_candidate_by_url(
             candidate.canonical_url
         )
@@ -152,9 +234,25 @@ class InMemoryEarlyWarningCandidateStore(EarlyWarningCandidateDBInterface):
         return stored
 
     def get_candidate(self, candidate_id: str) -> DiscoveryCandidate | None:
+        """Fetch a candidate by ID from the in-memory map.
+
+        Args:
+            candidate_id: Unique candidate ID.
+
+        Returns:
+            Matching candidate, or None if not found.
+        """
         return self._candidates.get(candidate_id.strip())
 
     def get_candidate_by_url(self, url: str) -> DiscoveryCandidate | None:
+        """Fetch a candidate by canonicalized URL from memory.
+
+        Args:
+            url: Source URL to look up.
+
+        Returns:
+            Matching candidate, or None if not found.
+        """
         canonical_url = canonicalize_url(url)
         return next(
             (
@@ -171,6 +269,18 @@ class InMemoryEarlyWarningCandidateStore(EarlyWarningCandidateDBInterface):
         decision: CandidateDecision | None = None,
         limit: int | None = None,
     ) -> list[DiscoveryCandidate]:
+        """List in-memory candidates, optionally filtered and limited.
+
+        Args:
+            decision: Optional decision filter.
+            limit: Max results; None for unlimited.
+
+        Returns:
+            Matching candidates, newest last_seen_at first.
+
+        Raises:
+            ValueError: If limit is negative.
+        """
         if limit is not None and limit < 0:
             raise ValueError("limit must be non-negative")
         candidates = list(self._candidates.values())
@@ -180,16 +290,45 @@ class InMemoryEarlyWarningCandidateStore(EarlyWarningCandidateDBInterface):
         return candidates if limit is None else candidates[:limit]
 
     def upsert_query_state(self, state: EarlyWarningQueryState) -> EarlyWarningQueryState:
+        """Insert or replace query state in memory.
+
+        Args:
+            state: Query state to persist.
+
+        Returns:
+            The stored state.
+        """
         self._query_states[state.query_id] = state
         return state
 
     def get_query_state(self, query_id: str) -> EarlyWarningQueryState | None:
+        """Fetch query state by ID from memory.
+
+        Args:
+            query_id: Unique query state ID.
+
+        Returns:
+            Matching state, or None if not found.
+        """
         return self._query_states.get(query_id.strip())
 
     def list_query_states(self) -> list[EarlyWarningQueryState]:
+        """Return all in-memory query states sorted by query_id.
+
+        Returns:
+            All stored query states.
+        """
         return sorted(self._query_states.values(), key=lambda item: item.query_id)
 
 def _parse_candidate(document: str | None) -> DiscoveryCandidate | None:
+    """Deserialize a DiscoveryCandidate from a Chroma document JSON string.
+
+    Args:
+        document: Raw JSON document, or None.
+
+    Returns:
+        Validated candidate, or None on empty/invalid input.
+    """
     if not document:
         return None
     try:
@@ -199,6 +338,14 @@ def _parse_candidate(document: str | None) -> DiscoveryCandidate | None:
         return None
 
 def _parse_query_state(document: str | None) -> EarlyWarningQueryState | None:
+    """Deserialize an EarlyWarningQueryState from a Chroma document JSON string.
+
+    Args:
+        document: Raw JSON document, or None.
+
+    Returns:
+        Validated query state, or None on empty/invalid input.
+    """
     if not document:
         return None
     try:

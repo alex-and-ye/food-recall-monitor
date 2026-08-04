@@ -1,3 +1,9 @@
+"""Search query/candidate models and URL canonicalization helpers.
+
+Supports the early-warning web search path: stable query IDs, sanitized
+public URLs, and ranked search result candidates.
+"""
+
 from __future__ import annotations
 
 import hashlib
@@ -8,6 +14,7 @@ from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 
 from pydantic import BaseModel, Field, field_validator
 
+# Query parameter names stripped during URL canonicalization (tracking IDs).
 _TRACKING_QUERY_KEYS = {
     "fbclid",
     "gclid",
@@ -17,9 +24,24 @@ _TRACKING_QUERY_KEYS = {
     "ref",
     "ref_src",
 }
+# Query parameter prefixes stripped during URL canonicalization (e.g. utm_*).
 _TRACKING_QUERY_PREFIXES = ("utm_",)
 
 def canonicalize_url(value: str) -> str:
+    """Normalize a public http(s) URL for stable identity comparison.
+
+    Strips tracking params, lowercases host, normalizes path, and rejects
+    local/private hosts and non-http schemes.
+
+    Args:
+        value: Raw URL string.
+
+    Returns:
+        Canonical URL without fragment.
+
+    Raises:
+        ValueError: If the URL is empty, non-http(s), local, or otherwise invalid.
+    """
     text = value.strip()
     if not text:
         raise ValueError("URL must be non-empty")
@@ -74,10 +96,20 @@ def canonicalize_url(value: str) -> str:
     return urlunsplit((scheme, netloc, normalized_path, query, ""))
 
 def stable_search_id(*parts: str) -> str:
+    """Build a stable hex ID from one or more string parts.
+
+    Args:
+        *parts: Strings joined with a NUL separator before hashing.
+
+    Returns:
+        SHA-256 hex digest of the joined payload.
+    """
     payload = "\0".join(part.strip() for part in parts)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 class SearchQuery(BaseModel):
+    """A normalized early-warning web search query with a stable ID."""
+
     query_id: str
     text: str = Field(min_length=1)
     country: str = Field(min_length=2, max_length=2)
@@ -93,6 +125,17 @@ class SearchQuery(BaseModel):
         language: str,
         domain: str | None = None,
     ) -> SearchQuery:
+        """Create a search query with normalized fields and derived ``query_id``.
+
+        Args:
+            text: Free-text search string.
+            country: ISO-like country code (stored uppercase).
+            language: Language code (stored lowercase).
+            domain: Optional domain filter.
+
+        Returns:
+            New ``SearchQuery`` instance.
+        """
         normalized_text = " ".join(text.split())
         normalized_country = country.strip().upper()
         normalized_language = language.strip().lower()
@@ -111,6 +154,8 @@ class SearchQuery(BaseModel):
         )
 
 class SearchCandidate(BaseModel):
+    """A single ranked search hit returned for an early-warning query."""
+
     title: str = Field(min_length=1)
     url: str
     description: str = ""
@@ -125,6 +170,7 @@ class SearchCandidate(BaseModel):
     @field_validator("title", "description", "age", mode="before")
     @classmethod
     def _strip_text(cls, value: object) -> str | None:
+        """Strip whitespace from optional/required text fields."""
         if value is None:
             return None
         return str(value).strip()
@@ -132,9 +178,12 @@ class SearchCandidate(BaseModel):
     @field_validator("url", mode="before")
     @classmethod
     def _validate_url(cls, value: object) -> str:
+        """Canonicalize and validate the candidate URL."""
         return canonicalize_url(str(value))
 
 class SearchResponse(BaseModel):
+    """Batch of search candidates for one executed query/page."""
+
     query: SearchQuery
     candidates: list[SearchCandidate] = Field(default_factory=list)
     total_count: int | None = Field(default=None, ge=0)

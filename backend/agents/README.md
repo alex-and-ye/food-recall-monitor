@@ -6,6 +6,10 @@ This package scrapes government / consumer-protection recall sites, discovers cr
 
 Downstream orchestration (persistence, progress tracking, geocoding) lives in `services/pipeline.py`, which calls into this package.
 
+It is invoked by `services/pipeline.py` (via bootstrap, the daily scheduler, or direct service use). Early-warning discovery lives under `services/early_warning/`, not here.
+
+For backend-wide setup (Python, Chroma, Ollama, env vars), see [../README.md](../README.md).
+
 ---
 
 ## High-level flow
@@ -172,6 +176,21 @@ Typical detail payload fields:
 Shared browser-like headers for sequential fetches: `SOURCE_REQUEST_HEADERS` in `scraper_ingestion.py`.
 
 ---
+
+
+---
+
+## Bootstrap web sources
+
+Homepage URLs used when the source registry is empty are defined in `config/sources.py`:
+
+| Source | Homepage |
+| --- | --- |
+| France | `https://rappel.conso.gouv.fr/` |
+| UK | `https://alerts.food.gov.uk/news-alerts` |
+| Germany | `https://www.lebensmittelwarnung.de/DE/Home/home_node.html` |
+
+Full listing/detail patterns are **discovered** at runtime (`fetchers/crawler/source_discovery.py`) and stored in the scraper source registry.
 
 ## LLM layer
 

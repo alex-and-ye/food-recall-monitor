@@ -1,3 +1,10 @@
+"""Orchestrates the official food-recall scraping and persistence pipeline.
+
+Runs the agent graph under an optional lock, persists alerts incrementally,
+geocodes map pins, updates the semantic index, and verifies early-warning
+incidents against newly saved official recalls.
+"""
+
 import asyncio
 
 from agents.graph import run_pipeline as run_agent_pipeline
@@ -17,7 +24,10 @@ from services.warnings import WarningsService
 from services.early_warning.verification import IncidentVerificationService
 from services.early_warning.semantic_index import SafetyEventSemanticIndex
 
+
 class PipelineService:
+    """Run the official recall pipeline and persist resulting alerts."""
+
     def __init__(
         self,
         db: FoodRecallAlertsDBInterface,
@@ -30,6 +40,19 @@ class PipelineService:
         run_lock: asyncio.Lock | None = None,
         semantic_index: SafetyEventSemanticIndex | None = None,
     ) -> None:
+        """Wire pipeline dependencies for persistence, progress, and side effects.
+
+        Args:
+            db: Alerts database for saving and updating coordinates.
+            source_db: Scraper source configuration store.
+            progress_tracker: Optional run progress / log tracker.
+            alert_broadcaster: Optional broadcaster for new official alerts.
+            warnings_service: Optional service for operational warnings.
+            verification_service: Optional early-warning official verification.
+            incident_broadcaster: Optional broadcaster for confirmed incidents.
+            run_lock: Optional lock serializing heavy pipeline runs.
+            semantic_index: Optional similarity index for saved alerts.
+        """
         self.db = db
         self.source_db = source_db
         self.progress_tracker = progress_tracker
@@ -41,12 +64,34 @@ class PipelineService:
         self.semantic_index = semantic_index
 
     async def run_pipeline(self, options: PipelineRunOptions | None = None) -> PipelineRunResult:
+        """Run the pipeline, acquiring ``run_lock`` when configured.
+
+        Args:
+            options: Optional run options; defaults are used when omitted.
+
+        Returns:
+            Aggregate result with saved counts and source failure info.
+
+        Raises:
+            Exception: Propagates pipeline failures after marking the run failed.
+        """
         if self.run_lock is None:
             return await self._run_pipeline(options)
         async with self.run_lock:
             return await self._run_pipeline(options)
 
     async def _run_pipeline(self, options: PipelineRunOptions | None = None) -> PipelineRunResult:
+        """Execute one official pipeline run with incremental alert persistence.
+
+        Args:
+            options: Optional run options.
+
+        Returns:
+            PipelineRunResult summarizing the completed run.
+
+        Raises:
+            Exception: On hard pipeline failure after emitting warnings.
+        """
         run_options = options or PipelineRunOptions()
         run_id: str | None = None
         reporter = None
@@ -62,6 +107,14 @@ class PipelineService:
             saved_alert_records = []
 
             async def save_alert_incrementally(alert: FoodRecallAlertCreate) -> int:
+                """Persist one alert, geocode it, and notify subscribers.
+
+                Args:
+                    alert: Newly processed alert to save.
+
+                Returns:
+                    Number of alerts inserted for this payload.
+                """
                 nonlocal saved_count
                 saved_alerts = self.db.save_alerts([alert])
                 saved_alert_records.extend(saved_alerts)
@@ -139,6 +192,14 @@ class PipelineService:
         source: str | None = None,
         run_id: str | None = None,
     ) -> None:
+        """Forward a soft pipeline warning when a warnings service is configured.
+
+        Args:
+            category: Warning category or convertible string value.
+            message: Human-readable warning text.
+            source: Optional source name.
+            run_id: Optional pipeline run identifier.
+        """
         if self.warnings_service is None:
             return
         self.warnings_service.emit(
@@ -149,6 +210,12 @@ class PipelineService:
         )
 
     def _emit_hard_failure(self, exc: Exception, *, run_id: str | None) -> None:
+        """Emit structured warnings for a hard pipeline failure.
+
+        Args:
+            exc: Exception that failed the run.
+            run_id: Active run identifier, if any.
+        """
         if self.warnings_service is None:
             return
         if isinstance(exc, SourceFetchError):

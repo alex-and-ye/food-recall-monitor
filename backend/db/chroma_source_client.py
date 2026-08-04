@@ -1,3 +1,9 @@
+"""ChromaDB and in-memory stores for scraper source registry documents.
+
+Persists SourceRegistryDocument records used to configure recall scrapers,
+with an in-memory test double / offline fallback sharing the same API.
+"""
+
 from __future__ import annotations
 
 import json
@@ -12,15 +18,29 @@ from models.scraper_config import ScraperSourceConfig
 from models.source_registry import DISCOVERY_STATUSES, DiscoveryStatus, SourceRegistryDocument
 
 class ScraperSourceConfigChromaClient(ScraperSourceConfigDBInterface):
+    """Chroma-backed store for scraper source registry documents."""
+
+    # Chroma collection name for scraper source registry entries
     COLLECTION_NAME = "scraper_sources_collection"
 
     def __init__(self, host: str, port: int) -> None:
+        """Connect to Chroma and ensure the sources collection exists.
+
+        Args:
+            host: Chroma HTTP host.
+            port: Chroma HTTP port.
+        """
         self.client = chromadb.HttpClient(host=host, port=port)
         self.collection = self.client.get_or_create_collection(
             name=ScraperSourceConfigChromaClient.COLLECTION_NAME
         )
 
     def list_sources(self) -> list[SourceRegistryDocument]:
+        """Return all registered sources sorted by source_name.
+
+        Returns:
+            Successfully parsed source registry documents.
+        """
         results = self.collection.get(include=["documents", "metadatas"])
         ids = results.get("ids") or []
         documents = results.get("documents") or []
@@ -34,9 +54,22 @@ class ScraperSourceConfigChromaClient(ScraperSourceConfigDBInterface):
         return sources
 
     def list_source_names(self) -> list[str]:
+        """Return source names from list_sources.
+
+        Returns:
+            Source name strings in sorted order.
+        """
         return [source.source_name for source in self.list_sources()]
 
     def get_source(self, source_name: str) -> SourceRegistryDocument | None:
+        """Fetch a source by lowercased name ID.
+
+        Args:
+            source_name: Source name key (normalized to lowercase).
+
+        Returns:
+            Parsed document, or None if missing/blank/unparsable.
+        """
         key = source_name.strip().lower()
         if not key:
             return None
@@ -51,6 +84,14 @@ class ScraperSourceConfigChromaClient(ScraperSourceConfigDBInterface):
         return self._parse_record(ids[0], document, metadata)
 
     def upsert_source(self, document: SourceRegistryDocument) -> SourceRegistryDocument:
+        """Insert or replace a source document and searchable metadata.
+
+        Args:
+            document: Source registry payload to store.
+
+        Returns:
+            The same document after upsert.
+        """
         payload = document.model_dump(mode="json")
         metadata = cast(
             Metadata,
@@ -72,6 +113,14 @@ class ScraperSourceConfigChromaClient(ScraperSourceConfigDBInterface):
         return document
 
     def delete_source(self, source_name: str) -> bool:
+        """Delete a source if it exists.
+
+        Args:
+            source_name: Source name key (normalized to lowercase).
+
+        Returns:
+            True if deleted; False if not found.
+        """
         key = source_name.strip().lower()
         existing = self.get_source(key)
         if existing is None:
@@ -80,6 +129,11 @@ class ScraperSourceConfigChromaClient(ScraperSourceConfigDBInterface):
         return True
 
     def count_sources(self) -> int:
+        """Return the number of source documents in the collection.
+
+        Returns:
+            Total source count.
+        """
         results = self.collection.get(include=[])
         return len(results.get("ids") or [])
 
@@ -89,6 +143,16 @@ class ScraperSourceConfigChromaClient(ScraperSourceConfigDBInterface):
         document: str | None,
         metadata: Metadata | None,
     ) -> SourceRegistryDocument | None:
+        """Parse a source from document JSON, falling back to metadata.
+
+        Args:
+            source_id: Chroma document ID used as a name fallback.
+            document: Raw document JSON string, if present.
+            metadata: Chroma metadata dict, if present.
+
+        Returns:
+            Parsed SourceRegistryDocument, or None if both sources fail.
+        """
         if document:
             try:
                 payload = json.loads(document)
@@ -131,22 +195,57 @@ class InMemoryScraperSourceConfigStore(ScraperSourceConfigDBInterface):
     """Test double and offline fallback for source registry persistence."""
 
     def __init__(self) -> None:
+        """Initialize an empty in-memory source map keyed by lowercased name."""
         self._sources: dict[str, SourceRegistryDocument] = {}
 
     def list_sources(self) -> list[SourceRegistryDocument]:
+        """Return all sources sorted by source_name.
+
+        Returns:
+            All stored source registry documents.
+        """
         return sorted(self._sources.values(), key=lambda item: item.source_name)
 
     def list_source_names(self) -> list[str]:
+        """Return source names from list_sources.
+
+        Returns:
+            Source name strings in sorted order.
+        """
         return [source.source_name for source in self.list_sources()]
 
     def get_source(self, source_name: str) -> SourceRegistryDocument | None:
+        """Fetch a source by lowercased name.
+
+        Args:
+            source_name: Source name key.
+
+        Returns:
+            Matching document, or None if not found.
+        """
         return self._sources.get(source_name.strip().lower())
 
     def upsert_source(self, document: SourceRegistryDocument) -> SourceRegistryDocument:
+        """Insert or replace a source in memory.
+
+        Args:
+            document: Source registry payload to store.
+
+        Returns:
+            The stored document.
+        """
         self._sources[document.source_name] = document
         return document
 
     def delete_source(self, source_name: str) -> bool:
+        """Delete a source from memory by lowercased name.
+
+        Args:
+            source_name: Source name key.
+
+        Returns:
+            True if deleted; False if not found.
+        """
         key = source_name.strip().lower()
         if key not in self._sources:
             return False
@@ -154,14 +253,35 @@ class InMemoryScraperSourceConfigStore(ScraperSourceConfigDBInterface):
         return True
 
     def count_sources(self) -> int:
+        """Return the number of sources in memory.
+
+        Returns:
+            Total source count.
+        """
         return len(self._sources)
 
 def _isoformat(value: datetime | None) -> str:
+    """Serialize a datetime to ISO format, or empty string if None.
+
+    Args:
+        value: Datetime to serialize.
+
+    Returns:
+        ISO-8601 string, or "" when value is None.
+    """
     if value is None:
         return ""
     return value.isoformat()
 
 def _parse_datetime(value: object) -> datetime | None:
+    """Parse an ISO datetime from a metadata value.
+
+    Args:
+        value: Raw metadata value (typically a string).
+
+    Returns:
+        Parsed datetime, or None if missing/invalid.
+    """
     if value is None:
         return None
     text = str(value).strip()
