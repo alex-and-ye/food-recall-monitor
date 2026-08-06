@@ -101,7 +101,7 @@ Enable or disable either pipeline in `backend/config/pipelines.yaml`. Discovery 
 food-recall-monitor/
 ├── backend/                 # FastAPI API, agents, pipelines, Chroma access
 │   ├── agents/              # Scrape + LLM agent pipeline (see agents/README.md)
-│   ├── api/ · routes/       # HTTP API surface
+│   ├── routes/              # HTTP API surface
 │   ├── config/              # agents.py, pipelines.yaml, early_warning.yaml
 │   ├── db/                  # Chroma / persistence interfaces
 │   ├── models/              # Pydantic / TypedDict domain models
@@ -120,7 +120,7 @@ food-recall-monitor/
 
 ## Prerequisites
 
-- **Docker** with Compose v2 (recommended full-stack path), **or** Node 20+ and Python 3.10+ for local development
+- **Docker** with Compose v2 (recommended full-stack path), **or** Node 20+ and Python **3.13** for local development
 - **[Ollama](https://ollama.com/)** installed and running **on the host** (required for all LLM stages)
 - Models pulled to match `backend/config/agents.py` (defaults use `qwen2.5:14b`):
 
@@ -209,7 +209,6 @@ cd frontend
 npm install
 # copy .env.example → .env.local as needed
 npm run dev          # http://localhost:3000
-npm run dev -- --test   # mock data, no backend required
 ```
 
 ### Configuration knobs
@@ -248,7 +247,6 @@ npm run dev -- --test   # mock data, no backend required
 | `/health` | Liveness check |
 
 Interactive OpenAPI docs: `http://localhost:8080/docs`.
-
 ---
 
 ## Environment variables
