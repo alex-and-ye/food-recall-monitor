@@ -177,9 +177,6 @@ Shared browser-like headers for sequential fetches: `SOURCE_REQUEST_HEADERS` in 
 
 ---
 
-
----
-
 ## Bootstrap web sources
 
 Homepage URLs used when the source registry is empty are defined in `config/sources.py`:

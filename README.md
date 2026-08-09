@@ -101,7 +101,7 @@ Enable or disable either pipeline in `backend/config/pipelines.yaml`. Discovery 
 food-recall-monitor/
 ├── backend/                 # FastAPI API, agents, pipelines, Chroma access
 │   ├── agents/              # Scrape + LLM agent pipeline (see agents/README.md)
-│   ├── api/ · routes/       # HTTP API surface
+│   ├── routes/              # HTTP API surface
 │   ├── config/              # agents.py, pipelines.yaml, early_warning.yaml
 │   ├── db/                  # Chroma / persistence interfaces
 │   ├── models/              # Pydantic / TypedDict domain models
@@ -120,7 +120,7 @@ food-recall-monitor/
 
 ## Prerequisites
 
-- **Docker** with Compose v2 (recommended full-stack path), **or** Node 20+ and Python 3.10+ for local development
+- **Docker** with Compose v2 (recommended full-stack path), **or** Node 20+ and Python **3.13** for local development
 - **[Ollama](https://ollama.com/)** installed and running **on the host** (required for all LLM stages)
 - Models pulled to match `backend/config/agents.py` (defaults use `qwen2.5:14b`):
 
@@ -209,7 +209,6 @@ cd frontend
 npm install
 # copy .env.example → .env.local as needed
 npm run dev          # http://localhost:3000
-npm run dev -- --test   # mock data, no backend required
 ```
 
 ### Configuration knobs
@@ -293,10 +292,10 @@ Offline LLM evaluation (translation / summarization / structuring quality and ti
 
 | Document | Contents |
 | --- | --- |
-| [`backend/README.md`](backend/README.md) | Backend local run, Chroma, Ollama notes |
-| [`backend/agents/README.md`](backend/agents/README.md) | Scraper + LangGraph agent package deep dive |
-| [`frontend/README.md`](frontend/README.md) | Frontend env, scripts, API rewrite setup |
-| [`benchmark/README.md`](benchmark/README.md) | Local LLM benchmark harness |
+| [`backend/README.md`](backend/README.md) | Backend purpose, structure, architecture, setup |
+| [`backend/agents/README.md`](backend/agents/README.md) | Official scrape + LangGraph agent package deep dive |
+| [`frontend/README.md`](frontend/README.md) | Frontend purpose, structure, architecture, setup |
+| [`benchmark/README.md`](benchmark/README.md) | Offline LLM quality / timing benchmark harness |
 
 ---
 
