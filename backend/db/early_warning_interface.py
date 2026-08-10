@@ -84,6 +84,3 @@ class EarlyWarningIncidentsDBInterface(ABC):
             Count of incidents in the store.
         """
         pass
-
-# Singular alias retained for callers that treat the repository as one aggregate.
-EarlyWarningIncidentDBInterface = EarlyWarningIncidentsDBInterface

@@ -240,7 +240,7 @@ Required structured fields include: `product_name`, `product_category`, `recall_
 
 **`normalizers/protected_fields.py`**
 
-Shared helpers: `clean_text`, `parse_source_date`, `first_text`, `split_source_list` — used when preferring scrape-grounded values during repair.
+Shared helpers: `clean_text`, `parse_source_date` — used when preferring scrape-grounded values during repair.
 
 ---
 

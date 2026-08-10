@@ -169,9 +169,6 @@ class EarlyWarningIncidentsChromaClient(EarlyWarningIncidentsDBInterface):
         except (KeyError, TypeError, ValueError):
             return None
 
-    # Convenient aliases for service/API callers.
-    get_incidents = list_incidents
-    save_incident = upsert_incident
 
 class InMemoryEarlyWarningIncidentStore(EarlyWarningIncidentsDBInterface):
     """Deterministic test double with the same update semantics as Chroma upsert."""
@@ -261,12 +258,6 @@ class InMemoryEarlyWarningIncidentStore(EarlyWarningIncidentsDBInterface):
         """
         return len(self._incidents)
 
-    get_incidents = list_incidents
-    save_incident = upsert_incident
-
-# Legacy aliases for older import paths
-InMemoryEarlyWarningStore = InMemoryEarlyWarningIncidentStore
-EarlyWarningChromaClient = EarlyWarningIncidentsChromaClient
 
 def _filter_and_sort(
     incidents: Iterable[EarlyWarningIncident],

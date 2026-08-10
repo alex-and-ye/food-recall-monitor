@@ -5,12 +5,8 @@
  * rewrites or proxies to the FastAPI backend.
  */
 
-import type { FoodRecallAlert, FoodRecallAlertStats, FoodRecallAlertsVersion } from "@/types/alert";
-import type {
-  EarlyWarningIncident,
-  IncidentsVersion,
-  IncidentStatusCounts,
-} from "@/types/incident";
+import type { FoodRecallAlert, FoodRecallAlertStats } from "@/types/alert";
+import type { EarlyWarningIncident } from "@/types/incident";
 import type { PipelineWarning, PipelineWarningsSummary } from "@/types/warning";
 import { ApiError } from "@/services/api/errors";
 
@@ -18,15 +14,6 @@ export { ApiError } from "@/services/api/errors";
 
 /** Browser API base path or absolute URL (defaults to `/api`). */
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "/api";
-
-/**
- * Returns the configured browser-facing API base URL.
- *
- * @returns Value of `NEXT_PUBLIC_API_URL`, or `/api`.
- */
-export function getApiBaseUrl(): string {
-  return API_BASE_URL;
-}
 
 /**
  * Returns the SSE endpoint URL for official alert change events.
@@ -162,15 +149,6 @@ export async function getAlertStats(): Promise<FoodRecallAlertStats> {
 }
 
 /**
- * Fetches a lightweight version fingerprint for the alerts collection.
- *
- * @returns Count and content fingerprint for change detection.
- */
-export async function getAlertsVersion(): Promise<FoodRecallAlertsVersion> {
-  return apiFetch<FoodRecallAlertsVersion>("/alerts/version");
-}
-
-/**
  * Fetches a single official food recall alert by ID.
  *
  * @param id - Alert identifier.
@@ -217,24 +195,6 @@ export async function getIncidentById(
   return apiFetch<EarlyWarningIncident>(
     `/incidents/${encodeURIComponent(id)}`,
   );
-}
-
-/**
- * Fetches counts of incidents grouped by verification status.
- *
- * @returns Status count breakdown.
- */
-export async function getIncidentStatusCounts(): Promise<IncidentStatusCounts> {
-  return apiFetch<IncidentStatusCounts>("/incidents/stats");
-}
-
-/**
- * Fetches a lightweight version fingerprint for the incidents collection.
- *
- * @returns Count and content fingerprint for change detection.
- */
-export async function getIncidentsVersion(): Promise<IncidentsVersion> {
-  return apiFetch<IncidentsVersion>("/incidents/version");
 }
 
 /**

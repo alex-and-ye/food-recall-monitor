@@ -78,7 +78,7 @@ frontend/
 | Path | Purpose |
 | --- | --- |
 | `next.config.ts` | `output: "standalone"` for Docker; `BACKEND_URL` rewrites; optional `ALLOWED_DEV_ORIGINS` |
-| `src/services/api/client.ts` | `getAlerts`, `getIncidents`, stats/version, warnings acknowledge, SSE URL helpers |
+| `src/services/api/client.ts` | `getAlerts`, `getIncidents`, alert stats, warnings acknowledge, SSE URL helpers |
 | `src/lib/proxyBackendEventStream.ts` | Raw Node HTTP(S) SSE proxy (avoids Undici’s default body timeout) |
 | `src/lib/backendOrigin.ts` | Resolves `BACKEND_URL` for server-side handlers |
 | `src/lib/alertSearch.ts` / `incidentSearch.ts` | Form state ↔ URL query ↔ API query params |
