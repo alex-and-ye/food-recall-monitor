@@ -191,35 +191,6 @@ async def ingest_early_warning_url(
     return ScrapedRecallRecord(source_name=hostname or "early-warning", payload=payload)
 
 
-async def ingest_url(
-    url: str,
-    *,
-    client: httpx.AsyncClient,
-    candidate: DiscoveryCandidate | None = None,
-    minimum_text_characters: int = 240,
-    timeout_seconds: float = 20.0,
-) -> ScrapedRecallRecord:
-    """Alias for ``ingest_early_warning_url`` with default fetchers.
-
-    Args:
-        url: URL to fetch.
-        client: Shared httpx client.
-        candidate: Optional search candidate for provenance.
-        minimum_text_characters: Minimum extracted visible text length.
-        timeout_seconds: Browser fetch timeout in seconds.
-
-    Returns:
-        ScrapedRecallRecord for the fetched page.
-    """
-    return await ingest_early_warning_url(
-        url,
-        client=client,
-        candidate=candidate,
-        minimum_text_characters=minimum_text_characters,
-        timeout_seconds=timeout_seconds,
-    )
-
-
 def _needs_browser_fallback(html: str, visible_text: str, minimum: int) -> bool:
     """Return whether static extraction warrants a browser retry.
 

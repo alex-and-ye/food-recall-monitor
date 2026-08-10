@@ -8,8 +8,6 @@ export type CountrySource = "UK" | "Germany" | "France";
 
 export type SortBy = "latest" | "oldest";
 
-export type WebSourceKey = "uk" | "germany" | "france";
-
 /** Canonical risk level values accepted by the API and UI. */
 export const RISK_LEVELS = [
   "High",
@@ -36,29 +34,6 @@ export const SORT_BY_OPTIONS = [
   SORT_BY_LATEST,
   SORT_BY_OLDEST,
 ] as const satisfies readonly SortBy[];
-
-/** Web scraper key for UK sources. */
-export const WEB_SOURCE_UK = "uk" as const satisfies WebSourceKey;
-
-/** Web scraper key for German sources. */
-export const WEB_SOURCE_GERMANY = "germany" as const satisfies WebSourceKey;
-
-/** Web scraper key for French sources. */
-export const WEB_SOURCE_FRANCE = "france" as const satisfies WebSourceKey;
-
-/** Maps lowercase web-source keys to display country sources. */
-export const WEB_SOURCE_TO_COUNTRY_SOURCE = {
-  [WEB_SOURCE_UK]: "UK",
-  [WEB_SOURCE_GERMANY]: "Germany",
-  [WEB_SOURCE_FRANCE]: "France",
-} as const satisfies Record<WebSourceKey, CountrySource>;
-
-/** Ordered list of known web-source keys. */
-export const WEB_SOURCE_KEYS = [
-  WEB_SOURCE_UK,
-  WEB_SOURCE_GERMANY,
-  WEB_SOURCE_FRANCE,
-] as const satisfies readonly WebSourceKey[];
 
 /**
  * Type guard for {@link RiskLevel} string values.
@@ -120,10 +95,4 @@ export interface FoodRecallAlertStats {
   top_5_affected_regions: [string, number][];
   alerts_last_7_days: number;
   alerts_last_30_days: number;
-}
-
-/** Version information for food recall alerts. */
-export interface FoodRecallAlertsVersion {
-  count: number;
-  fingerprint: string;
 }

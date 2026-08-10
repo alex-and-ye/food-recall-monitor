@@ -128,8 +128,6 @@ class EarlyWarningIncidentService:
                 return self._persist(self._merge(existing, prepared))
         return self._persist(prepared)
 
-    create_or_update = save_incident  # Alias used by callers expecting create_or_update.
-
     def get_incident(self, incident_id: str) -> EarlyWarningIncident | None:
         """Fetch one incident by id.
 

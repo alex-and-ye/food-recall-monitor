@@ -250,24 +250,6 @@ _early_warning_pipeline_service = EarlyWarningPipelineService(
 )
 
 
-def get_pipeline_logs_db() -> PipelineRunLogsDBInterface:
-    """Provide the process-wide pipeline run-logs store.
-
-    Returns:
-        Pipeline run logs database interface.
-    """
-    return _pipeline_logs_db
-
-
-def get_pipeline_progress_tracker() -> PipelineProgressTracker:
-    """Provide the shared pipeline progress tracker.
-
-    Returns:
-        Tracker used to report in-flight pipeline progress.
-    """
-    return _pipeline_progress_tracker
-
-
 def _country_source_from_registry(source_name: str) -> str | None:
     """Look up ``country_source`` for a registered scraper source name.
 
@@ -371,15 +353,6 @@ def get_pipeline_switches():
     return _pipeline_switches
 
 
-def get_pipeline_run_lock() -> asyncio.Lock:
-    """Provide the shared lock that serializes pipeline runs.
-
-    Returns:
-        Process-wide ``asyncio.Lock``.
-    """
-    return _pipeline_run_lock
-
-
 def get_sources_service(
     source_db: ScraperSourceConfigDBInterface = Depends(get_source_config_db),
 ) -> SourcesService:
@@ -392,15 +365,6 @@ def get_sources_service(
         Sources service bound to ``source_db``.
     """
     return SourcesService(source_db)
-
-
-def get_warnings_db() -> PipelineWarningsDBInterface:
-    """Provide the pipeline warnings store.
-
-    Returns:
-        Warnings database interface.
-    """
-    return _warnings_db
 
 
 def get_warnings_service() -> WarningsService:

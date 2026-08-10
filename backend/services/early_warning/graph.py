@@ -591,15 +591,6 @@ class EarlyWarningProcessingService:
         raise AgentOutputError(f"early-warning incident extraction failed: {last_error}")
 
 
-def create_early_warning_graph() -> EarlyWarningProcessingService:
-    """Factory that returns a default EarlyWarningProcessingService.
-
-    Returns:
-        Processing service with default LLM chat callables.
-    """
-    return EarlyWarningProcessingService()
-
-
 def _normalize_taxonomy_payload(payload: object) -> dict[str, Any]:
     """Normalize alternate taxonomy key names into content_type.
 

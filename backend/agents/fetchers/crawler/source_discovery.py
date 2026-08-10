@@ -18,7 +18,7 @@ from urllib.parse import urlparse
 import httpx
 from bs4 import BeautifulSoup
 
-from agents.fetchers.crawler.discovery import extract_internal_links, matches_detail_url
+from agents.fetchers.crawler.discovery import extract_internal_links
 from agents.fetchers.rendering.browser_fetch import fetch_browser_html
 from agents.fetchers.rendering.static_fetch import fetch_static_html
 from agents.llm import chat_json
@@ -1135,15 +1135,3 @@ def _looks_dynamic(html: str) -> bool:
     script_tags = html.count("<script")
     text_like = len(" ".join(html.split()))
     return script_tags > 20 and text_like < 3_000
-
-def smoke_match_detail_links(links: list[str], detail_page_keywords: list[str]) -> list[str]:
-    """Filter links that match configured detail-page keywords (smoke-test helper).
-
-    Args:
-        links: Absolute URLs to test.
-        detail_page_keywords: Path fragments indicating detail pages.
-
-    Returns:
-        Subset of ``links`` matching at least one keyword.
-    """
-    return [link for link in links if matches_detail_url(link, detail_page_keywords)]

@@ -1,7 +1,7 @@
 """Manage scraper source registry documents and LLM-driven discovery.
 
-Supports listing, registration, rediscovery, and stale marking for homepage
-sources used by the official recall crawl pipeline.
+Supports listing, registration, and rediscovery for homepage sources used by
+the official recall crawl pipeline.
 """
 
 import logging
@@ -139,22 +139,6 @@ class SourcesService:
             reporter=reporter,
         )
         return self._source_db.upsert_source(document)
-
-    def mark_stale(self, source_name: str, reason: str) -> SourceRegistryDocument | None:
-        """Mark an existing source as stale with a reason.
-
-        Args:
-            source_name: Source to update.
-            reason: Human-readable staleness reason.
-
-        Returns:
-            Updated document, or None if the source does not exist.
-        """
-        existing = self._source_db.get_source(source_name)
-        if existing is None:
-            return None
-        updated = existing.touch(status=DiscoveryStatus.STALE, reason=reason)
-        return self._source_db.upsert_source(updated)
 
     async def _run_discovery(
         self,

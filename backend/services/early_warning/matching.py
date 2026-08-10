@@ -277,30 +277,6 @@ class IncidentMatcher:
         )[0]
 
 
-def find_incident_match(
-    incoming: EarlyWarningIncident,
-    candidates: Iterable[EarlyWarningIncident],
-    *,
-    date_window_days: int = 7,
-    semantic_scorer: SemanticScorer | None = None,
-) -> MatchResult | None:
-    """Convenience wrapper around IncidentMatcher.find_match.
-
-    Args:
-        incoming: Incident to match.
-        candidates: Existing incidents.
-        date_window_days: Entity-date window in days.
-        semantic_scorer: Optional semantic scorer.
-
-    Returns:
-        MatchResult or None.
-    """
-    return IncidentMatcher(
-        date_window_days=date_window_days,
-        semantic_scorer=semantic_scorer,
-    ).find_match(incoming, candidates)
-
-
 def find_official_match(
     incident: EarlyWarningIncident,
     alerts: Iterable[FoodRecallAlert],

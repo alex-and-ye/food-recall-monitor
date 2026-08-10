@@ -134,21 +134,6 @@ export interface EarlyWarningIncident {
   processing_errors: string[];
 }
 
-/** Statistics for early-warning incidents. */
-export interface IncidentStatusCounts {
-  pending: number;
-  corroborated: number;
-  officially_confirmed: number;
-  dismissed: number;
-  superseded: number;
-}
-
-/** Version information for early-warning incidents. */
-export interface IncidentsVersion {
-  count: number;
-  fingerprint: string;
-}
-
 /**
  * Type guard for {@link IncidentType} string values.
  *
